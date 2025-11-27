@@ -1,0 +1,239 @@
+"""
+Phone number normalization for HumanMint.
+
+Parses, validates, and formats phone numbers using the phonenumbers library.
+Supports US and international numbers, extensions, and multiple output formats.
+
+Philosophy:
+- US-focused: Optimized for US phone numbers in contact data
+- Practical: "Can a human reasonably dial this?" > strict telecom validation
+- Lenient: Accepts common patterns even if telecom-invalid (e.g., 555 numbers)
+- Structured: Always returns consistent dict, never throws, never returns "N/A"
+"""
+
+import re
+from functools import lru_cache
+from typing import Dict, Optional
+import phonenumbers
+from phonenumbers import NumberParseException, PhoneNumberType
+
+# Precompiled regexes for faster parsing
+_EXT_KEYWORD_PATTERN = re.compile(
+    r'\b(?:ext(?:ension)?|extn|x)\s*[:.]?\s*(\d{1,6})\b',
+    re.IGNORECASE,
+)
+_HASH_PATTERN = re.compile(r'#(\d+)(?:\s|$)')
+_MULTI_SPACE_PATTERN = re.compile(r'\s{2,}(\d{2,5})(?:\s|$)')
+_TYPE_MAP = {
+    PhoneNumberType.MOBILE: "MOBILE",
+    PhoneNumberType.FIXED_LINE: "FIXED_LINE",
+    PhoneNumberType.FIXED_LINE_OR_MOBILE: "FIXED_LINE_OR_MOBILE",
+    PhoneNumberType.TOLL_FREE: "TOLL_FREE",
+    PhoneNumberType.PREMIUM_RATE: "PREMIUM_RATE",
+    PhoneNumberType.SHARED_COST: "SHARED_COST",
+    PhoneNumberType.VOIP: "VOIP",
+    PhoneNumberType.PERSONAL_NUMBER: "PERSONAL_NUMBER",
+    PhoneNumberType.PAGER: "PAGER",
+    PhoneNumberType.UAN: "UAN",
+    PhoneNumberType.VOICEMAIL: "VOICEMAIL",
+    PhoneNumberType.UNKNOWN: "UNKNOWN",
+}
+
+# Reusable empty template (copied per call to avoid accidental mutation)
+_EMPTY_PHONE: Dict[str, Optional[str]] = {
+    "e164": None,
+    "pretty": None,
+    "extension": None,
+    "country": None,
+    "type": None,
+    "is_valid": False,
+}
+
+
+def _extract_extension(raw: str) -> tuple[str, Optional[str]]:
+    """
+    Extract extension from a phone string.
+
+    Handles common extension patterns:
+    - "x123", "X123" (x-extension)
+    - "ext 123", "ext.123", "ext:123" (extension keyword)
+    - "ext fax", "ext fx" (special extension keywords)
+    - "#123" (hash extension)
+    - " 123" at the end (numeric suffix)
+
+    Args:
+        raw: Raw phone string.
+
+    Returns:
+        Tuple of (phone_without_extension, extension_or_none).
+    """
+    if not raw:
+        return raw, None
+
+    # Pattern 1: x / ext / extension keywords followed by digits
+    # Matches: x123, X456, ext123, ext 789, ext.999, ext:111, extension 77
+    match = _EXT_KEYWORD_PATTERN.search(raw)
+    if match:
+        extension = match.group(1)
+        cleaned = _EXT_KEYWORD_PATTERN.sub(' ', raw).strip()
+        return cleaned, extension
+
+    # Pattern 2: #123 (hash extension, common in some regions)
+    match = _HASH_PATTERN.search(raw)
+    if match:
+        extension = match.group(1)
+        cleaned = _HASH_PATTERN.sub(' ', raw).strip()
+        return cleaned, extension
+
+    # Pattern 3: Multiple spaces or trailing numbers that look like extensions
+    # Only if there's clearly a gap (e.g., "202 555 1234    123")
+    match = _MULTI_SPACE_PATTERN.search(raw)
+    if match:
+        extension = match.group(1)
+        cleaned = _MULTI_SPACE_PATTERN.sub(' ', raw).strip()
+        return cleaned, extension
+
+    return raw, None
+
+
+def _get_phone_type(parsed_number) -> Optional[str]:
+    """
+    Get the type of phone number (MOBILE, FIXED_LINE, etc.).
+
+    Args:
+        parsed_number: Parsed phonenumbers.PhoneNumber object.
+
+    Returns:
+        Type string: "MOBILE", "FIXED_LINE", "TOLL_FREE", "UNKNOWN", or None if invalid.
+    """
+    try:
+        number_type = phonenumbers.number_type(parsed_number)
+        return _TYPE_MAP.get(number_type, "UNKNOWN")
+    except Exception:
+        return None
+
+
+def _empty(extension: Optional[str] = None, country: Optional[str] = None) -> Dict[str, Optional[str]]:
+    """Return empty/invalid phone result."""
+    result = _EMPTY_PHONE.copy()
+    result["extension"] = extension
+    result["country"] = country
+    return result
+
+
+@lru_cache(maxsize=4096)
+def _normalize_phone_cached(
+    phone_part: str, country: Optional[str], extension: Optional[str]
+) -> Dict[str, Optional[str]]:
+    """Cached normalization core to avoid expensive re-parsing."""
+    try:
+        parsed = phonenumbers.parse(phone_part, country)
+    except NumberParseException:
+        return _empty(extension=extension, country=country)
+
+    detected_country = phonenumbers.region_code_for_number(parsed)
+
+    # Determine validity
+    if detected_country == "US":
+        # US numbers: accept if it has 10 digits and valid format structure
+        is_valid = (
+            phonenumbers.is_possible_number(parsed)
+            and len(str(parsed.national_number)) == 10
+        )
+    else:
+        # International: use strict validation
+        is_valid = phonenumbers.is_valid_number(parsed)
+
+    if not is_valid:
+        return _empty(extension=extension, country=detected_country)
+
+    # Format E.164
+    e164 = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+
+    # Format pretty: use a custom format for US numbers
+    if detected_country == "US":
+        national = str(parsed.national_number)
+        pretty = f"+1 {national[:3]}-{national[3:6]}-{national[6:]}"
+    else:
+        # Use phonenumbers formatting for other countries
+        pretty = phonenumbers.format_number(
+            parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
+        )
+
+    phone_type = _get_phone_type(parsed)
+
+    return {
+        "e164": e164,
+        "pretty": pretty,
+        "extension": extension,
+        "country": detected_country,
+        "type": phone_type,
+        "is_valid": True,
+    }
+
+
+def normalize_phone(
+    raw: Optional[str], country: Optional[str] = None
+) -> Dict[str, Optional[str]]:
+    """
+    Normalize a phone number to E.164 format and extract metadata.
+
+    Handles:
+    - International numbers with country codes
+    - Domestic numbers (with optional country hint)
+    - Extensions (x, ext, #, etc.)
+    - Various formatting styles
+
+    Args:
+        raw: Raw phone string (e.g., "(202) 555-1234", "+1-202-555-1234 x123").
+        country: Optional ISO 3166-1 alpha-2 country code (e.g., "US", "GB").
+                 Used as hint for parsing domestic numbers without country code.
+
+    Returns:
+        Dict with keys:
+        - e164: Normalized E.164 format (e.g., "+12025551234") or None
+        - pretty: Pretty-formatted number (e.g., "(202) 555-1234") or None
+        - extension: Extracted extension number or None
+        - country: Detected or provided country code or None
+        - type: Phone type ("MOBILE", "FIXED_LINE", etc.) or None
+        - is_valid: Whether the number is valid
+
+    Examples:
+        >>> normalize_phone("(202) 555-1234", country="US")
+        {
+            "e164": "+12025551234",
+            "pretty": "(202) 555-1234",
+            "extension": None,
+            "country": "US",
+            "type": "FIXED_LINE",
+            "is_valid": True
+        }
+
+        >>> normalize_phone("+1-202-555-1234 x123")
+        {
+            "e164": "+12025551234",
+            "pretty": "+1 202 555 1234",
+            "extension": "123",
+            "country": "US",
+            "type": "FIXED_LINE",
+            "is_valid": True
+        }
+    """
+    if not raw or not isinstance(raw, str):
+        return _empty()
+
+    # Clean up the input
+    raw = raw.strip()
+    if not raw:
+        return _empty()
+
+    # Extract extension
+    phone_part, extension = _extract_extension(raw)
+    phone_part = phone_part.strip()
+    extension = extension or None
+
+    if not phone_part:
+        return _empty()
+
+    result = _normalize_phone_cached(phone_part, country, extension)
+    return result.copy()

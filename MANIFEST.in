@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include src/humanmint/data/*.json.gz
+include src/humanmint/py.typed
+# Keep raw sources out of the wheel to reduce size
+exclude src/humanmint/data/*.csv
+exclude src/humanmint/data/*.txt
+exclude src/humanmint/data/original/*
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store

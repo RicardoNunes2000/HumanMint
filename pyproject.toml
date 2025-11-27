@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "humanmint"
+version = "0.1.0"
+authors = [
+    { name="Ricardo Nunes", email="your.email@example.com" },
+]
+description = "Clean, functional data processing for human-centric applications. Normalize and standardize names, emails, phones, departments, and job titles with a single unified API."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+keywords = ["data-processing", "normalization", "names", "emails", "phones", "departments", "titles", "civic-data"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Office/Business",
+    "Topic :: Text Processing",
+]
+dependencies = [
+    "email-validator>=2.0.0",
+    "phonenumbers>=8.13.0",
+    "nameparser>=1.1.0",
+    "nicknames>=0.0.2",
+    "rapidfuzz>=3.6",
+    "importlib_resources>=5.0; python_version < '3.9'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "mypy>=1.0",
+    "faker>=20.0",
+]
+pandas = [
+    "pandas>=1.5",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/yourusername/humanmint"
+"Documentation" = "https://github.com/yourusername/humanmint#readme"
+"Bug Tracker" = "https://github.com/yourusername/humanmint/issues"
+"Source Code" = "https://github.com/yourusername/humanmint"
+
+[project.scripts]
+humanmint = "humanmint.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages]
+find = { where = ["src"] }
+
+[tool.setuptools.package-data]
+humanmint = [
+    "data/*.json.gz",
+    "py.typed",
+]

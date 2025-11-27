@@ -1,0 +1,84 @@
+# Canonical title equivalence groups (comma-separated variants per line)
+mayor,town mayor,city mayor,village mayor,village president,mayor pro tem,vice mayor,borough president,town supervisor,council president,first selectman,first selectwoman,board of selectmen chair
+city manager,city administrator,town administrator,town manager,municipal administrator,village manager,village administrator,borough manager,township manager,county manager,county administrator,chief administrative officer,cao,city administrator/clerk,city administrator clerk
+deputy city manager,assistant city manager,assistant town manager,deputy town administrator,chief of staff,assistant county manager,deputy county administrator
+city clerk,town clerk,municipal clerk,village clerk,county clerk,district clerk,clerk of council,city secretary,city recorder,town recorder,clerk-treasurer,clerk/treasurer,fiscal officer,recorder,clerk of the board,board clerk,records manager,records administrator
+deputy city clerk,deputy clerk,assistant city clerk,assistant town clerk,deputy town clerk
+city attorney,town attorney,municipal attorney,village attorney,county attorney,law director,city legal director,corporation counsel,general counsel,solicitor,borough solicitor,legal director,township solicitor
+general manager,gm
+prosecutor,prosecuting attorney,district attorney,assistant district attorney,state attorney,public defender
+council member,councilmember,councilman,councilwoman,alderman,alderperson,town councilor,city councilor,councilor,city council member,town council member,selectman,selectwoman,city commissioner,county commissioner,board of directors
+board member,board trustee,trustee,village trustee,school board member,board president,board of trustees member,school board president,board administrator
+police chief,chief of police,police commissioner,police director,superintendent of police,public safety director,director of public safety,marshal
+deputy police chief,deputy chief of police,assistant police chief,assistant chief of police,chief deputy,deputy chief
+police officer,patrol officer,patrolman,patrolwoman,police patrolman,peace officer,law enforcement officer,constable,cop,reserve officer
+police sergeant,sergeant,police sgt,detective sergeant,patrol sergeant
+police lieutenant,lieutenant,police lt,patrol lieutenant
+police captain,captain,police cpt
+detective,police detective,investigator,criminal investigator
+sheriff,county sheriff,elected sheriff
+deputy sheriff,deputy,sheriff deputy
+school resource officer,sro,police school liaison
+dispatcher,police dispatcher,fire dispatcher,emergency dispatcher,communications officer,911 dispatcher,telecommunicator,communications operator
+fire chief,chief of fire,fire department chief,fire director,fire commissioner
+deputy fire chief,deputy chief of fire,assistant fire chief,assistant chief of fire
+battalion chief,fire battalion chief
+fire captain,fire cpt,company officer
+fire lieutenant,fire lt
+fire marshal,fire prevention officer,fire inspector,deputy fire marshal
+firefighter,fireman,firewoman,firefighter paramedic,firefighter emt,fire fighter,fire engineer
+emergency management director,director of emergency management,emergency manager,emergency services director,emergency management coordinator,emergency services coordinator,ems director
+paramedic,emt,emergency medical technician,firefighter/paramedic,firefighter/emt
+superintendent,superintendent of schools,district superintendent,school superintendent
+assistant superintendent,deputy superintendent,associate superintendent,chief academic officer
+principal,school principal,head of school,high school principal,elementary principal,middle school principal,elementary school principal
+assistant principal,vice principal,associate principal,deputy principal,dean of students
+special education director,director of special education,director of student services,student services director,coordinator of special education,sped coordinator
+athletic director,director of athletics,sports director,athletic coordinator,assistant athletic director
+school counselor,guidance counselor,student counselor,counselor,school psychologist,school social worker
+classroom teacher,elementary teacher,high school teacher,middle school teacher,kindergarten teacher,science teacher,math teacher,english teacher,art teacher,music teacher,physical education teacher
+paraprofessional,teacher aide,educational assistant,teacher assistant,instructional aide,paraeducator,instructional assistant
+public works director,director of public works,public works superintendent,public works manager,dpw director,commissioner of public works,superintendent of public works,public works supervisor
+city engineer,town engineer,municipal engineer,city engineering director,director of engineering,county engineer,traffic engineer
+assistant city engineer,deputy city engineer,associate city engineer,assistant engineer,engineering technician
+streets superintendent,street director,director of streets,highway superintendent,street superintendent,road commissioner,road supervisor,road and bridge,road superintendent
+water superintendent,water director,director of water,water utilities director,water services director,water department manager,utilities director,wastewater superintendent,wastewater director,director of wastewater,sewer superintendent
+finance director,director of finance,finance manager,chief financial officer,cfo,finance officer,comptroller,controller,city comptroller,treasurer,town treasurer,city treasurer,county treasurer,village treasurer,deputy treasurer,assistant treasurer,director of business services,business administrator,chief business officer
+accountant,staff accountant,senior accountant,accounting specialist,accounting manager,account clerk,accounting clerk,accounting technician,bookkeeper
+auditor,city auditor,county auditor,internal auditor,deputy auditor
+assessor,assessing director,director of assessing,city assessor,town assessor,chief assessor,tax assessor,county assessor,chief appraiser,property appraiser,deputy assessor
+tax collector,tax administrator,revenue collector,tax receiver,receiver of taxes
+purchasing director,director of purchasing,purchasing manager,procurement director,director of procurement,purchasing agent,procurement officer,procurement manager,contract manager
+human resources director,director of human resources,hr director,director of hr,personnel director,chief people officer,human resources manager,hr manager,human resources generalist,hr generalist,human resources coordinator,hr coordinator,human resources specialist
+information technology director,it director,director of information technology,director of it,chief information officer,cio,technology director,director of technology,technology coordinator,it manager,chief technology officer,cto,director of innovation,head of technology
+planning director,director of planning,planning manager,planning officer,city planner,town planner,county planner,community planner
+senior planner,planner ii,associate planner,planner i,assistant planner,planning technician
+community development director,director of community development,development director,community development manager,community development coordinator
+economic development director,director of economic development,economic development manager,economic development coordinator
+building inspector,chief building inspector,inspector of buildings,electrical inspector,plumbing inspector,construction inspector,housing inspector,plans examiner
+building official,building commissioner,director of building services,building department director,chief building official,construction official,inspector of buildings,code enforcement director,director of code enforcement,code enforcement officer,code enforcement inspector,code compliance officer,code enforcement manager
+zoning administrator,zoning director,zoning officer,zoning enforcement officer,zoning inspector
+parks and recreation director,director of parks and recreation,parks director,parks & recreation director,director of parks & recreation,parks and rec director,recreation director,recreation superintendent,superintendent of recreation,director of parks recreation and seniors,director of parks & recreation & seniors
+recreation manager,recreation superintendent,superintendent of recreation,leisure services director,recreation division manager,sports and athletics administrator
+recreation coordinator,recreation specialist,recreation supervisor,recreation program coordinator,sports coordinator,recreation leader, Recreation Manager,youth sports coordinator,recreation program manager
+parks superintendent,park manager,parks operations manager,parks and grounds superintendent,parks supervisor,superintendent of parks
+library director,director of library services,head librarian,chief librarian,city librarian,library manager
+court clerk,court administrator,municipal court administrator,deputy court clerk,clerk of courts,circuit clerk,municipal court clerk
+judge,municipal judge,magistrate,town justice,justice of the peace,county judge,magisterial district judge
+probation officer,probation counselor,juvenile probation officer
+communications director,director of communications,public information officer,pio,media relations director,communications manager,community relations director,press secretary
+health director,director of health,health officer,public health director,director of public health
+animal control director,director of animal control,animal services director,animal control supervisor
+animal control officer,animal control warden,dog officer,animal control specialist
+facilities director,director of facilities,facilities manager,buildings and grounds director,maintenance director,maintenance supervisor,director of operations,director of facilities & transportation
+fleet manager,fleet director,director of fleet services,fleet supervisor
+transit director,director of transit,transportation director,director of transportation,transportation manager,transportation supervisor
+housing director,director of housing,housing administrator,housing authority director,executive director of housing
+administrative assistant,admin assistant,administrative support,administration assistant,executive administrative assistant,administrative specialist,administrative coordinator,office assistant
+secretary,administrative secretary,office secretary,departmental secretary,executive secretary,legal secretary
+executive director,chief executive officer,ceo,agency director
+curriculum director,director of curriculum,director of curriculum & instruction,director of learning,director of instruction,chief academic officer
+provost,vice chancellor,chancellor
+dean,dean of stem,dean of education,dean of student affairs
+registrar,university registrar,director of admissions
+ciso,chief information security officer,director of information security,it security manager,cybersecurity manager
