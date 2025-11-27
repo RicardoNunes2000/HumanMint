@@ -36,7 +36,7 @@ Real-world contact data is messy:
 - Names with titles: "Dr. Jane Smith, PhD"
 - Phone numbers in various formats: "(555) 123-4567" vs "555.123.4567"
 - Departments with codes and noise: "000171 - Public Works 555-123-1234 ext 200"
-- Job titles that need standardization: "Chief of Police" → canonical form
+- Job titles that need standardization: "Chief of Police" -> canonical form
 - Emails with inconsistent casing: "JOHN.SMITH@EXAMPLE.COM"
 - Single names that need gender inference: "Jo", "Al", "Ty"
 
@@ -53,7 +53,7 @@ HumanMint cleans and standardizes everything in one call.
 - Titles: Canonicalization and fuzzy matching against curated heuristics.
 - Pandas: `df.humanmint.clean(...)` accessor with heuristic column guessing or explicit `name_col/email_col/...` mapping.
 - CLI: `humanmint clean input.csv output.csv` with auto-guessing or explicit `--name-col/--email-col/--phone-col/--dept-col/--title-col`.
-- Pickle-backed data: All reference data ships as `.pkl` for fast loads; raw sources live under `original/`.
+- Gzip-backed data: Reference data ships as `.json.gz` caches for fast loads; raw sources live under `src/humanmint/data/original/`.
 - Ethics: Gender inference is probabilistic from historical name data and not a determination of identity; downstream use should respect that.
 
 ## API Reference
@@ -82,6 +82,13 @@ result.title            # dict: {raw, cleaned, canonical, is_valid}
 # Convert to dict for JSON
 result.model_dump()
 ```
+
+## Customization
+
+You can steer canonicals without forking data files:
+
+- **Department overrides:** Map normalized departments to your preferred canonical. Example: `mint(department="RevOps", dept_overrides={"revenue operations": "Sales"})` or pass the same dict into `bulk()`/pandas/CLI.
+- **Title overrides / ignores:** Map cleaned titles to a canonical string with `title_overrides`. To ignore a title, set it to `None` and drop records where `result.title` is `None` or `result.title["is_valid"]` is `False`.
 
 ## Examples
 
@@ -159,7 +166,7 @@ humanmint clean input.csv output.csv --name-col name --email-col email
 If you edit the raw datasets in `src/humanmint/data/original/`, rebuild the packaged `.json.gz` caches with:
 
 ```bash
-python scripts/build_pickles.py
+python scripts/build_caches.py
 ```
 
 ## Performance
@@ -181,7 +188,7 @@ python scripts/build_pickles.py
 
 ## Version
 
-0.2.0
+0.1.0
 
 ## License
 

@@ -96,6 +96,20 @@ def _extract_extension(raw: str) -> tuple[str, Optional[str]]:
     return raw, None
 
 
+def _strip_international_prefix(raw: str) -> str:
+    """
+    Strip leading 00 (common international prefix) and collapse +001 -> +1.
+    """
+    if not raw:
+        return raw
+    cleaned = raw.strip()
+    # Normalize 00... to +
+    cleaned = re.sub(r"^00", "+", cleaned)
+    # Collapse +001 to +1
+    cleaned = re.sub(r"^\+00?1", "+1", cleaned)
+    return cleaned
+
+
 def _get_phone_type(parsed_number) -> Optional[str]:
     """
     Get the type of phone number (MOBILE, FIXED_LINE, etc.).
@@ -227,8 +241,9 @@ def normalize_phone(
     if not raw:
         return _empty()
 
-    # Extract extension
-    phone_part, extension = _extract_extension(raw)
+    # Normalize international prefixes and extract extension
+    phone_clean = _strip_international_prefix(raw)
+    phone_part, extension = _extract_extension(phone_clean)
     phone_part = phone_part.strip()
     extension = extension or None
 

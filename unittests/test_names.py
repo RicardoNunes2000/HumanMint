@@ -6,8 +6,8 @@ def test_normalize_name_extracts_components():
 
     assert result["first"] == "Michael"
     assert result["last"] == "Brown"
-    assert result["suffix"] == "phd"
-    assert result["canonical"] == "michael brown phd"
+    assert result["suffix"] is None
+    assert result["canonical"] == "michael brown"
     assert result["is_valid"] is True
 
 
@@ -36,3 +36,24 @@ def test_normalize_name_handles_curly_apostrophes():
     assert result["first"] == "Mark"
     assert result["last"] == "O'Donnell"
     assert result["full"] == "Mark O'Donnell"
+
+
+def test_normalize_name_strips_ranks_and_badges():
+    result = normalize_name("Sgt. Daniel Brooks #172")
+
+    assert result["first"] == "Daniel"
+    assert result["last"] == "Brooks"
+    assert "172" not in result["full"]
+
+
+def test_normalize_name_preserves_apostrophe_casing():
+    result = normalize_name("Anne-Marie D'Angelo")
+
+    assert result["last"] == "D'Angelo"
+
+
+def test_normalize_name_drops_credentials_from_suffix():
+    result = normalize_name("Brian J. Lopez, SHRM-CP")
+
+    assert result["suffix"] is None
+    assert result["full"] == "Brian J Lopez"

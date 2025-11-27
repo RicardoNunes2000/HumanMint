@@ -52,3 +52,15 @@ def test_normalize_department_preserves_slash_separators():
     cleaned = normalize_department("Police / Fire / Emergency Mgt")
 
     assert " / " in cleaned
+
+
+def test_sheriff_office_maps_to_police():
+    match = find_best_match("Sheriff's Office", threshold=0.5)
+
+    assert match == "Sheriff"
+
+
+def test_transit_ops_maps_to_transportation():
+    match = find_best_match("Transit Operations Division", threshold=0.5)
+
+    assert match == "Transportation Services"

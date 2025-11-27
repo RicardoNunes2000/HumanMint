@@ -54,7 +54,7 @@ def _load_free_email_providers() -> Set[str]:
     if not providers:
         raise FileNotFoundError(
             "Free email providers cache not found or unreadable. "
-            "Run scripts/build_pickles.py to regenerate free_email_providers.json.gz."
+            "Run scripts/build_caches.py to regenerate free_email_providers.json.gz."
         )
 
     _FREE_PROVIDERS_CACHE = providers

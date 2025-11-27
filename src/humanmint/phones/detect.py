@@ -6,7 +6,6 @@ Detects patterns that indicate impossible numbers, fax lines, and VoIP providers
 
 from typing import Dict, Optional
 import re
-import phonenumbers
 
 
 # VoIP provider patterns (common VoIP area codes and prefixes)
@@ -16,7 +15,7 @@ VOIP_PATTERNS = {
     "area_codes": {
         "534",  # Wisconsin VoIP
         "551",  # New Jersey VoIP
-                "564",  # Washington VoIP
+        "564",  # Washington VoIP
         "628",  # California VoIP
         "650",  # California VoIP
         "678",  # Georgia VoIP

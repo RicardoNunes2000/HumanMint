@@ -23,6 +23,7 @@ from .normalize import normalize_department
 
 # Cache for CSV mappings to avoid repeated file reads
 _mapping_cache = None
+_mapping_keys = None
 _canonical_lowers = [(c, c.lower()) for c in CANONICAL_DEPARTMENTS]
 
 # Keywords that indicate non-department data (building names, locations, etc.)
@@ -63,6 +64,46 @@ _COMMON_ABBREVIATIONS = {
 
 # Regex pattern for location-like inputs (e.g., "Room 101", "Building 5A", "Suite 200")
 _LOCATION_PATTERN = r"(room|floor|building|suite|office|bldg|rm|apt)\s*\d"
+_GENERIC_DEPT_TOKENS = {
+    "dept",
+    "department",
+    "division",
+    "office",
+    "services",
+    "service",
+    "ops",
+    "operations",
+    "administration",
+    "admin",
+}
+_KEYWORD_CANONICAL = {
+    "sheriff": "Sheriff",
+    "transit": "Transportation Services",
+    "transportation": "Transportation Services",
+    "transport": "Transportation Services",
+    "bus": "Transportation Services",
+    "garage": "Fleet Services",
+    "metro": "Transportation Services",
+    "it": "Information Technology",
+    "digital": "Information Technology",
+    "technology": "Information Technology",
+    "tech": "Information Technology",
+    "library": "Library",
+    "election": "Elections",
+    "elections": "Elections",
+    "recorder": "Recorder",
+    "recorders": "Recorder",
+    "clerk": "City Clerk",
+    "isd": "Board of Education",
+    "school": "Board of Education",
+    "district": "Board of Education",
+    "planning": "Planning",
+    "planner": "Planning",
+    "housing": "Housing",
+    "engineering": "Engineering",
+    "engineer": "Engineering",
+    "code": "Code Enforcement",
+}
 
 
 def _is_likely_non_department(text: str) -> bool:
@@ -114,7 +155,7 @@ def is_likely_non_department(text: str) -> bool:
 
 def _get_mapping_cache():
     """Lazy-load and cache CSV mappings."""
-    global _mapping_cache
+    global _mapping_cache, _mapping_keys
     if _mapping_cache is None:
         # Load full mappings dict for fast lookups
         from .data_loader import load_mappings
@@ -125,6 +166,7 @@ def _get_mapping_cache():
         for canonical, originals in all_mappings.items():
             for original in originals:
                 _mapping_cache[original.lower()] = canonical
+        _mapping_keys = list(_mapping_cache.keys())
     return _mapping_cache
 
 
@@ -135,6 +177,16 @@ def _find_best_match_normalized(
 ) -> Optional[str]:
     """Cached core matcher for already-normalized names."""
     search_name_lower = search_name.lower()
+    search_name_ascii = search_name_lower.replace("’", "'")
+    search_tokens = {t for t in re.findall(r"[a-z0-9]+", search_name_ascii) if t}
+
+    # Hard overrides to avoid common cross-domain collisions
+    if "planning" in search_tokens:
+        return "Planning"
+    if "housing" in search_tokens:
+        return "Housing"
+    if "public" in search_tokens and "works" in search_tokens:
+        return "Public Works"
 
     parts = [p for p in search_name_lower.split() if p]
     for part in parts:
@@ -145,6 +197,11 @@ def _find_best_match_normalized(
             return _COMMON_ABBREVIATIONS[token]
         # Only look at the leading meaningful token for abbreviation shortcuts
         break
+
+    # Keyword-based shortcuts to keep domain-correct matches
+    for kw, canon in _KEYWORD_CANONICAL.items():
+        if kw in search_tokens:
+            return canon
 
     # Early rejection: if input looks like a building/location, don't force-match
     # This prevents "Harbor Building 04B" from matching to "Budget"
@@ -160,23 +217,39 @@ def _find_best_match_normalized(
         mapping_cache = _get_mapping_cache()
         if search_name_lower in mapping_cache:
             return mapping_cache[search_name_lower]
+        # Fuzzy match against original names to avoid hard mismaps
+        if _mapping_keys:
+            fuzzy_result = process.extractOne(
+                search_name_lower,
+                _mapping_keys,
+                scorer=fuzz.token_sort_ratio,
+                score_cutoff=max(85, threshold * 100),
+            )
+            if fuzzy_result:
+                candidate_key, score = fuzzy_result[0], fuzzy_result[1]
+                cand_tokens = {t for t in candidate_key.split() if t not in _GENERIC_DEPT_TOKENS}
+                search_tokens = {t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS}
+                if cand_tokens and search_tokens and cand_tokens.intersection(search_tokens):
+                    return mapping_cache.get(candidate_key)
     except Exception:
         # If mapping cache fails, continue to other strategies
         pass
 
-    # Strategy 2: Check for substring match with canonical departments
-    # e.g., "Fire Department" contains "Fire", "Water Utilities" contains "Water"
+    # Strategy 2: Check for substring match with canonical departments, requiring meaningful token overlap
     matches = []
     for canonical, canonical_lower in _canonical_lowers:
         if canonical_lower in search_name_lower or search_name_lower in canonical_lower:
-            # Score: how early in the search string does this appear? (prefer early matches)
-            # and prefer longer canonical names for specificity
-            position = search_name_lower.find(canonical_lower)
-            score = (
-                -position,
-                len(canonical),
-            )  # Negative position = earlier = higher score
-            matches.append((score, canonical))
+            search_tokens = {t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS}
+            canonical_tokens = {t for t in canonical_lower.split() if t not in _GENERIC_DEPT_TOKENS}
+            if search_tokens and canonical_tokens and search_tokens.intersection(canonical_tokens):
+                # Score: how early in the search string does this appear? (prefer early matches)
+                # and prefer longer canonical names for specificity
+                position = search_name_lower.find(canonical_lower)
+                score = (
+                    -position,
+                    len(canonical),
+                )  # Negative position = earlier = higher score
+                matches.append((score, canonical))
 
     if matches:
         # Return the best match (earliest appearance, then longest)
@@ -184,7 +257,7 @@ def _find_best_match_normalized(
 
     # Strategy 3: Find close matches using rapidfuzz (fallback)
     # Try multiple scoring strategies to find the best match
-    score_cutoff = threshold * 100
+    score_cutoff = max(80, threshold * 100)
 
     # First try token_set_ratio (better for extra words like "Polce Department")
     result = process.extractOne(
@@ -194,7 +267,12 @@ def _find_best_match_normalized(
         score_cutoff=score_cutoff,
     )
     if result and result[1] >= score_cutoff:  # Verify score meets threshold
-        return result[0]
+        candidate = result[0]
+        # Require at least one meaningful token overlap to prevent cross-domain mismaps
+        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
+        filtered_search = {t for t in search_tokens if t not in _GENERIC_DEPT_TOKENS}
+        if cand_tokens and filtered_search and cand_tokens.intersection(filtered_search):
+            return candidate
 
     # If token_set_ratio fails, try token_sort_ratio
     result = process.extractOne(
@@ -204,7 +282,11 @@ def _find_best_match_normalized(
         score_cutoff=score_cutoff,
     )
     if result and result[1] >= score_cutoff:  # Verify score meets threshold
-        return result[0]
+        candidate = result[0]
+        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
+        filtered_search = {t for t in search_tokens if t not in _GENERIC_DEPT_TOKENS}
+        if cand_tokens and filtered_search and cand_tokens.intersection(filtered_search):
+            return candidate
 
     # If still no match, try with a slightly lower threshold using partial_ratio
     # This catches typos better (e.g., "Polce" -> "Police")

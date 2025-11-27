@@ -5,9 +5,10 @@ Provides the main normalize_title_full() function that returns a structured
 result dictionary with raw, cleaned, and canonical information.
 """
 
-from typing import Optional, TypedDict
+from typing import Optional, TypedDict, Dict
 from .normalize import normalize_title
 from .matching import find_best_match
+from .normalize import re as _re
 
 
 class TitleResult(TypedDict, total=False):
@@ -16,11 +17,14 @@ class TitleResult(TypedDict, total=False):
     cleaned: str
     canonical: Optional[str]
     is_valid: bool
+    confidence: float
 
 
 def normalize_title_full(
     raw_title: str,
     threshold: float = 0.6,
+    dept_canonical: Optional[str] = None,
+    overrides: Optional[Dict[str, str]] = None,
 ) -> TitleResult:
     """
     Normalize a job title and return structured result with all details.
@@ -87,16 +91,131 @@ def normalize_title_full(
             "is_valid": False,
         }
 
-    # Step 2: Find best canonical match
-    canonical = find_best_match(
-        cleaned,
-        threshold=threshold,
-        normalize=False,  # Already cleaned
-    )
+    # Step 2: Apply overrides if provided
+    canonical = None
+    confidence = 0.0
+    if overrides:
+        cleaned_lower = cleaned.lower()
+        overrides_lower = {k.lower(): v for k, v in overrides.items()}
+        if cleaned_lower in overrides_lower:
+            canonical = overrides_lower[cleaned_lower]
+            confidence = 0.98
+
+    # Step 3: Find best canonical match
+    if canonical is None:
+        canonical, confidence = find_best_match(
+            cleaned,
+            threshold=threshold,
+            normalize=False,  # Already cleaned
+        )
+
+    # Functional heuristics to mark common job patterns as valid even without canonical
+    seniority_tokens = {
+        "assistant",
+        "associate",
+        "senior",
+        "deputy",
+        "chief",
+        "lead",
+        "principal",
+    }
+    functional_tokens = {
+        "planner",
+        "analyst",
+        "coordinator",
+        "administrator",
+        "admin",
+        "specialist",
+        "technician",
+        "tech",
+        "manager",
+        "director",
+        "officer",
+        "supervisor",
+        "investigator",
+        "engineer",
+        "program",
+        "housing",
+        "business",
+        "development",
+        "operations",
+        "ops",
+        "generalist",
+        "captain",
+        "sergeant",
+        "lieutenant",
+        "treasurer",
+        "patrol",
+    }
+
+    tokens = [t.lower().strip(".") for t in _re.split(r"[\s/]+", cleaned) if t]
+    has_functional = any(t in functional_tokens for t in tokens)
+    has_seniority = any(t in seniority_tokens for t in tokens)
+
+    is_valid = canonical is not None or has_functional or has_seniority
+
+    # Ignore Roman numerals for validity decisions; keep canonical None if not matched
+    canonical_value = canonical if canonical else (cleaned if is_valid else None)
+
+    # If dept is sheriff, avoid mapping to police-specific canonicals
+    if dept_canonical and canonical_value:
+        if dept_canonical.lower().startswith("sheriff") and "police" in canonical_value.lower():
+            canonical_value = cleaned
+
+    # Contextual fallback/override: rank-only titles paired with dept clues
+    if dept_canonical:
+        dept_low = dept_canonical.lower()
+        cleaned_tokens = [t.lower() for t in cleaned.split() if t]
+        rank_map = {
+            "captain": "captain",
+            "lt": "lieutenant",
+            "lieutenant": "lieutenant",
+            "sgt": "sergeant",
+            "sergeant": "sergeant",
+            "marshal": "marshal",
+            "chief": "chief",
+        }
+        if len(cleaned_tokens) == 1 and cleaned_tokens[0] in rank_map:
+            rank = rank_map[cleaned_tokens[0]]
+            contextual = None
+            if "fire" in dept_low:
+                contextual = f"fire {rank}"
+            elif "police" in dept_low or "public safety" in dept_low:
+                contextual = f"police {rank}"
+            elif "sheriff" in dept_low:
+                contextual = f"sheriff {rank}"
+            if contextual:
+                canonical = contextual
+                confidence = max(confidence, 0.9)
+
+    # Allow certain titles as valid canonicals even without match
+    fallback_titles = {
+        "paralegal",
+        "epidemiologist",
+        "records clerk",
+        "administrative aide",
+    }
+    cleaned_lower = cleaned.lower()
+    if canonical is None and cleaned_lower in fallback_titles:
+        canonical_value = cleaned_lower
+        is_valid = True
+        confidence = max(confidence, 0.9)
+
+    # Recompute canonical_value after any contextual overrides
+    canonical_value = canonical if canonical else (cleaned if is_valid else None)
+
+    # Canonical should always be lowercase for consistency
+    if isinstance(canonical_value, str):
+        canonical_value = canonical_value.lower()
+
+    # Ensure confidence is non-zero when we have a canonical value
+    if canonical_value and confidence == 0.0:
+        confidence = 0.7
 
     return {
         "raw": raw_title,
         "cleaned": cleaned,
-        "canonical": canonical,
-        "is_valid": canonical is not None,
+        "canonical": canonical_value,
+        "is_valid": is_valid,
+        "confidence": float(confidence if canonical_value else 0.0),
     }

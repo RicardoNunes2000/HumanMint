@@ -9,8 +9,10 @@ COLUMN_GUESSES = {
     "email": ["email", "e-mail", "mail", "contact_email", "work_email"],
     "phone": ["phone", "cell", "mobile", "fax", "contact_phone", "telephone"],
     "name": ["name", "full_name", "contact_name", "person", "employee"],
-    "department": ["dept", "department", "division", "bureau", "team"],
+    "department": ["dept", "department", "division", "bureau", "team", "unit", "work"],
     "title": ["title", "job_title", "position", "role"],
+    "address": ["address", "addr", "street", "location"],
+    "organization": ["org", "organization", "agency", "company", "employer", "office"],
 }
 
 

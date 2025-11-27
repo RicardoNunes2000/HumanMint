@@ -61,7 +61,7 @@ def _load_gender_data() -> Dict[str, str]:
         return _gender_cache
 
     raise FileNotFoundError(
-        f"Names cache not found: {NAMES_CACHE}. Run scripts/build_pickles.py."
+        f"Names cache not found: {NAMES_CACHE}. Run scripts/build_caches.py."
     )
 
 
@@ -110,7 +110,7 @@ def infer_gender(
         if not _gender_warning_emitted:
             warnings.warn(
                 f"Names cache missing; gender inference disabled. "
-                f"Expected at {NAMES_CACHE}. Run scripts/build_pickles.py to generate.",
+                f"Expected at {NAMES_CACHE}. Run scripts/build_caches.py to generate.",
                 RuntimeWarning,
             )
             _gender_warning_emitted = True

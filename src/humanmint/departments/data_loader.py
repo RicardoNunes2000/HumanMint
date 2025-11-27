@@ -17,6 +17,7 @@ MAPPINGS_CACHE = DATA_DIR / "department_mappings_list.json.gz"
 
 # Canonical list of all standardized department names
 CANONICAL_DEPARTMENTS = [
+    "Sheriff",
     "Administration",
     "Airport",
     "Animal Control",
@@ -146,7 +147,7 @@ def _build_caches() -> None:
         if not _missing_cache_warned:
             warnings.warn(
                 f"Department cache not found at {MAPPINGS_CACHE}. "
-                "Run scripts/build_pickles.py to generate it.",
+                "Run scripts/build_caches.py to generate it.",
                 RuntimeWarning,
             )
             _missing_cache_warned = True

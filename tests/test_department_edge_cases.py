@@ -1,82 +1,109 @@
-"""Comprehensive test suite for department matching edge cases."""
-
+import time
+import random
+from faker import Faker
 import sys
+
+# Ensure we can import the library
 sys.path.insert(0, "src")
 
-from humanmint.departments.matching import find_best_match, find_all_matches
+from humanmint import mint
 
-# Test cases: (input, expected_canonical, description)
-test_cases = [
-    # Basic cases (should work before and after)
-    ("Public Works", "Public Works", "Exact match"),
-    ("Police", "Police", "Exact canonical"),
-    ("005 - Public Wrks Dept", "Public Works", "Codes and abbreviations"),
+fake = Faker("en_US")
 
-    # Typo cases (the main issue we're fixing)
-    ("Polce", "Police", "Single letter typo"),
-    ("Polce Dept", "Police", "Typo with extra word"),
-    ("Polce Department", "Police", "Typo with full word"),
-    ("Polce - North Precinct", "Police", "Typo with additional context"),
-
-    # Extra words (token_set_ratio should help)
-    ("Public Works Department", "Public Works", "Extra word"),
-    ("Police Force", "Police", "Alternative phrasing"),
-    ("Fire Department Service", "Fire", "Multiple extra words"),
-
-    # Case variations
-    ("POLICE", "Police", "All caps"),
-    ("public works", "Public Works", "All lowercase"),
-    ("PoLiCe", "Police", "Mixed case"),
-
-    # Abbreviations
-    ("PW", "Public Works", "Two-letter abbreviation"),
-    ("PD", "Police", "Two-letter abbreviation"),
-
-    # Codes and prefixes (handled by normalize_department)
-    ("001 - Finance", "Finance", "Code prefix"),
-    ("Finance Dept", "Finance", "Dept suffix"),
-
-    # Similar departments (should not confuse)
-    ("Public Safety", "Public Safety", "Public Safety (not Works)"),
-    ("Parks & Recreation", "Parks & Recreation", "Ampersand"),
+# Realistic US departments
+DEPARTMENTS = [
+    "Police Department",
+    "Fire Department",
+    "Department of Public Works",
+    "Planning & Zoning",
+    "Water & Sewer",
+    "Parks & Recreation",
+    "City Clerk",
+    "Elections",
+    "Finance Department",
+    "Human Resources",
+    "Health Department",
+    "Transportation Services",
+    "Information Technology",
+    "Community Development",
 ]
 
-print("=" * 100)
-print("DEPARTMENT MATCHING EDGE CASES TEST SUITE")
-print("=" * 100)
+# Realistic US titles
+TITLES = [
+    "Chief of Police",
+    "Police Officer",
+    "Fire Chief",
+    "Captain",
+    "Lieutenant",
+    "Planner",
+    "Senior Planner",
+    "HR Manager",
+    "Finance Analyst",
+    "Budget Analyst",
+    "Network Engineer",
+    "IT Systems Administrator",
+    "Deputy Director",
+    "Administrative Coordinator",
+    "City Clerk",
+    "Epidemiologist",
+    "Water Engineer",
+    "Housing Specialist",
+]
 
-passed = 0
-failed = 0
-failures = []
 
-for input_val, expected, description in test_cases:
-    result = find_best_match(input_val, threshold=0.6)
-    status = "[PASS]" if result == expected else "[FAIL]"
+def generate_record():
+    full_name = fake.name()
+    first, last = full_name.split(" ")[0], full_name.split(" ")[-1]
 
-    if result == expected:
-        passed += 1
-    else:
-        failed += 1
-        failures.append((input_val, expected, result, description))
+    # Random gov domain
+    domain = random.choice(
+        [
+            f"{fake.city().replace(' ', '').lower()}.gov",
+            f"{fake.city().replace(' ', '').lower()}-{fake.word()}.gov",
+            f"{fake.city().replace(' ', '').lower()}.us",
+        ]
+    )
 
-    print(f"\n{status} | {description}")
-    print(f"       Input: '{input_val}'")
-    print(f"       Expected: '{expected}'")
-    print(f"       Got: '{result}'")
+    email = f"{first.lower()}.{last.lower()}@{domain}"
 
-print("\n" + "=" * 100)
-print(f"RESULTS: {passed} passed, {failed} failed out of {len(test_cases)} total")
-print("=" * 100)
+    phone = fake.phone_number()
 
-if failures:
-    print("\nFAILED CASES:")
-    for input_val, expected, got, desc in failures:
-        print(f"\n  • {desc}")
-        print(f"    Input: '{input_val}' → Expected: '{expected}', Got: '{got}'")
+    department = random.choice(DEPARTMENTS)
+    title = random.choice(TITLES)
 
-        # Show alternatives
-        alternatives = find_all_matches(input_val, threshold=0.5, top_n=3)
-        if alternatives and alternatives[0] != got:
-            print(f"    Top alternatives: {alternatives}")
-else:
-    print("\n[SUCCESS] ALL TESTS PASSED!")
+    return {
+        "name": full_name,
+        "email": email,
+        "phone": phone,
+        "department": department,
+        "title": title,
+    }
+
+
+def main():
+    N = 5000
+    print(f"Generating and processing {N} records...")
+
+    records = [generate_record() for _ in range(N)]
+
+    start = time.perf_counter()
+    results = [mint(**r) for r in records]
+    end = time.perf_counter()
+
+    total_ms = (end - start) * 1000
+    avg_ms = total_ms / N
+
+    print(f"\n=== SAMPLE OUTPUTS ===")
+    for i in range(5):
+        print(f"\n--- Record #{i + 1} ---")
+        print(results[i].model_dump())
+
+    print("\n=== PERFORMANCE ===")
+    print(f"Total time: {total_ms:.2f} ms")
+    print(f"Avg per record: {avg_ms:.4f} ms")
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()

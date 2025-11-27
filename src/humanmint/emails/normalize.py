@@ -7,9 +7,11 @@ Simple, functional, predictable.
 import sys
 import gzip
 import json
+import re
 from functools import lru_cache
 from typing import Dict, Optional, Set
 from email_validator import validate_email, EmailNotValidError
+from urllib.parse import urlsplit
 
 from .classifier import is_free_provider
 
@@ -66,7 +68,7 @@ def _load_generic_inboxes() -> Set[str]:
     if not inboxes:
         raise FileNotFoundError(
             "Generic inbox cache not found or unreadable. "
-            "Run scripts/build_pickles.py to regenerate generic_inboxes.json.gz."
+            "Run scripts/build_caches.py to regenerate generic_inboxes.json.gz."
         )
 
     _GENERIC_INBOXES_CACHE = inboxes
@@ -74,7 +76,31 @@ def _load_generic_inboxes() -> Set[str]:
 
 
 def _clean(raw: str) -> str:
-    return raw.strip().lower()
+    # Strip obvious wrappers and lowercase
+    cleaned = raw.strip().strip("<>").lower()
+    cleaned = cleaned.replace(" ", "")
+
+    # Handle mailto: and URL-style inputs
+    if cleaned.startswith("mailto:"):
+        cleaned = cleaned[len("mailto:") :]
+
+    # If there's no '@' but it looks like a URL, leave as-is for validator to fail fast
+    if "@" not in cleaned:
+        return cleaned
+
+    local, _, domain = cleaned.partition("@")
+
+    # Normalize domain: drop schemes, ports, paths, trailing dots, and duplicate dots
+    parsed = urlsplit(domain if "://" in domain else f"//{domain}")
+    domain_part = parsed.netloc or parsed.path
+    domain_part = domain_part.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    if ":" in domain_part and not domain_part.startswith("["):
+        domain_part = domain_part.split(":", 1)[0]
+    domain_part = re.sub(r"\.{2,}", ".", domain_part).strip(".")
+    if domain_part.startswith("www."):
+        domain_part = domain_part[4:]
+
+    return f"{local}@{domain_part}" if domain_part else cleaned
 
 
 def _validate(email: str) -> Optional[str]:

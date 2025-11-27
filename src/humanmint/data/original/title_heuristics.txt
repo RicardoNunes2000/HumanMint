@@ -38,6 +38,22 @@ athletic director,director of athletics,sports director,athletic coordinator,ass
 school counselor,guidance counselor,student counselor,counselor,school psychologist,school social worker
 classroom teacher,elementary teacher,high school teacher,middle school teacher,kindergarten teacher,science teacher,math teacher,english teacher,art teacher,music teacher,physical education teacher
 paraprofessional,teacher aide,educational assistant,teacher assistant,instructional aide,paraeducator,instructional assistant
+substitute teacher,substitute,sub teacher,guest teacher,sub
+school nurse,nurse rn,health services nurse
+bus driver,school bus driver,bus operator,bus aide,bus monitor
+transportation supervisor,transportation manager,transportation coordinator,bus barn supervisor
+fleet mechanic,bus mechanic,diesel mechanic,garage mechanic,auto mechanic
+custodian,janitor,building custodian,head custodian
+maintenance technician,maintenance tech,building maintenance,facilities technician,maintenance worker
+groundskeeper,grounds crew,grounds maintenance,landscaper
+food service worker,cafeteria worker,lunch aide,nutrition services worker,food service assistant
+cafeteria manager,kitchen manager,food service manager,nutrition manager
+head cook,lead cook,cafeteria cook
+coach,athletic coach,sports coach,varsity coach,assistant coach
+athletic trainer,sports trainer,trainer
+instructional coach,learning coach,academic coach
+library media specialist,media specialist,school librarian,librarian
+code enforcement officer,code enforcement manager,code enforcement director,chief code enforcement officer,deputy chief code officer,code compliance officer,code inspector,building code officer,code enforcement supervisor,code enforcement official
 public works director,director of public works,public works superintendent,public works manager,dpw director,commissioner of public works,superintendent of public works,public works supervisor
 city engineer,town engineer,municipal engineer,city engineering director,director of engineering,county engineer,traffic engineer
 assistant city engineer,deputy city engineer,associate city engineer,assistant engineer,engineering technician

@@ -16,6 +16,7 @@ class NameResult(TypedDict, total=False):
     suffix: Optional[str]
     full: str
     gender: str
+    canonical: str
 
 
 class EmailResult(TypedDict, total=False):
@@ -45,6 +46,7 @@ class DepartmentResult(TypedDict, total=False):
     canonical: Optional[str]
     category: Optional[str]
     is_override: bool
+    confidence: float
 
 
 class TitleResult(TypedDict, total=False):
@@ -53,3 +55,25 @@ class TitleResult(TypedDict, total=False):
     cleaned: Optional[str]
     canonical: Optional[str]
     is_valid: Optional[bool]
+    confidence: float
+
+
+class AddressResult(TypedDict, total=False):
+    """Normalized postal address."""
+    raw: str
+    street: Optional[str]
+    unit: Optional[str]
+    city: Optional[str]
+    state: Optional[str]
+    zip: Optional[str]
+    country: Optional[str]
+    canonical: Optional[str]
+    confidence: float
+
+
+class OrganizationResult(TypedDict, total=False):
+    """Normalized organization/agency name."""
+    raw: str
+    normalized: str
+    canonical: str
+    confidence: float

@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "humanmint"
 version = "0.1.0"
 authors = [
-    { name="Ricardo Nunes", email="your.email@example.com" },
+    { name="Ricardo Nunes" },
 ]
 description = "Clean, functional data processing for human-centric applications. Normalize and standardize names, emails, phones, departments, and job titles with a single unified API."
 readme = "README.md"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 requires-python = ">=3.8"
 keywords = ["data-processing", "normalization", "names", "emails", "phones", "departments", "titles", "civic-data"]
 classifiers = [
@@ -44,20 +44,24 @@ dev = [
     "mypy>=1.0",
     "faker>=20.0",
 ]
+address = [
+    "usaddress>=0.6.0",
+]
 pandas = [
     "pandas>=1.5",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/humanmint"
-"Documentation" = "https://github.com/yourusername/humanmint#readme"
-"Bug Tracker" = "https://github.com/yourusername/humanmint/issues"
-"Source Code" = "https://github.com/yourusername/humanmint"
+"Homepage" = "https://humanmint.com"
+"Documentation" = "https://github.com/HumanMint/humanmint#readme"
+"Bug Tracker" = "https://github.com/HumanMint/humanmint/issues"
+"Source Code" = "https://github.com/HumanMint/humanmint"
 
 [project.scripts]
 humanmint = "humanmint.cli:main"
 
 [tool.setuptools]
+include-package-data = true
 package-dir = { "" = "src" }
 
 [tool.setuptools.packages]

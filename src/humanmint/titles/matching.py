@@ -23,6 +23,25 @@ from .normalize import normalize_title
 
 # Cache canonical titles and lowercase versions for matching
 _canonical_lowers: Optional[list[tuple[str, str]]] = None
+_GENERIC_TITLE_TOKENS = {
+    "manager",
+    "director",
+    "administrator",
+    "admin",
+    "analyst",
+    "specialist",
+    "technician",
+    "tech",
+    "coordinator",
+    "officer",
+    "supervisor",
+    "consultant",
+    "advisor",
+    "assistant",
+    "associate",
+    "lead",
+    "program",
+}
 
 
 def _get_canonical_lowers() -> list[tuple[str, str]]:
@@ -38,18 +57,18 @@ def _get_canonical_lowers() -> list[tuple[str, str]]:
 def _find_best_match_normalized(
     search_title: str,
     threshold: float,
-) -> Optional[str]:
+) -> tuple[Optional[str], float]:
     """Cached core matcher for already-normalized titles."""
     search_title_lower = search_title.lower()
 
     # Strategy 1: Check if already canonical (O(1))
     if is_canonical(search_title):
-        return search_title
+        return search_title, 1.0
 
     # Strategy 2: Check heuristics mappings for exact match (O(1))
     mapped = get_mapping_for_variant(search_title)
     if mapped:
-        return mapped
+        return mapped, 0.98
 
     # Strategy 3: Check for substring match with canonical titles
     # e.g., "Senior Software Developer" contains "Software Developer"
@@ -65,7 +84,8 @@ def _find_best_match_normalized(
 
     if matches:
         # Return the best match (earliest appearance, then longest)
-        return max(matches, key=lambda x: x[0])[1]
+        best = max(matches, key=lambda x: x[0])[1]
+        return best, 0.9
 
     # Strategy 4: Find close matches using rapidfuzz (fallback)
     canonicals = get_canonical_titles()
@@ -77,14 +97,33 @@ def _find_best_match_normalized(
         score_cutoff=score_cutoff,
     )
 
-    return result[0] if result else None
+    if not result:
+        return None, 0.0
+
+    candidate = result[0]
+    score = result[1] / 100.0 if len(result) > 1 else 0.0
+
+    # Guard: if fuzzy score is weak (<0.75), consider it too risky
+    if score < 0.75:
+        return None, score
+    search_tokens = {t for t in search_title_lower.split() if t}
+    cand_tokens = {t for t in candidate.lower().split() if t}
+
+    # Require overlap on at least one non-generic token to avoid cross-domain matches
+    meaningful_overlap = {
+        t for t in search_tokens.intersection(cand_tokens) if t not in _GENERIC_TITLE_TOKENS
+    }
+    if meaningful_overlap:
+        return candidate, score
+
+    return None, score
 
 
 def find_best_match(
     job_title: str,
     threshold: float = 0.6,
     normalize: bool = True,
-) -> Optional[str]:
+) -> tuple[Optional[str], float]:
     """
     Find the best canonical job title match for a given title.
 
@@ -123,7 +162,7 @@ def find_best_match(
         search_title = normalize_title(job_title) if normalize else job_title
     except ValueError:
         # If normalization fails, return None
-        return None
+        return None, 0.0
 
     return _find_best_match_normalized(search_title, threshold)
 

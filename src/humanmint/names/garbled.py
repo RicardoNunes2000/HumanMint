@@ -22,45 +22,7 @@ Examples:
 import re
 from typing import Optional
 
-
-# SQL keywords that when standalone indicate corruption
-# Only matches whole words to avoid false positives like "selectric" or "dropbox"
-SQL_KEYWORDS = {
-    "select",
-    "insert",
-    "update",
-    "delete",
-    "drop",
-    "alter",
-    "truncate",
-    "create",
-    "replace",
-    "merge",
-    "call",
-    "grant",
-    "revoke",
-    "union",
-    "intersect",
-    "except",
-    "from",
-    "where",
-    "join",
-    "inner",
-    "outer",
-    "left",
-    "right",
-    "group",
-    "order",
-    "having",
-    "into",
-    "values",
-    "table",
-    "exec",
-    "xp_",
-}
-
-# Compile regex pattern for SQL keywords (word boundary = whole words only)
-_SQL_KEYWORD_PATTERN = r"\b(" + "|".join(re.escape(kw) for kw in SQL_KEYWORDS) + r")\b"
+from humanmint.constants.garbled import SQL_KEYWORDS, SQL_KEYWORD_PATTERN
 
 
 def clean_garbled_name(text: Optional[str]) -> Optional[str]:
@@ -133,36 +95,32 @@ def clean_garbled_name(text: Optional[str]) -> Optional[str]:
     text = re.sub(r"\bUNION\s+SELECT\b", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"\bEXEC\s+xp_\w+", " ", text, flags=re.IGNORECASE)
 
-    # 4. Remove markdown formatting and corruption markers
+    # 4. Remove corruption markers before stripping markdown noise
+    text = re.sub(
+        r"^\s*#+\s*(?:TEMP|CORRUPTED|TEST|DEBUG|ADMIN|USER)\s*#+\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"^\s*\[(?:TEMP|CORRUPTED|TEST|DEBUG|ADMIN|USER)\]\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 5. Remove markdown formatting while preserving core text
     # Remove markdown headers: # Title, ## Subtitle, etc.
     text = re.sub(r"^#+\s*", "", text, flags=re.MULTILINE)
     # Remove markdown bold: **text** or __text__
     text = re.sub(r"\*{2,}|_{2,}", "", text)
-    # Remove markdown italic: *text* or _text_
-    text = re.sub(r"(?<!\*)\*(?!\*)|\b_\b", "", text)
     # Remove markdown links: [text](url) -> keep text
     text = re.sub(r"\[([^\]]+)\]\([^\)]*\)", r"\1", text)
     # Remove markdown code blocks and inline code: `code` or ```code```
     text = re.sub(r"`{1,3}", "", text)
-
-    # Remove common corruption markers at start/end
-    # These are system markers, not part of actual names
-    text = re.sub(
-        r"^#+\s*(?:TEMP|CORRUPTED|TEST|DEBUG|ADMIN|USER).*?#+\s*",
-        "",
-        text,
-        flags=re.IGNORECASE,
-    )
-    text = re.sub(
-        r"^\s*#+\s*(?:TEMP|CORRUPTED|TEST|DEBUG|ADMIN|USER).*?#+\s*",
-        "",
-        text,
-        flags=re.IGNORECASE,
-    )
-
     text = re.sub(r"\s*#+$", "", text)
 
-    # 5. Remove trailing SQL keywords that often follow injected code
+    # 6. Remove trailing SQL keywords that often follow injected code
     # Pattern: <name> DROP/DELETE/INSERT/UPDATE/SELECT/FROM/WHERE/etc
     # Keep only the first 2-3 words (typical name length)
     words = text.split()
@@ -193,7 +151,7 @@ def clean_garbled_name(text: Optional[str]) -> Optional[str]:
 
     text = " ".join(cleaned_words)
 
-    # 6. Clean up excess whitespace
+    # 7. Clean up excess whitespace
     text = re.sub(r"\s+", " ", text).strip()
 
     # Return None if nothing left after cleaning
@@ -251,10 +209,10 @@ def should_use_garbled_cleaning(text: Optional[str]) -> bool:
         return True
 
     # Check for corruption markers
-    if re.search(r"^#+\s*(TEMP|CORRUPTED|TEST|DEBUG|ADMIN)", text, re.IGNORECASE):
+    if re.search(r"^#+\s*(TEMP|CORRUPTED|TEST|DEBUG|ADMIN|USER)", text, re.IGNORECASE):
         return True
 
-    if re.search(r"\[(TEMP|CORRUPTED|TEST|DEBUG|ADMIN)\]", text, re.IGNORECASE):
+    if re.search(r"\[(TEMP|CORRUPTED|TEST|DEBUG|ADMIN|USER)\]", text, re.IGNORECASE):
         return True
 
     # Check for SQL injection patterns
@@ -269,8 +227,10 @@ def should_use_garbled_cleaning(text: Optional[str]) -> bool:
 
     # Check for SQL keywords as standalone words (higher confidence of corruption)
     # Only flag if there are multiple keywords or keywords in unusual positions
-    keywords_found = re.findall(_SQL_KEYWORD_PATTERN, text, flags=re.IGNORECASE)
+    keywords_found = re.findall(SQL_KEYWORD_PATTERN, text, flags=re.IGNORECASE)
     if len(keywords_found) >= 2:  # Multiple keywords = likely SQL, not a name
+        return True
+    if keywords_found and text.lstrip().split()[0].lower() in SQL_KEYWORDS:
         return True
 
     return False

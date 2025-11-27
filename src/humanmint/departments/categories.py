@@ -16,6 +16,7 @@ DEPARTMENT_CATEGORIES = {
     "Emergency Communications": "Public Safety",
     "Coroner": "Public Safety",
     "Public Safety": "Public Safety",
+    "Sheriff": "Public Safety",
     # Courts & Legal
     "City Attorney": "Courts & Legal",
     "District Attorney": "Courts & Legal",
@@ -56,6 +57,7 @@ DEPARTMENT_CATEGORIES = {
     "Community Development": "Planning & Development",
     "Building & Inspections": "Planning & Development",
     "Zoning": "Planning & Development",
+    "Code Enforcement": "Planning & Development",
     # Education
     "Board of Education": "Education",
     "Elementary School": "Education",
@@ -68,7 +70,7 @@ DEPARTMENT_CATEGORIES = {
     # Parks & Recreation
     "Parks & Recreation": "Parks & Recreation",
     "Athletics": "Parks & Recreation",
-    "Library": "Parks & Recreation",
+    "Library": "Education",
     # Health & Human Services
     "Health": "Health & Human Services",
     "Human Services": "Health & Human Services",
@@ -76,13 +78,13 @@ DEPARTMENT_CATEGORIES = {
     "Veterans Services": "Health & Human Services",
     # Other Services
     "Assessor": "Other",
-    "Elections": "Other",
+    "Elections": "Administration",
     "Communications": "Other",
-    "Information Technology": "Other",
+    "Information Technology": "Information Technology",
     "Airport": "Other",
     "Animal Control": "Other",
     "Cemetery": "Other",
-    "Transportation Services": "Other",
+    "Transportation Services": "Transportation",
 }
 
 

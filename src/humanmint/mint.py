@@ -27,7 +27,7 @@ Example:
     'Infrastructure'
 """
 
-from typing import Optional
+from typing import Iterable, Optional, Callable, Union
 from dataclasses import dataclass
 
 from .processors import (
@@ -36,8 +36,18 @@ from .processors import (
     process_phone,
     process_department,
     process_title,
+    process_address,
+    process_organization,
 )
-from .types import NameResult, EmailResult, PhoneResult, DepartmentResult, TitleResult
+from .types import (
+    NameResult,
+    EmailResult,
+    PhoneResult,
+    DepartmentResult,
+    TitleResult,
+    AddressResult,
+    OrganizationResult,
+)
 
 
 @dataclass
@@ -49,6 +59,8 @@ class MintResult:
     phone: Optional[PhoneResult] = None
     department: Optional[DepartmentResult] = None
     title: Optional[TitleResult] = None
+    address: Optional[AddressResult] = None
+    organization: Optional[OrganizationResult] = None
 
     def model_dump(self) -> dict:
         """Convert to dictionary."""
@@ -58,6 +70,8 @@ class MintResult:
             "phone": self.phone,
             "department": self.department,
             "title": self.title,
+            "address": self.address,
+            "organization": self.organization,
         }
 
     def __str__(self) -> str:
@@ -88,6 +102,18 @@ class MintResult:
             lines.append(f"  title: {self.title['canonical']}")
         else:
             lines.append("  title: None")
+
+        if self.address:
+            lines.append(
+                f"  address: {self.address.get('canonical') or self.address.get('street')}"
+            )
+        else:
+            lines.append("  address: None")
+
+        if self.organization:
+            lines.append(f"  organization: {self.organization.get('canonical')}")
+        else:
+            lines.append("  organization: None")
 
         lines.append(")")
         return "\n".join(lines)
@@ -219,15 +245,26 @@ class MintResult:
         """Check if title is valid, or None."""
         return self.title["is_valid"] if self.title else None
 
+    @property
+    def address_canonical(self) -> Optional[str]:
+        """Get canonical address string, or None."""
+        return self.address["canonical"] if self.address else None
 
+    @property
+    def organization_canonical(self) -> Optional[str]:
+        """Get canonical organization name, or None."""
+        return self.organization["canonical"] if self.organization else None
 
 
 def mint(
     name: Optional[str] = None,
     email: Optional[str] = None,
     phone: Optional[str] = None,
+    address: Optional[str] = None,
     department: Optional[str] = None,
     title: Optional[str] = None,
+    organization: Optional[str] = None,
+    title_overrides: Optional[dict[str, str]] = None,
     dept_overrides: Optional[dict[str, str]] = None,
     aggressive_clean: bool = False,
 ) -> MintResult:
@@ -242,8 +279,10 @@ def mint(
         name: Full name or first/last name.
         email: Email address.
         phone: Phone number in any format.
+        address: Postal address string (US-focused parsing).
         department: Department name (with or without noise).
         title: Job title (with or without noise, name prefixes, codes).
+        organization: Organization/agency name.
         dept_overrides: Custom department mappings (e.g., {"Revenue Operations": "Sales"}).
             Overrides are applied after normalization, before canonical matching.
             If a normalized department matches a key in overrides, the override value is used.
@@ -315,10 +354,135 @@ def mint(
             'is_override': True
         }
     """
+    department_result = process_department(department, dept_overrides)
+    dept_canonical = department_result["canonical"] if department_result else None
+
     return MintResult(
         name=process_name(name, aggressive_clean=aggressive_clean),
         email=process_email(email),
         phone=process_phone(phone),
-        department=process_department(department, dept_overrides),
-        title=process_title(title),
+        department=department_result,
+        title=process_title(
+            title, dept_canonical=dept_canonical, overrides=title_overrides
+        ),
+        address=process_address(address),
+        organization=process_organization(organization),
     )
+
+
+def bulk(
+    records: Iterable[dict],
+    workers: int = 4,
+    progress: Optional[Union[bool, str, Callable[[], None]]] = False,
+) -> list[MintResult]:
+    """
+    Process multiple records (dicts accepted by mint) in parallel using threads.
+
+    Args:
+        records: Iterable of dicts accepted by mint().
+        workers: Max worker threads.
+        progress: If truthy, display progress. Uses Rich when available, otherwise
+                  a simple stdout ticker. You can also pass a callable to be
+                  invoked on each completed record.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _noop() -> None:
+        return None
+
+    # If progress requested, realize iterable to size the progress bar.
+    materialized = None
+    if progress:
+        materialized = list(records)
+        records = materialized
+
+    total = len(materialized) if materialized is not None else None
+
+    progress_tick: Optional[Callable[[], None]] = None
+    progress_start: Callable[[], None] = _noop
+    progress_stop: Callable[[], None] = _noop
+
+    if progress:
+        if callable(progress):
+            progress_tick = progress
+        else:
+            # Prefer Rich, then tqdm, then a simple ticker.
+            try:
+                from rich.progress import (
+                    BarColumn,
+                    MofNCompleteColumn,
+                    Progress,
+                    SpinnerColumn,
+                    TextColumn,
+                    TimeElapsedColumn,
+                    TimeRemainingColumn,
+                )
+
+                rp = Progress(
+                    SpinnerColumn(),
+                    TextColumn("[bold blue]{task.description}"),
+                    BarColumn(),
+                    MofNCompleteColumn(),
+                    TimeElapsedColumn(),
+                    TimeRemainingColumn(),
+                )
+                task_id = rp.add_task("Bulk minting", total=total)
+
+                def _progress_start() -> None:
+                    rp.start()
+
+                def _progress_stop() -> None:
+                    rp.stop()
+
+                def _progress_tick() -> None:
+                    rp.advance(task_id, 1)
+
+                progress_start = _progress_start
+                progress_stop = _progress_stop
+                progress_tick = _progress_tick
+            except Exception:
+                try:
+                    from tqdm import tqdm  # type: ignore
+
+                    bar = tqdm(total=total, desc="Bulk minting", unit="rec")
+
+                    def _progress_tick() -> None:
+                        bar.update(1)
+
+                    def _progress_stop() -> None:
+                        bar.close()
+
+                    progress_tick = _progress_tick
+                    progress_start = _noop
+                    progress_stop = _progress_stop
+                except Exception:
+                    processed = [0]
+                    step = max(1, (total or 1) // 20)
+
+                    def _progress_tick() -> None:
+                        processed[0] += 1
+                        if processed[0] % step == 0 or processed[0] == total:
+                            print(f"Processed {processed[0]}/{total or '?'}")
+
+                    def _progress_start() -> None:
+                        print("Starting bulk mint...")
+
+                    def _progress_stop() -> None:
+                        print("Bulk mint complete.")
+
+                    progress_start = _progress_start
+                    progress_stop = _progress_stop
+                    progress_tick = _progress_tick
+
+    def _run_mint(rec: dict) -> MintResult:
+        return mint(**rec)
+
+    results: list[MintResult] = []
+    progress_start()
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        for res in executor.map(_run_mint, records):
+            results.append(res)
+            if progress_tick:
+                progress_tick()
+    progress_stop()
+    return results

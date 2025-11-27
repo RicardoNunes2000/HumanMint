@@ -53,7 +53,7 @@ def _build_caches() -> None:
         if not _missing_cache_warned:
             warnings.warn(
                 f"Title heuristics cache not found at {HEURISTICS_CACHE}. "
-                "Run scripts/build_pickles.py to generate it.",
+                "Run scripts/build_caches.py to generate it.",
                 RuntimeWarning,
             )
             _missing_cache_warned = True

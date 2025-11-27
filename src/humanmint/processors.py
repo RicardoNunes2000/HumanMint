@@ -12,6 +12,7 @@ These are internal helpers; use mint() from the main facade instead.
 """
 
 from typing import Optional
+from rapidfuzz import fuzz
 
 from .names import normalize_name, enrich_name
 from .emails import normalize_email
@@ -21,9 +22,19 @@ from .departments import (
     find_best_match as find_best_department_match,
     get_department_category,
 )
+from .addresses import normalize_address
+from .organizations import normalize_organization
 from .departments.matching import is_likely_non_department
 from .titles import normalize_title_full
-from .types import NameResult, EmailResult, PhoneResult, DepartmentResult, TitleResult
+from .types import (
+    NameResult,
+    EmailResult,
+    PhoneResult,
+    DepartmentResult,
+    TitleResult,
+    AddressResult,
+    OrganizationResult,
+)
 
 
 def process_name(
@@ -41,7 +52,7 @@ def process_name(
     Returns:
         NameResult with raw input and parsed components, or None if invalid.
     """
-    if not raw_name:
+    if not raw_name or not isinstance(raw_name, str):
         return None
 
     try:
@@ -73,6 +84,15 @@ def process_name(
         if gender and gender != "unknown":
             gender = gender.lower()
 
+        canonical_parts = [first_name.lower()]
+        if middle_name:
+            canonical_parts.append(middle_name.lower())
+        if last_name:
+            canonical_parts.append(last_name.lower())
+        if suffix_name:
+            canonical_parts.append(suffix_name.lower())
+        canonical_val = " ".join(canonical_parts)
+
         return {
             "raw": raw_name,
             "first": first_name or "",
@@ -81,6 +101,7 @@ def process_name(
             "suffix": suffix_name,
             "full": full_name or raw_name,
             "gender": gender,
+            "canonical": canonical_val,
         }
     except (ValueError, AttributeError, TypeError, FileNotFoundError):
         return None
@@ -96,7 +117,7 @@ def process_email(raw_email: Optional[str]) -> Optional[EmailResult]:
     Returns:
         EmailResult with raw input and validation metadata, or None if invalid.
     """
-    if not raw_email:
+    if not raw_email or not isinstance(raw_email, str):
         return None
 
     try:
@@ -125,7 +146,7 @@ def process_phone(raw_phone: Optional[str]) -> Optional[PhoneResult]:
     Returns:
         PhoneResult with raw input and formatted variants, or None if invalid.
     """
-    if not raw_phone:
+    if not raw_phone or not isinstance(raw_phone, str):
         return None
 
     try:
@@ -162,7 +183,7 @@ def process_department(
     Returns:
         DepartmentResult with raw input and normalized variants, or None if invalid.
     """
-    if not raw_dept:
+    if not raw_dept or not isinstance(raw_dept, str):
         return None
 
     try:
@@ -172,10 +193,32 @@ def process_department(
         # Check if normalized department matches any override
         is_override = False
         final_dept = normalized
-        if overrides and normalized in overrides:
-            final_dept = overrides[normalized]
-            is_override = True
-        else:
+        if overrides:
+            normalized_lower = normalized.lower()
+            norm_overrides = {}
+            for k, v in overrides.items():
+                try:
+                    k_norm = normalize_department(k)
+                except Exception:
+                    k_norm = k
+                norm_overrides[k_norm.lower()] = v
+
+            if normalized_lower in norm_overrides:
+                final_dept = norm_overrides[normalized_lower]
+                is_override = True
+            else:
+                # Fuzzy fallback on overrides (token_sort_ratio)
+                best = None
+                for key_norm, value in norm_overrides.items():
+                    score = fuzz.token_sort_ratio(normalized_lower, key_norm)
+                    if score >= 85:
+                        best = value
+                        break
+                if best:
+                    final_dept = best
+                    is_override = True
+
+        if not is_override:
             # Find best canonical match if no override matched
             canonical = find_best_department_match(raw_dept, threshold=0.6)
             if canonical:
@@ -186,9 +229,11 @@ def process_department(
                 final_dept = normalized
 
         category = get_department_category(final_dept) if final_dept else None
-        # Normalize category to lowercase
         if category:
             category = category.lower()
+        elif final_dept:
+            category = "other"
+        confidence = 1.0 if final_dept else 0.0
 
         return {
             "raw": raw_dept,
@@ -196,12 +241,17 @@ def process_department(
             "canonical": final_dept,
             "category": category,
             "is_override": is_override,
+            "confidence": confidence,
         }
     except (ValueError, FileNotFoundError):
         return None
 
 
-def process_title(raw_title: Optional[str]) -> Optional[TitleResult]:
+def process_title(
+    raw_title: Optional[str],
+    dept_canonical: Optional[str] = None,
+    overrides: Optional[dict[str, str]] = None,
+) -> Optional[TitleResult]:
     """
     Normalize and canonicalize job title.
 
@@ -211,16 +261,38 @@ def process_title(raw_title: Optional[str]) -> Optional[TitleResult]:
     Returns:
         TitleResult with raw input and normalized variants, or None if invalid.
     """
-    if not raw_title:
+    if not raw_title or not isinstance(raw_title, str):
         return None
 
     try:
-        result = normalize_title_full(raw_title, threshold=0.6)
+        result = normalize_title_full(
+            raw_title,
+            threshold=0.6,
+            dept_canonical=dept_canonical,
+            overrides=overrides,
+        )
         return {
             "raw": result.get("raw"),
             "cleaned": result.get("cleaned"),
             "canonical": result.get("canonical"),
             "is_valid": result.get("is_valid"),
+            "confidence": result.get("confidence", 0.0),
         }
     except (ValueError, FileNotFoundError):
+        return None
+
+
+def process_address(raw_address: Optional[str]) -> Optional[AddressResult]:
+    """Normalize a postal address (US-focused)."""
+    try:
+        return normalize_address(raw_address)
+    except Exception:
+        return None
+
+
+def process_organization(raw_org: Optional[str]) -> Optional[OrganizationResult]:
+    """Normalize an organization/agency name."""
+    try:
+        return normalize_organization(raw_org)
+    except Exception:
         return None

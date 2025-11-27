@@ -5,7 +5,7 @@ Implements nickname detection, canonicalization, and fuzzy name matching.
 Uses the nicknames library for canonical nickname mappings and rapidfuzz for fuzzy scoring.
 """
 
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional
 from nicknames import NickNamer
 from rapidfuzz import fuzz
 from .normalize import normalize_name
@@ -226,11 +226,7 @@ def compare_last_names(last1: str, last2: str) -> float:
     return fuzzy_score
 
 
-def match_names(
-    raw1: str,
-    raw2: str,
-    strict: bool = False
-) -> Dict[str, any]:
+def match_names(raw1: str, raw2: str, strict: bool = False) -> Dict[str, any]:
     """
     Compare two full names with detailed scoring and reasoning.
 
@@ -331,13 +327,15 @@ def match_names(
 
     # Calculate overall score (weighted average)
     # Give more weight to last name (family name is less likely to vary)
-    overall_score = (first_score * 0.3 + last_score * 0.5 + middle_score * 0.2)
+    overall_score = first_score * 0.3 + last_score * 0.5 + middle_score * 0.2
 
     return {
         "score": round(overall_score, 2),
         "first_match": round(first_score, 2),
         "last_match": round(last_score, 2),
-        "middle_match": round(middle_score, 2) if norm1.get("middle") or norm2.get("middle") else None,
+        "middle_match": round(middle_score, 2)
+        if norm1.get("middle") or norm2.get("middle")
+        else None,
         "is_match": overall_score >= 0.75,
         "reasons": reasons,
         "details": {
