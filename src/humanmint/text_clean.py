@@ -11,6 +11,8 @@ import re
 import unicodedata
 
 _CORRUPTION_MARKERS = r"(?:TEMP|CORRUPTED|TEST|DEBUG|ADMIN|USER)"
+_LEADING_CODE_PATTERN = re.compile(r"^[0-9]{3,}[\s\-]*")
+_TRAILING_CODE_PATTERN = re.compile(r"\s+[0-9]{3,}$")
 
 
 def strip_garbage(text: str) -> str:
@@ -50,3 +52,69 @@ def normalize_unicode_ascii(text: str, keep_accents: bool = False) -> str:
     if keep_accents:
         return unicodedata.normalize("NFC", decomposed)
     return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def remove_parentheticals(text: str) -> str:
+    """
+    Remove all parenthetical segments from text, treating them as metadata/noise.
+
+    Matches patterns like:
+    - (Finance), (Main Office), (HQ)
+    - Any text within parentheses
+
+    Args:
+        text: Input string potentially containing parenthetical content.
+
+    Returns:
+        str: Text with parenthetical segments removed.
+
+    Example:
+        >>> remove_parentheticals("Director (Finance)")
+        "Director"
+        >>> remove_parentheticals("Officer (Downtown)")
+        "Officer"
+    """
+    return re.sub(r"\([^)]*\)", " ", text)
+
+
+def strip_codes_and_ids(text: str, strip_codes: str = "both") -> str:
+    """
+    Remove leading and/or trailing numeric codes and ID numbers from text.
+
+    Useful for cleaning department names and job titles that may have internal
+    database codes prepended or appended.
+
+    Matches patterns like:
+    - 000171 - Supervisor (leading code with dash)
+    - 4591405 Public Works (leading code with space)
+    - Supervisor 010100 (trailing code)
+    - 010100 - Manager - 514134 (both leading and trailing)
+
+    Args:
+        text: Input string potentially containing numeric codes.
+        strip_codes: Which codes to remove. Options:
+            - "both" (default): Remove leading and trailing codes
+            - "leading": Remove only leading codes (e.g., "000171 - ")
+            - "trailing": Remove only trailing codes (e.g., " 514134")
+            - "none": Don't remove any codes
+
+    Returns:
+        str: Text with codes removed based on strip_codes setting.
+
+    Example:
+        >>> strip_codes_and_ids("4591405 Public Works 514134")
+        "Public Works"
+        >>> strip_codes_and_ids("001 - Police Officer", strip_codes="leading")
+        "Police Officer"
+        >>> strip_codes_and_ids("Manager 299", strip_codes="trailing")
+        "Manager"
+    """
+    if strip_codes == "both":
+        text = _LEADING_CODE_PATTERN.sub("", text)
+        text = _TRAILING_CODE_PATTERN.sub("", text)
+    elif strip_codes == "leading":
+        text = _LEADING_CODE_PATTERN.sub("", text)
+    elif strip_codes == "trailing":
+        text = _TRAILING_CODE_PATTERN.sub("", text)
+    # strip_codes == "none" does nothing
+    return text

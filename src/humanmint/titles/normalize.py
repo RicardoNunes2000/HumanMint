@@ -13,7 +13,7 @@ from humanmint.constants.titles import (
     STOPWORDS,
     TITLE_ABBREVIATIONS,
 )
-from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
+from humanmint.text_clean import normalize_unicode_ascii, strip_garbage, strip_codes_and_ids, remove_parentheticals
 
 
 def _strip_garbage(text: str) -> str:
@@ -76,24 +76,21 @@ def _remove_name_prefixes(text: str) -> str:
     return text
 
 
-def _remove_codes_and_ids(text: str) -> str:
+def _remove_codes_and_ids(text: str, strip_codes: str = "both") -> str:
     """
     Remove job codes and ID numbers.
 
-    Matches patterns like:
-    - 0001 - Director
-    - 001234 - Manager
-    - [any number with leading zeros or dashes]
+    Uses the shared strip_codes_and_ids utility from text_clean module.
+    Supports flexible control over which codes to strip.
 
     Args:
         text: Input string potentially containing codes.
+        strip_codes: Which codes to remove ("both", "leading", "trailing", "none").
 
     Returns:
-        str: Text with codes removed.
+        str: Text with codes removed based on strip_codes setting.
     """
-    # Remove leading numeric codes with dashes (e.g., "0001 - ", "001234 - ")
-    text = re.sub(r"^[0-9]{3,}[\s\-]*", "", text)
-    return text
+    return strip_codes_and_ids(text, strip_codes=strip_codes)
 
 
 def _remove_extra_whitespace(text: str) -> str:
@@ -117,10 +114,8 @@ def _remove_parenthetical_info(text: str) -> str:
     """
     Remove parenthetical information (e.g., department, location).
 
-    Matches patterns like:
-    - Director (Finance)
-    - Manager (Main Office)
-    - Officer - Downtown
+    Uses shared remove_parentheticals() for core functionality, then applies
+    title-specific location/department removal (e.g., "- Downtown").
 
     Args:
         text: Input string with potential parenthetical content.
@@ -128,9 +123,9 @@ def _remove_parenthetical_info(text: str) -> str:
     Returns:
         str: Text with parenthetical info removed.
     """
-    # Remove content in parentheses
-    text = re.sub(r"\s*\([^)]*\)", "", text)
-    # Remove content after dashes (for location/department info)
+    # Remove content in parentheses using shared utility
+    text = remove_parentheticals(text)
+    # Remove title-specific location/department info after dashes
     text = re.sub(
         r"\s*-\s*(?:Main|Downtown|Downtown Office|Main Office|HQ|Headquarters)",
         "",
@@ -190,36 +185,17 @@ def _smart_title_case(text: str, preserve_caps: set[str]) -> str:
 
 
 @lru_cache(maxsize=4096)
-def normalize_title(raw_title: str) -> str:
+def _normalize_title_cached(raw_title: str, strip_codes: str) -> str:
     """
-    Normalize a raw job title by removing noise and standardizing format.
+    Cached core normalization to avoid re-parsing identical inputs.
 
     This function uses @lru_cache(maxsize=4096) to cache normalization results.
     For batches with repeated job titles (common in organizations), caching avoids
     redundant regex processing.
 
-    To clear the cache if memory is a concern:
-        >>> normalize_title.cache_clear()
-
-    To check cache statistics:
-        >>> normalize_title.cache_info()
-
-    Removes:
-    - Name prefixes (e.g., "Dr.", "Mr.")
-    - Job codes (e.g., "0001 - ")
-    - Parenthetical info (e.g., "(Finance)", "(Main Office)")
-    - Extra whitespace
-
-    Example:
-        >>> normalize_title("Dr. John Smith, CEO")
-        "CEO"
-        >>> normalize_title("0001 - Director (Finance)")
-        "Director"
-        >>> normalize_title("  Senior  Manager  ")
-        "Senior Manager"
-
     Args:
         raw_title: Raw job title string.
+        strip_codes: Which codes to remove ("both", "leading", "trailing", "none").
 
     Returns:
         str: Normalized job title in title case.
@@ -236,7 +212,7 @@ def normalize_title(raw_title: str) -> str:
     # Apply normalization steps in sequence
     text = _strip_garbage(raw_title)
     text = _remove_name_prefixes(text)
-    text = _remove_codes_and_ids(text)
+    text = _remove_codes_and_ids(text, strip_codes=strip_codes)
     text = _normalize_separators(text)
     text = _remove_parenthetical_info(text)
     text = _expand_abbreviations(text)
@@ -256,3 +232,50 @@ def normalize_title(raw_title: str) -> str:
     text = _smart_title_case(text, preserve_caps)
 
     return text
+
+
+def normalize_title(raw_title: str, strip_codes: str = "both") -> str:
+    """
+    Normalize a raw job title by removing noise and standardizing format.
+
+    This function uses @lru_cache internally (maxsize=4096) to cache normalization
+    results. For batches with repeated job titles (common in organizations), caching
+    avoids redundant regex processing.
+
+    Removes:
+    - Name prefixes (e.g., "Dr.", "Mr.")
+    - Job codes based on strip_codes parameter
+    - Parenthetical info (e.g., "(Finance)", "(Main Office)")
+    - Extra whitespace
+
+    To clear the cache if memory is a concern:
+        >>> _normalize_title_cached.cache_clear()
+
+    To check cache statistics:
+        >>> _normalize_title_cached.cache_info()
+
+    Example:
+        >>> normalize_title("Dr. John Smith, CEO")
+        "CEO"
+        >>> normalize_title("0001 - Director (Finance)")
+        "Director"
+        >>> normalize_title("4591405 Chief of Police 514134")
+        "Chief Of Police"
+        >>> normalize_title("  Senior  Manager  ")
+        "Senior Manager"
+
+    Args:
+        raw_title: Raw job title string.
+        strip_codes: Which codes to remove. Options:
+            - "both" (default): Remove leading and trailing numeric codes
+            - "leading": Remove only leading codes (e.g., "0001 - ")
+            - "trailing": Remove only trailing codes (e.g., " 514134")
+            - "none": Don't remove any codes
+
+    Returns:
+        str: Normalized job title in title case.
+
+    Raises:
+        ValueError: If the input is empty or not a string.
+    """
+    return _normalize_title_cached(raw_title, strip_codes)

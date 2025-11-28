@@ -427,6 +427,57 @@ from humanmint import bulk, compare
 pytest -q unittests
 ```
 
+## Export Results
+
+After cleaning and normalizing data, export to your preferred format:
+
+### JSON Export
+```python
+from humanmint import bulk, export_json
+
+results = bulk([
+    {"name": "Jane Doe", "email": "jane@example.com"},
+    {"name": "Bob Jones", "email": "bob@example.com"},
+])
+
+export_json(results, "cleaned.json")
+```
+
+### CSV Export
+```python
+from humanmint import bulk, export_csv
+
+results = bulk([...])
+
+# Flattened structure (recommended for analytics)
+export_csv(results, "cleaned.csv", flatten=True)
+# Creates columns: name_first, name_last, email_normalized, email_domain, ...
+```
+
+### Parquet Export
+```python
+from humanmint import bulk, export_parquet
+
+results = bulk([...])
+
+# For analytics and data warehousing
+export_parquet(results, "cleaned.parquet", flatten=True)
+# Requires: pip install pyarrow
+```
+
+### SQL Export
+```python
+from humanmint import bulk, export_sql
+from sqlalchemy import create_engine
+
+engine = create_engine("sqlite:///cleaned.db")
+results = bulk([...])
+
+export_sql(results, engine, "cleaned_contacts", flatten=True)
+# Supports any SQLAlchemy-compatible database (PostgreSQL, MySQL, etc.)
+# Requires: pip install sqlalchemy
+```
+
 ## CLI
 
 Clean a CSV (auto-detecting columns, or override with flags):

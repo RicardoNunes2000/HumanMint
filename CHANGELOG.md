@@ -5,6 +5,20 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2025-11-28
+
+### Added
+- **Batch export functionality**: Export cleaned results to multiple formats for downstream processing
+  - `export_json()` — Export results to JSON with full structure preserved
+  - `export_csv()` — Export to CSV with optional flattening (name_first, email_domain, etc.)
+  - `export_parquet()` — Export to Apache Parquet for analytics workflows (requires pyarrow)
+  - `export_sql()` — Export directly to SQL databases (requires sqlalchemy)
+  - All exporters support flattened and nested data structures
+  - Comprehensive test coverage with 8 test cases for all export formats
+
+### Changed
+- Enhanced data pipeline flexibility: `bulk()` → `export_*()` workflow enables seamless data integration
+
 ## [0.1.8] - 2025-11-28
 
 ### Added
