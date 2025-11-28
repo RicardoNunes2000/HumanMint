@@ -8,6 +8,33 @@ Clean, functional data processing for human-centric applications. Normalize and 
 pip install humanmint
 ```
 
+### Optional Dependencies
+
+Install with optional features for advanced use cases:
+
+```bash
+# Development tools (testing, linting, type checking)
+pip install humanmint[dev]
+
+# US address parsing support
+pip install humanmint[address]
+
+# Pandas integration for DataFrames
+pip install humanmint[pandas]
+
+# All optional features
+pip install humanmint[dev,address,pandas]
+```
+
+**Feature Details:**
+- `dev`: Includes pytest, black, flake8, mypy, and faker for development and testing
+- `address`: Enables advanced US postal address parsing with `usaddress` (optional—falls back to basic regex parsing)
+- `pandas`: Adds DataFrame integration via `df.humanmint.clean(...)` accessor (optional—gracefully skipped if not installed)
+
+**Note on Optional Dependencies:**
+- **Address without `usaddress`**: The `normalize_address()` function still works! It falls back to basic regex-based parsing (street, city, state, ZIP extraction). For advanced address parsing, install the `address` extra.
+- **Pandas not installed**: The base library works fine without pandas. The DataFrame accessor (`df.humanmint.clean()`) is silently skipped if pandas isn't available, so your code won't break.
+
 ## Quick Start
 
 ```python

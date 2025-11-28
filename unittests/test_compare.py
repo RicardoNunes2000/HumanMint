@@ -389,3 +389,67 @@ def test_compare_full_contact_with_conflicting_signals():
     )
     # Name same, everything else disagree
     assert compare(a, b) < 70
+
+
+# -------------------------
+# CUSTOM WEIGHTS
+# -------------------------
+
+
+def test_compare_weights_default_is_used_when_missing():
+    a = mint(name="Jane Doe", email="jane@example.com")
+    b = mint(name="J. Doe", email="jane@example.com")
+    assert compare(a, b) == compare(a, b, weights={})
+
+
+def test_compare_custom_weights_emphasize_name():
+    a = mint(name="Jane Doe", email="jane@example.com")
+    b = mint(name="Jane Doe", email="jane@other.com")
+    default_score = compare(a, b)
+    custom_score = compare(a, b, weights={"name": 0.9, "email": 0.1})
+    assert custom_score > default_score
+
+
+def test_compare_name_only_weight():
+    a = mint(name="Jane Doe", email="jane@example.com")
+    b = mint(name="Jane Doe", email="jane@other.com")
+    score = compare(
+        a,
+        b,
+        weights={"name": 1.0, "email": 0.0, "phone": 0.0, "department": 0.0, "title": 0.0},
+    )
+    assert score >= 90
+
+
+def test_compare_email_disabled_does_not_floor():
+    a = mint(name="Alice Smith", email="shared@example.com")
+    b = mint(name="Bob Johnson", email="shared@example.com")
+    score = compare(
+        a,
+        b,
+        weights={"name": 0.0, "email": 0.0, "phone": 0.0, "department": 0.0, "title": 0.0},
+    )
+    assert score == 0
+
+
+def test_compare_email_only_weight():
+    a = mint(name="Alice Smith", email="shared@example.com")
+    b = mint(name="Bob Johnson", email="shared@example.com")
+    score = compare(
+        a,
+        b,
+        weights={"name": 0.0, "email": 1.0, "phone": 0.0, "department": 0.0, "title": 0.0},
+    )
+    assert score >= 90
+
+
+def test_compare_department_penalty_respects_weight():
+    a = mint(name="John Adams", department="Police Department")
+    b = mint(name="John Adams", department="Finance Department")
+    default_score = compare(a, b)
+    no_dept_penalty_score = compare(
+        a,
+        b,
+        weights={"name": 1.0, "email": 0.0, "phone": 0.0, "department": 0.0, "title": 0.0},
+    )
+    assert no_dept_penalty_score > default_score

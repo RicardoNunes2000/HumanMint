@@ -9,12 +9,20 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Optional
+from typing import Mapping, Optional
 
 from rapidfuzz import fuzz
 
 from .mint import MintResult
 from .names.matching import compare_first_names, compare_last_names
+
+DEFAULT_COMPARE_WEIGHTS: dict[str, float] = {
+    "name": 0.4,
+    "email": 0.4,
+    "phone": 0.4,
+    "department": 0.2,
+    "title": 0.2,
+}
 
 
 def _safe_lower(val: Optional[str]) -> Optional[str]:
@@ -132,19 +140,31 @@ def _weighted_average(pairs: list[tuple[float, float]]) -> float:
     return sum(score * w for score, w in pairs) / total_weight
 
 
-def compare(result_a: MintResult, result_b: MintResult) -> float:
+def compare(
+    result_a: MintResult,
+    result_b: MintResult,
+    weights: Optional[Mapping[str, float]] = None,
+) -> float:
     """
     Compare two MintResult objects and return a similarity score (0-100).
 
     Dynamic weighting: only counts signals that exist on both sides, and normalizes
     by available weight so email-only or phone-only records still score highly.
+
+    Args:
+        result_a: First MintResult to compare.
+        result_b: Second MintResult to compare.
+        weights: Optional mapping to override signal weights. Supported keys are
+            "name", "email", "phone", "department", and "title". Any omitted keys
+            fall back to the defaults used today.
     """
+    weight_config = {**DEFAULT_COMPARE_WEIGHTS, **(weights or {})}
     weights: list[tuple[float, float]] = []
 
     # Names
     name_score = _name_score(result_a.name, result_b.name)
     if result_a.name and result_b.name:
-        weights.append((name_score, 0.4))
+        weights.append((name_score, weight_config["name"]))
 
     # Email
     email_norm_a = result_a.email.get("normalized") if result_a.email else None
@@ -159,7 +179,7 @@ def compare(result_a: MintResult, result_b: MintResult) -> float:
             base_b = local_b.split("+", 1)[0]
             if domain_a == domain_b and base_a == base_b:
                 email_score = 95.0
-        weights.append((email_score, 0.4))
+        weights.append((email_score, weight_config["email"]))
 
     # Phone (prefer E.164)
     phone_a = result_a.phone or {}
@@ -172,7 +192,7 @@ def compare(result_a: MintResult, result_b: MintResult) -> float:
     if phone_score == 0.0:
         phone_score = _exact_match_score(phone_pretty_a, phone_pretty_b)
     if (phone_e164_a or phone_pretty_a) and (phone_e164_b or phone_pretty_b):
-        weights.append((phone_score, 0.4))
+        weights.append((phone_score, weight_config["phone"]))
 
     # Department canonical fuzzy
     score_penalty = 0.0
@@ -181,10 +201,15 @@ def compare(result_a: MintResult, result_b: MintResult) -> float:
         (result_b.department or {}).get("canonical"),
     )
     if result_a.department and result_b.department:
-        weights.append((dept_score, 0.2))
+        weights.append((dept_score, weight_config["department"]))
         dept_can_a = _safe_lower((result_a.department or {}).get("canonical"))
         dept_can_b = _safe_lower((result_b.department or {}).get("canonical"))
-        if dept_can_a and dept_can_b and dept_can_a != dept_can_b:
+        if (
+            weight_config["department"] > 0
+            and dept_can_a
+            and dept_can_b
+            and dept_can_a != dept_can_b
+        ):
             score_penalty += 15.0
 
     # Title canonical fuzzy
@@ -213,23 +238,25 @@ def compare(result_a: MintResult, result_b: MintResult) -> float:
                 title_score = min(title_score, 35.0)
 
     if result_a.title and result_b.title:
-        weights.append((title_score, 0.2))
+        weights.append((title_score, weight_config["title"]))
 
     score = _weighted_average(weights)
 
-    # Gender penalty if conflicting and both present
+    # Gender penalty if conflicting and both present and name is weighted
     gender_a = _safe_lower((result_a.name or {}).get("gender"))
     gender_b = _safe_lower((result_b.name or {}).get("gender"))
-    if gender_a and gender_b and gender_a != gender_b:
+    if weight_config["name"] > 0 and gender_a and gender_b and gender_a != gender_b:
         score -= 3.0
     score -= score_penalty
 
     # Strong name agreement should not collapse entirely from other disagreements
-    if name_score >= 95.0:
+    if weight_config["name"] > 0 and name_score >= 95.0:
         score = max(score, 45.0)
 
     # If we have strong identifiers (email/phone) matching exactly, ensure a high floor
-    if email_score == 100.0 or phone_score == 100.0:
+    if (
+        weight_config["email"] > 0 and email_score == 100.0
+    ) or (weight_config["phone"] > 0 and phone_score == 100.0):
         score = max(score, 90.0)
 
     return max(0.0, min(100.0, score))
