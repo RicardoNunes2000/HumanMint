@@ -230,7 +230,18 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
 
 @lru_cache(maxsize=4096)
 def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
-    """Cached core normalization to avoid re-parsing identical names."""
+    """
+    Cached core normalization to avoid re-parsing identical names.
+
+    This function uses @lru_cache(maxsize=4096) to cache results of name parsing.
+    For large batches of names with duplicates, this significantly improves performance.
+
+    To clear the cache if memory is a concern:
+        >>> _normalize_name_cached.cache_clear()
+
+    To check cache statistics:
+        >>> _normalize_name_cached.cache_info()
+    """
     tokens_original = cleaned.split()
     parsed = HumanName(cleaned)
 

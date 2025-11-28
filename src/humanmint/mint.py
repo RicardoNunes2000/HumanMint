@@ -255,6 +255,66 @@ class MintResult:
         """Get canonical organization name, or None."""
         return self.organization["canonical"] if self.organization else None
 
+    def get(self, field: str, default=None) -> any:
+        """
+        Safely access nested fields within result objects.
+
+        Supports dot notation for nested access (e.g., "name.first", "email.normalized").
+
+        Args:
+            field: Field path using dot notation. Examples:
+                - "name" → returns the full name dict
+                - "name.first" → returns the first name string
+                - "email.domain" → returns the email domain
+                - "phone.e164" → returns the E.164 phone format
+                - "department.canonical" → returns the canonical department name
+
+            default: Value to return if field doesn't exist or is None.
+
+        Returns:
+            The requested field value, or default if not found.
+
+        Examples:
+            >>> result = mint(name="John Smith", email="john@example.com")
+            >>> result.get("name.first")
+            'John'
+            >>> result.get("email.domain")
+            'example.com'
+            >>> result.get("phone.e164")  # Returns None (no phone provided)
+            >>> result.get("phone.e164", "+1 000-000-0000")  # Returns default
+            '+1 000-000-0000'
+        """
+        # Split on dot for nested access
+        parts = field.split(".", 1)
+        root = parts[0]
+
+        # Map root field name to the actual attribute
+        field_map = {
+            "name": self.name,
+            "email": self.email,
+            "phone": self.phone,
+            "department": self.department,
+            "title": self.title,
+            "address": self.address,
+            "organization": self.organization,
+        }
+
+        # Get the root object
+        obj = field_map.get(root)
+        if obj is None:
+            return default
+
+        # If no nested access, return the object itself
+        if len(parts) == 1:
+            return obj
+
+        # Navigate to nested field
+        nested_field = parts[1]
+        if isinstance(obj, dict):
+            return obj.get(nested_field, default)
+
+        return default
+
 
 def mint(
     name: Optional[str] = None,

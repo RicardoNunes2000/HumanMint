@@ -66,6 +66,9 @@ def is_free_provider(domain: str) -> bool:
     """
     Check if an email domain is a known free email provider.
 
+    This function uses @lru_cache(maxsize=4096) to cache domain lookups.
+    For batches with many emails, caching avoids repeated set lookups.
+
     Args:
         domain: Email domain (e.g., "gmail.com", "yahoo.com").
                 Can be the full domain with or without subdomains.

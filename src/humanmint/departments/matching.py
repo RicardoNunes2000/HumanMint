@@ -194,7 +194,19 @@ def _find_best_match_normalized(
     search_name: str,
     threshold: float,
 ) -> Optional[str]:
-    """Cached core matcher for already-normalized names."""
+    """
+    Cached core matcher for already-normalized names.
+
+    This function uses @lru_cache(maxsize=4096) to cache fuzzy matching results.
+    For large batches with repeated department names, this significantly improves performance
+    by avoiding redundant fuzzy matching computations.
+
+    To clear the cache if memory is a concern:
+        >>> _find_best_match_normalized.cache_clear()
+
+    To check cache statistics:
+        >>> _find_best_match_normalized.cache_info()
+    """
     search_name_lower = search_name.lower()
     search_name_ascii = search_name_lower.replace("'", "'")
     search_tokens = {t for t in re.findall(r"[a-z0-9]+", search_name_ascii) if t}

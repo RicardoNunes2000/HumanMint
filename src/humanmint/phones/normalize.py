@@ -139,7 +139,19 @@ def _empty(extension: Optional[str] = None, country: Optional[str] = None) -> Di
 def _normalize_phone_cached(
     phone_part: str, country: Optional[str], extension: Optional[str]
 ) -> Dict[str, Optional[str]]:
-    """Cached normalization core to avoid expensive re-parsing."""
+    """
+    Cached normalization core to avoid expensive re-parsing.
+
+    This function uses @lru_cache(maxsize=4096) to cache phone parsing results.
+    The phonenumbers library is expensive for large batches; caching dramatically
+    improves performance when processing duplicate phone numbers.
+
+    To clear the cache if memory is a concern:
+        >>> _normalize_phone_cached.cache_clear()
+
+    To check cache statistics:
+        >>> _normalize_phone_cached.cache_info()
+    """
     try:
         parsed = phonenumbers.parse(phone_part, country)
     except NumberParseException:

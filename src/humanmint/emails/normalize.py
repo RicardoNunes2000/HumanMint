@@ -157,7 +157,19 @@ def _empty() -> Dict[str, Optional[str]]:
 
 @lru_cache(maxsize=4096)
 def _normalize_email_cached(cleaned: str) -> Dict[str, Optional[str]]:
-    """Cached normalization path when using default inbox list."""
+    """
+    Cached normalization path when using default inbox list.
+
+    This function uses @lru_cache(maxsize=4096) to cache email validation and parsing.
+    For batches with duplicate email addresses, caching avoids expensive email_validator
+    library calls.
+
+    To clear the cache if memory is a concern:
+        >>> _normalize_email_cached.cache_clear()
+
+    To check cache statistics:
+        >>> _normalize_email_cached.cache_info()
+    """
     validated = _validate(cleaned)
 
     if validated is None:
