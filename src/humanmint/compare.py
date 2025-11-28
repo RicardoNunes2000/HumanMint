@@ -232,8 +232,10 @@ def compare(
         clean_overlap = {t for t in clean_tokens_a.intersection(clean_tokens_b) if t not in generic_tokens}
         strong_clean_match = _fuzzy_score(title_clean_a, title_clean_b) >= 85
         if not overlap and not clean_overlap:
-            if strong_clean_match:
-                title_score = max(75.0, min(title_score, 90.0))
+            # If fuzzy score is very high (e.g., "Director" vs "Interim Director" = 100),
+            # accept it even if only generic tokens overlap (one is a seniority variation of the other)
+            if strong_clean_match or title_score >= 90:
+                title_score = max(75.0, min(title_score, 100.0))
             else:
                 title_score = min(title_score, 35.0)
 
