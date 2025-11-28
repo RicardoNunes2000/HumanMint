@@ -5,7 +5,7 @@ from .mint import mint, MintResult, bulk
 from .compare import compare
 from .export import export_json, export_csv, export_parquet, export_sql
 
-__version__ = "0.1.12"
+__version__ = "0.1.13"
 __all__ = [
     "emails",
     "phones",

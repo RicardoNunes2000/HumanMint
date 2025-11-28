@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "humanmint"
-version = "0.1.12"
+version = "0.1.13"
 authors = [
     { name="Ricardo Nunes" },
 ]
@@ -52,9 +52,13 @@ pandas = [
 
 [project.urls]
 "Homepage" = "https://github.com/RicardoNunes2000/HumanMint"
-"Documentation" = "https://github.com/RicardoNunes2000/HumanMint/blob/main/README.md"
+"Documentation" = "https://github.com/RicardoNunes2000/HumanMint#documentation"
+"API Reference" = "https://github.com/RicardoNunes2000/HumanMint/blob/main/README.md#api-reference"
+"Use Cases" = "https://github.com/RicardoNunes2000/HumanMint/tree/main/docs/use_cases"
+"Fields Guide" = "https://github.com/RicardoNunes2000/HumanMint/blob/main/docs/FIELDS.md"
 "Bug Tracker" = "https://github.com/RicardoNunes2000/HumanMint/issues"
 "Source Code" = "https://github.com/RicardoNunes2000/HumanMint"
+"Changelog" = "https://github.com/RicardoNunes2000/HumanMint/blob/main/CHANGELOG.md"
 
 [project.scripts]
 humanmint = "humanmint.cli:main"
