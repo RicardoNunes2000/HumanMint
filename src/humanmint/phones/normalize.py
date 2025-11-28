@@ -241,14 +241,29 @@ def normalize_phone(
     if not raw:
         return _empty()
 
-    # Normalize international prefixes and extract extension
-    phone_clean = _strip_international_prefix(raw)
-    phone_part, extension = _extract_extension(phone_clean)
-    phone_part = phone_part.strip()
-    extension = extension or None
+    # If multiple numbers are present, pick the first valid one
+    # Common separators: "/", ";", ",", " or ", "|" (phone trees, shared lines)
+    candidates = re.split(r"(?:/|;|,|\bor\b|\|)", raw)
+    first_extension = None
+    for candidate in candidates:
+        candidate = candidate.strip()
+        if not candidate:
+            continue
 
-    if not phone_part:
-        return _empty()
+        phone_clean = _strip_international_prefix(candidate)
+        phone_part, extension = _extract_extension(phone_clean)
+        phone_part = phone_part.strip()
+        extension = extension or None
+        if first_extension is None:
+            first_extension = extension
 
-    result = _normalize_phone_cached(phone_part, country, extension)
-    return result.copy()
+        if not phone_part:
+            continue
+
+        result = _normalize_phone_cached(phone_part, country, extension)
+        if result.get("is_valid"):
+            return result.copy()
+
+    # If none of the splits validate, return an empty/invalid phone result
+    # but preserve the first detected extension (helps when number is malformed).
+    return _empty(extension=first_extension)

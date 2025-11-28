@@ -192,6 +192,7 @@ def process_department(
 
         # Check if normalized department matches any override
         is_override = False
+        matched_canonical = False
         final_dept = normalized
         if overrides:
             normalized_lower = normalized.lower()
@@ -206,6 +207,7 @@ def process_department(
             if normalized_lower in norm_overrides:
                 final_dept = norm_overrides[normalized_lower]
                 is_override = True
+                matched_canonical = True
             else:
                 # Fuzzy fallback on overrides (token_sort_ratio)
                 best = None
@@ -217,12 +219,14 @@ def process_department(
                 if best:
                     final_dept = best
                     is_override = True
+                    matched_canonical = True
 
         if not is_override:
             # Find best canonical match if no override matched
             canonical = find_best_department_match(raw_dept, threshold=0.6)
             if canonical:
                 final_dept = canonical
+                matched_canonical = True
             elif is_non_dept:
                 final_dept = None
             else:
@@ -233,7 +237,16 @@ def process_department(
             category = category.lower()
         elif final_dept:
             category = "other"
-        confidence = 1.0 if final_dept else 0.0
+        # Calibrate confidence: highest for explicit overrides, medium for canonical matches,
+        # lower when we fall back to just the normalized string, zero when we reject.
+        if is_override:
+            confidence = 0.95
+        elif matched_canonical:
+            confidence = 0.85
+        elif is_non_dept or not final_dept:
+            confidence = 0.0
+        else:
+            confidence = 0.4
 
         return {
             "raw": raw_dept,

@@ -135,3 +135,4 @@ htmlcov/
 # Local data exports
 cleaned_contacts.csv
 _contacts__*.csv
+/.claude

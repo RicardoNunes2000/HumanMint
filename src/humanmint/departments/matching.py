@@ -106,6 +106,25 @@ _KEYWORD_CANONICAL = {
 }
 
 
+def _overlap_score(cand_tokens: set[str], filtered_tokens: set[str]) -> int:
+    """Return count of meaningful-token overlap between candidate and search."""
+    if not cand_tokens or not filtered_tokens:
+        return 0
+    return len(cand_tokens.intersection(filtered_tokens))
+
+
+def _split_segments(text: str) -> list[str]:
+    """
+    Split a department string on common separators (/, &, +, |, comma, and 'and').
+
+    Returns non-empty, trimmed segments.
+    """
+    # Replace explicit " and " with a separator to align with others
+    cleaned = re.sub(r"\band\b", "|", text, flags=re.IGNORECASE)
+    parts = re.split(r"[\\/|&,+]", cleaned)
+    return [p.strip() for p in parts if p and p.strip()]
+
+
 def _is_likely_non_department(text: str) -> bool:
     """
     Detect if input looks like a building/location rather than a department.
@@ -177,16 +196,13 @@ def _find_best_match_normalized(
 ) -> Optional[str]:
     """Cached core matcher for already-normalized names."""
     search_name_lower = search_name.lower()
-    search_name_ascii = search_name_lower.replace("’", "'")
+    search_name_ascii = search_name_lower.replace("'", "'")
     search_tokens = {t for t in re.findall(r"[a-z0-9]+", search_name_ascii) if t}
+    filtered_tokens = {t for t in search_tokens if t not in _GENERIC_DEPT_TOKENS}
 
-    # Hard overrides to avoid common cross-domain collisions
-    if "planning" in search_tokens:
-        return "Planning"
-    if "housing" in search_tokens:
-        return "Housing"
-    if "public" in search_tokens and "works" in search_tokens:
-        return "Public Works"
+    # Avoid over-eager matches on single-letter inputs (e.g., "X")
+    if len(filtered_tokens) == 1 and len(next(iter(filtered_tokens))) <= 1:
+        return None
 
     parts = [p for p in search_name_lower.split() if p]
     for part in parts:
@@ -200,7 +216,7 @@ def _find_best_match_normalized(
 
     # Keyword-based shortcuts to keep domain-correct matches
     for kw, canon in _KEYWORD_CANONICAL.items():
-        if kw in search_tokens:
+        if kw in search_tokens and canon is not None:
             return canon
 
     # Early rejection: if input looks like a building/location, don't force-match
@@ -212,36 +228,69 @@ def _find_best_match_normalized(
     if search_name in CANONICAL_DEPARTMENTS_SET:
         return search_name
 
-    # Strategy 1: Check CSV mappings for exact match (O(1) with cache)
+    # Quick exact/trimmed mapping check before any segmentation
     try:
         mapping_cache = _get_mapping_cache()
         if search_name_lower in mapping_cache:
             return mapping_cache[search_name_lower]
-        # Fuzzy match against original names to avoid hard mismaps
-        if _mapping_keys:
-            fuzzy_result = process.extractOne(
-                search_name_lower,
-                _mapping_keys,
-                scorer=fuzz.token_sort_ratio,
-                score_cutoff=max(85, threshold * 100),
-            )
-            if fuzzy_result:
-                candidate_key, score = fuzzy_result[0], fuzzy_result[1]
-                cand_tokens = {t for t in candidate_key.split() if t not in _GENERIC_DEPT_TOKENS}
-                search_tokens = {t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS}
-                if cand_tokens and search_tokens and cand_tokens.intersection(search_tokens):
-                    return mapping_cache.get(candidate_key)
+        trimmed_search = " ".join(t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS)
+        if trimmed_search and trimmed_search in mapping_cache:
+            return mapping_cache[trimmed_search]
     except Exception:
-        # If mapping cache fails, continue to other strategies
-        pass
+        mapping_cache = None
 
-    # Strategy 2: Check for substring match with canonical departments, requiring meaningful token overlap
+    # Strategy 0: Segment-aware scoring to prefer strong sub-part matches
+    segments = _split_segments(search_name_lower)
+    if len(segments) > 1:
+        segment_best = None
+        try:
+            mapping_cache = _get_mapping_cache()
+        except Exception:
+            mapping_cache = None
+
+        for seg in segments:
+            seg_tokens = {t for t in re.findall(r"[a-z0-9]+", seg) if t and t not in _GENERIC_DEPT_TOKENS}
+            if not seg_tokens:
+                continue
+
+            # Exact/trimmed mapping check per segment
+            if mapping_cache is not None:
+                trimmed = " ".join(t for t in seg.split() if t not in _GENERIC_DEPT_TOKENS)
+                for candidate_key in (seg, trimmed):
+                    if not candidate_key:
+                        continue
+                    candidate_key_lower = candidate_key.lower()
+                    if candidate_key_lower in mapping_cache:
+                        candidate = mapping_cache[candidate_key_lower]
+                        candidate_score = (len(seg_tokens), float("inf"), candidate)
+                        if segment_best is None or candidate_score > segment_best:
+                            segment_best = candidate_score
+                        break
+
+            # Canonical overlap scoring
+            for canonical, canonical_lower in _canonical_lowers:
+                canonical_tokens = {t for t in canonical_lower.split() if t not in _GENERIC_DEPT_TOKENS}
+                overlap = _overlap_score(canonical_tokens, seg_tokens)
+                if overlap >= 2:
+                    candidate_score = (overlap, len(canonical_tokens), canonical)
+                    if segment_best is None or candidate_score > segment_best:
+                        segment_best = candidate_score
+
+        if segment_best:
+            return segment_best[2]
+
+    # Strategy 1: Check for substring match with canonical departments, requiring meaningful token overlap
     matches = []
     for canonical, canonical_lower in _canonical_lowers:
         if canonical_lower in search_name_lower or search_name_lower in canonical_lower:
-            search_tokens = {t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS}
             canonical_tokens = {t for t in canonical_lower.split() if t not in _GENERIC_DEPT_TOKENS}
-            if search_tokens and canonical_tokens and search_tokens.intersection(canonical_tokens):
+            # Permit "Office of ..." leading tokens to count as meaningful for office-prefixed canonicals
+            overlap = _overlap_score(canonical_tokens, filtered_tokens)
+            if (
+                filtered_tokens
+                and canonical_tokens
+                and (overlap >= 2 or (overlap == 1 and "office" in canonical_lower))
+            ):
                 # Score: how early in the search string does this appear? (prefer early matches)
                 # and prefer longer canonical names for specificity
                 position = search_name_lower.find(canonical_lower)
@@ -254,6 +303,44 @@ def _find_best_match_normalized(
     if matches:
         # Return the best match (earliest appearance, then longest)
         return max(matches, key=lambda x: x[0])[1]
+
+    # Strategy 2: Check CSV mappings for exact/fuzzy match (O(1)/fast)
+    try:
+        mapping_cache = _get_mapping_cache()
+        if search_name_lower in mapping_cache:
+            return mapping_cache[search_name_lower]
+        trimmed_search = " ".join(t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS)
+        if trimmed_search and trimmed_search in mapping_cache:
+            return mapping_cache[trimmed_search]
+        if _mapping_keys:
+            score_cutoff = max(80, threshold * 100)
+            fuzzy_results = process.extract(
+                search_name_lower,
+                _mapping_keys,
+                scorer=fuzz.token_set_ratio,
+                score_cutoff=score_cutoff,
+                limit=5,
+            )
+            best_strong = None  # Requires ≥2 overlapping meaningful tokens
+            best_any = None     # At least one overlapping token
+            for candidate_key, score, _ in fuzzy_results:
+                cand_tokens = {t for t in candidate_key.split() if t not in _GENERIC_DEPT_TOKENS}
+                if not cand_tokens or not filtered_tokens:
+                    continue
+                overlap_count = _overlap_score(cand_tokens, filtered_tokens)
+                if overlap_count:
+                    candidate_tuple = (overlap_count, score, len(cand_tokens), candidate_key)
+                    if best_any is None or candidate_tuple > best_any:
+                        best_any = candidate_tuple
+                    if overlap_count >= 2:
+                        if best_strong is None or candidate_tuple > best_strong:
+                            best_strong = candidate_tuple
+            if best_strong:
+                return mapping_cache.get(best_strong[3])
+            if best_any:
+                return mapping_cache.get(best_any[3])
+    except Exception:
+        pass
 
     # Strategy 3: Find close matches using rapidfuzz (fallback)
     # Try multiple scoring strategies to find the best match
@@ -270,8 +357,9 @@ def _find_best_match_normalized(
         candidate = result[0]
         # Require at least one meaningful token overlap to prevent cross-domain mismaps
         cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
-        filtered_search = {t for t in search_tokens if t not in _GENERIC_DEPT_TOKENS}
-        if cand_tokens and filtered_search and cand_tokens.intersection(filtered_search):
+        filtered_search = filtered_tokens
+        overlap = _overlap_score(cand_tokens, filtered_search) if cand_tokens and filtered_search else 0
+        if overlap >= 2 or (overlap == 1 and "office" in candidate.lower()):
             return candidate
 
     # If token_set_ratio fails, try token_sort_ratio
@@ -284,7 +372,7 @@ def _find_best_match_normalized(
     if result and result[1] >= score_cutoff:  # Verify score meets threshold
         candidate = result[0]
         cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
-        filtered_search = {t for t in search_tokens if t not in _GENERIC_DEPT_TOKENS}
+        filtered_search = filtered_tokens
         if cand_tokens and filtered_search and cand_tokens.intersection(filtered_search):
             return candidate
 
@@ -299,7 +387,11 @@ def _find_best_match_normalized(
         score_cutoff=lower_cutoff,
     )
     if result and result[1] >= lower_cutoff:  # Verify score meets lower threshold
-        return result[0]
+        candidate = result[0]
+        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
+        overlap = _overlap_score(cand_tokens, filtered_tokens) if cand_tokens and filtered_tokens else 0
+        if overlap >= 2 or (overlap == 1 and "office" in candidate.lower()):
+            return candidate
 
     return None
 
