@@ -194,6 +194,16 @@ def normalize_title(raw_title: str) -> str:
     """
     Normalize a raw job title by removing noise and standardizing format.
 
+    This function uses @lru_cache(maxsize=4096) to cache normalization results.
+    For batches with repeated job titles (common in organizations), caching avoids
+    redundant regex processing.
+
+    To clear the cache if memory is a concern:
+        >>> normalize_title.cache_clear()
+
+    To check cache statistics:
+        >>> normalize_title.cache_info()
+
     Removes:
     - Name prefixes (e.g., "Dr.", "Mr.")
     - Job codes (e.g., "0001 - ")

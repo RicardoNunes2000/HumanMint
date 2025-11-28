@@ -258,11 +258,21 @@ def normalize_department(raw_dept: str) -> str:
     """
     Normalize a raw department name by removing noise and standardizing format.
 
+    This function uses @lru_cache(maxsize=4096) to cache normalization results.
+    For batches with repeated department names (common in contact data), caching
+    avoids redundant regex processing.
+
     Removes:
     - Phone numbers and extensions (e.g., "850-123-1234 ext 200")
     - Department codes (e.g., "000171 - ", "010100 - ")
     - Extra whitespace
     - Non-alphanumeric characters beyond ampersands and hyphens
+
+    To clear the cache if memory is a concern:
+        >>> normalize_department.cache_clear()
+
+    To check cache statistics:
+        >>> normalize_department.cache_info()
 
     Example:
         >>> normalize_department("000171 - Supervisor 850-123-1234 ext 200")

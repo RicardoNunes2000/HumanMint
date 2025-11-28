@@ -5,7 +5,52 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.5] - 2025-01-28
+## [0.1.8] - 2025-11-28
+
+### Added
+- **`MintResult.get()` accessor method**: Safely access nested fields using dot notation with optional defaults
+  - Supports dot notation: `result.get("name.first")`, `result.get("email.domain")`, `result.get("phone.e164")`
+  - Returns `None` or a custom default if field doesn't exist: `result.get("phone.e164", "+1 000-000-0000")`
+  - Comprehensive test coverage with 24 test cases in new `test_get_accessor.py`
+
+### Changed
+- **Enhanced cache documentation**: All `@lru_cache` decorated functions now include detailed docstrings explaining cache behavior
+  - Documented cache size (maxsize=4096) and performance benefits
+  - Added examples for cache inspection (`cache_info()`) and clearing (`cache_clear()`)
+  - Affected functions: `_normalize_name_cached`, `_find_best_match_normalized` (departments), `normalize_department`, `is_free_provider`, `_normalize_email_cached`, `_normalize_phone_cached`, `_find_best_match_normalized` (titles), `normalize_title`
+
+### Fixed
+- **Variable shadowing in `compare()` function**: Renamed local `weights` variable to `weight_pairs` to avoid shadowing the `weights` parameter
+  - Improves code clarity while maintaining backward compatibility
+  - No functional change; linting and static analysis improvements
+
+## [0.1.7] - 2025-11-28
+
+### Added
+- **Improved email fuzzy matching** in `compare()` function for better handling of similar email addresses within same domain
+- **Weighted scoring refinements**: Better ratio scaling ensuring floors and penalties respect field weights
+
+### Changed
+- Enhanced `compare()` function with improved fuzzy email matching logic
+- Refactored scoring to use weighted contributions more consistently
+
+### Fixed
+- Email matching now correctly handles abbreviated and similar local parts within same domain
+- Fixed edge cases in weighted score calculations for partial field matches
+
+## [0.1.6] - 2025-11-28
+
+### Added
+- Enhanced department matching with segment-aware scoring for multi-part names
+
+### Changed
+- Improved department canonicalization for complex department name structures
+
+### Fixed
+- Better handling of "and" separators in department names
+- Improved edge case handling for department normalization with special characters
+
+## [0.1.5] - 2025-11-28
 
 ### Added
 - **Weighted comparison scoring**: The `compare()` function now accepts optional `weights` parameter for field-level control over similarity calculation

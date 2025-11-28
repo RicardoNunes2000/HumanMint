@@ -58,7 +58,19 @@ def _find_best_match_normalized(
     search_title: str,
     threshold: float,
 ) -> tuple[Optional[str], float]:
-    """Cached core matcher for already-normalized titles."""
+    """
+    Cached core matcher for already-normalized titles.
+
+    This function uses @lru_cache(maxsize=4096) to cache fuzzy matching results.
+    For large batches with repeated job titles, caching avoids redundant fuzzy
+    matching computations against the canonical title set.
+
+    To clear the cache if memory is a concern:
+        >>> _find_best_match_normalized.cache_clear()
+
+    To check cache statistics:
+        >>> _find_best_match_normalized.cache_info()
+    """
     search_title_lower = search_title.lower()
 
     # Strategy 1: Check if already canonical (O(1))
