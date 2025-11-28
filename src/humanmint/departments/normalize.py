@@ -8,11 +8,10 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
+from humanmint.text_clean import normalize_unicode_ascii, strip_garbage, strip_codes_and_ids, remove_parentheticals
 
 _PHONE_PATTERN = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
 _EXT_PATTERN = re.compile(r"\b(?:ext|x|extension)[\s.]*\d+\b", flags=re.IGNORECASE)
-_CODE_PATTERN = re.compile(r"^[0-9]{3,}[\s\-]*")
 _EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 _HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 _SYMBOL_WRAPPER_PATTERN = re.compile(r"[#|]+")
@@ -163,7 +162,7 @@ def _normalize_apostrophes(text: str) -> str:
 
 def _remove_parentheticals(text: str) -> str:
     """Remove all parenthetical segments, treating them as metadata/noise."""
-    return re.sub(r"\([^)]*\)", " ", text)
+    return remove_parentheticals(text)
 
 
 def _expand_abbreviations(text: str) -> str:
@@ -201,23 +200,21 @@ def _restore_acronyms(text: str) -> str:
     return " ".join(parts)
 
 
-def _remove_codes_and_ids(text: str) -> str:
+def _remove_codes_and_ids(text: str, strip_codes: str = "both") -> str:
     """
     Remove department codes and ID numbers.
 
-    Matches patterns like:
-    - 000171 - Supervisor
-    - 010100 - Administration
-    - [any number with leading zeros or dashes]
+    Uses the shared strip_codes_and_ids utility from text_clean module.
+    Supports flexible control over which codes to strip.
 
     Args:
         text: Input string potentially containing codes.
+        strip_codes: Which codes to remove ("both", "leading", "trailing", "none").
 
     Returns:
-        str: Text with codes removed.
+        str: Text with codes removed based on strip_codes setting.
     """
-    # Remove leading numeric codes with dashes (e.g., "000171 - ", "010100 - ")
-    return _CODE_PATTERN.sub("", text)
+    return strip_codes_and_ids(text, strip_codes=strip_codes)
 
 
 def _remove_contact_phrases(text: str) -> str:
@@ -254,36 +251,17 @@ def _remove_extra_whitespace(text: str) -> str:
 
 
 @lru_cache(maxsize=4096)
-def normalize_department(raw_dept: str) -> str:
+def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
     """
-    Normalize a raw department name by removing noise and standardizing format.
+    Cached core normalization to avoid re-parsing identical inputs.
 
     This function uses @lru_cache(maxsize=4096) to cache normalization results.
     For batches with repeated department names (common in contact data), caching
     avoids redundant regex processing.
 
-    Removes:
-    - Phone numbers and extensions (e.g., "850-123-1234 ext 200")
-    - Department codes (e.g., "000171 - ", "010100 - ")
-    - Extra whitespace
-    - Non-alphanumeric characters beyond ampersands and hyphens
-
-    To clear the cache if memory is a concern:
-        >>> normalize_department.cache_clear()
-
-    To check cache statistics:
-        >>> normalize_department.cache_info()
-
-    Example:
-        >>> normalize_department("000171 - Supervisor 850-123-1234 ext 200")
-        "Supervisor"
-        >>> normalize_department("Public Works 850-123-1234")
-        "Public Works"
-        >>> normalize_department("  City  Clerk  ")
-        "City Clerk"
-
     Args:
         raw_dept: Raw department name string.
+        strip_codes: Which codes to remove ("both", "leading", "trailing", "none").
 
     Returns:
         str: Normalized department name in title case.
@@ -306,7 +284,7 @@ def normalize_department(raw_dept: str) -> str:
     text = _strip_symbol_wrappers(text)
     text = _normalize_separators(text)
     text = _remove_contact_phrases(text)
-    text = _remove_codes_and_ids(text)
+    text = _remove_codes_and_ids(text, strip_codes=strip_codes)
     text = _remove_parentheticals(text)
     text = _remove_extra_whitespace(text)
     text = _DEPT_META_PATTERN.sub("", text).strip()
@@ -327,3 +305,50 @@ def normalize_department(raw_dept: str) -> str:
     text = _restore_acronyms(text)
 
     return text
+
+
+def normalize_department(raw_dept: str, strip_codes: str = "both") -> str:
+    """
+    Normalize a raw department name by removing noise and standardizing format.
+
+    This function uses @lru_cache internally (maxsize=4096) to cache normalization
+    results. For batches with repeated department names (common in contact data),
+    caching avoids redundant regex processing.
+
+    Removes:
+    - Phone numbers and extensions (e.g., "850-123-1234 ext 200")
+    - Department codes based on strip_codes parameter
+    - Extra whitespace
+    - Non-alphanumeric characters beyond ampersands and hyphens
+
+    To clear the cache if memory is a concern:
+        >>> _normalize_department_cached.cache_clear()
+
+    To check cache statistics:
+        >>> _normalize_department_cached.cache_info()
+
+    Example:
+        >>> normalize_department("000171 - Supervisor 850-123-1234 ext 200")
+        "Supervisor"
+        >>> normalize_department("Public Works 850-123-1234")
+        "Public Works"
+        >>> normalize_department("Public Works 514134", strip_codes="both")
+        "Public Works"
+        >>> normalize_department("4591405 Public Works 514134", strip_codes="none")
+        "4591405 Public Works 514134"
+
+    Args:
+        raw_dept: Raw department name string.
+        strip_codes: Which codes to remove. Options:
+            - "both" (default): Remove leading and trailing numeric codes
+            - "leading": Remove only leading codes (e.g., "000171 - ")
+            - "trailing": Remove only trailing codes (e.g., " 514134")
+            - "none": Don't remove any codes
+
+    Returns:
+        str: Normalized department name in title case.
+
+    Raises:
+        ValueError: If the input is empty or not a string.
+    """
+    return _normalize_department_cached(raw_dept, strip_codes)

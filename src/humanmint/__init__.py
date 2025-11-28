@@ -3,8 +3,9 @@
 from . import emails, phones, names, departments, titles, addresses, organizations
 from .mint import mint, MintResult, bulk
 from .compare import compare
+from .export import export_json, export_csv, export_parquet, export_sql
 
-__version__ = "0.1.0"
+__version__ = "0.1.9"
 __all__ = [
     "emails",
     "phones",
@@ -17,6 +18,10 @@ __all__ = [
     "bulk",
     "MintResult",
     "compare",
+    "export_json",
+    "export_csv",
+    "export_parquet",
+    "export_sql",
 ]
 
 # Optional pandas accessor registration
