@@ -5,6 +5,26 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] - 2025-11-28
+
+### Added
+- **`title_str` property**: Added convenient `title_str` property to `MintResult` that returns canonical title
+  - Matches the pattern of other `_str` properties (`name_str`, `email_str`, `phone_str`, `department_str`)
+  - Returns `title["canonical"]` for consistent API access across all field types
+  - Example: `result.title_str` → `"police chief"` (shorthand for `result.title["canonical"]`)
+
+### Changed
+- **Improved documentation accuracy**: All code examples in README and use case docs now verified to run correctly
+  - Updated field access examples to reflect actual API behavior
+  - Corrected gender output format (`"female"` instead of `"Female"`)
+  - Fixed title normalization stage descriptions
+  - Added comprehensive test suite (`tests/test_docs_examples.py`) with 8 tests covering all major examples
+
+### Fixed
+- **Documentation consistency**: Aligned all property examples across README and use case documentation
+  - Fixed discrepancies between documented and actual API behavior
+  - All examples are now copy-pasteable and guaranteed to work
+
 ## [0.1.10] - 2025-11-28
 
 ### Added

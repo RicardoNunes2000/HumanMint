@@ -64,7 +64,60 @@ All fields provide three access patterns:
 | Property | `result.title_str` | Shorthand for canonical/standardized form |
 | Full dict | `result.title` | All stages: raw, normalized, canonical, is_valid |
 
-Common `_str` properties: `name_str`, `email_str`, `phone_str`, `department_str`, `title_str`
+#### Available Properties by Field
+
+**Names:**
+- `name_str` - Full name
+- `name_first` - First name
+- `name_last` - Last name
+- `name_middle` - Middle name
+- `name_suffix` - Suffix (Jr., Sr., etc.)
+- `name_gender` - Inferred gender
+
+**Emails:**
+- `email_str` - Normalized email
+- `email_domain` - Domain part
+- `email_valid` - Is valid email
+- `email_generic` - Is generic inbox (info@, admin@)
+- `email_free` - Is free provider (Gmail, Yahoo)
+
+**Phones:**
+- `phone_str` - Formatted phone (pretty or E.164)
+- `phone_e164` - E.164 format (+12025550123)
+- `phone_pretty` - Pretty format (+1 202-555-0123)
+- `phone_extension` - Extension number
+- `phone_valid` - Is valid phone
+- `phone_type` - Type (MOBILE, FIXED_LINE, etc.)
+
+**Departments:**
+- `department_str` - Canonical department name
+- `department_category` - Department category
+- `department_normalized` - Normalized (pre-canonical)
+- `department_override` - Was override applied
+
+**Titles:**
+- `title_str` - Canonical title
+- `title_raw` - Original input
+- `title_normalized` - Normalized (intermediate)
+- `title_canonical` - Standardized form
+- `title_valid` - Is valid title
+- `title_confidence` - Confidence score (0.0-1.0)
+
+**Addresses:**
+- `address_str` / `address_canonical` - Full formatted address
+- `address_raw` - Original input
+- `address_street` - Street address
+- `address_unit` - Unit/apartment number
+- `address_city` - City
+- `address_state` - State
+- `address_zip` - ZIP code
+- `address_country` - Country
+
+**Organizations:**
+- `organization_raw` - Original input
+- `organization_normalized` - Normalized form
+- `organization_canonical` - Canonical form
+- `organization_confidence` - Confidence score (0.0-1.0)
 
 ### Accessing title fields
 
