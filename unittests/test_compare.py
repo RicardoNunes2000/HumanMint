@@ -453,3 +453,165 @@ def test_compare_department_penalty_respects_weight():
         weights={"name": 1.0, "email": 0.0, "phone": 0.0, "department": 0.0, "title": 0.0},
     )
     assert no_dept_penalty_score > default_score
+
+
+# -------------------------
+# EMAIL FUZZY MATCHING (SAME DOMAIN)
+# -------------------------
+
+
+def test_compare_email_abbreviated_vs_full_same_domain():
+    """Test that rchen@ and robert.chen@ at same domain score well."""
+    a = mint(name="Robert Chen", email="rchen@cityofspringfield.gov")
+    b = mint(name="Bob Chen", email="robert.chen@cityofspringfield.gov")
+    score = compare(a, b)
+    assert score >= 65, f"Expected >=65 for abbreviated email match, got {score}"
+
+
+def test_compare_email_abbreviated_first_last_same_domain():
+    """Test jsmith@ vs john.smith@ similarity."""
+    a = mint(name="John Smith", email="jsmith@city.gov")
+    b = mint(name="John Smith", email="john.smith@city.gov")
+    score = compare(a, b)
+    assert score > 75, f"Expected >75 for abbreviated name email, got {score}"
+
+
+def test_compare_email_similar_but_different_people():
+    """Ensure mjohnson vs michelle.johnson isn't over-matched."""
+    a = mint(name="Michael Johnson", email="mjohnson@city.gov")
+    b = mint(name="Michelle Johnson", email="michelle.johnson@city.gov")
+    score = compare(a, b)
+    assert score < 70, f"Expected <70 for different people same domain, got {score}"
+
+
+def test_compare_email_same_domain_unrelated_names():
+    """Completely unrelated local parts should score low."""
+    a = mint(name="Alice Smith", email="alice@city.gov")
+    b = mint(name="Bob Jones", email="bob@city.gov")
+    score = compare(a, b)
+    assert score < 40, f"Expected <40 for unrelated emails same domain, got {score}"
+
+
+# -------------------------
+# WEIGHTED COMPARISON REAL SCENARIOS
+# -------------------------
+
+
+def test_compare_weighted_email_typo_with_phone_match():
+    """
+    Same person, email typo but phone matches.
+    All weight configs should identify as match.
+    """
+    a = mint(
+        name="Jennifer Martinez",
+        email="jennifer.martinez@cityofspringfield.gov",
+        phone="+15551234567",
+        department="Public Works",
+        title="Director",
+    )
+    b = mint(
+        name="Jennifer Martinez",
+        email="jenmartinez@cityofspringfield.gov",
+        phone="+15551234567",
+        department="Public Works",
+        title="Director",
+    )
+
+    default_score = compare(a, b)
+    low_email_score = compare(a, b, weights={"email": 0.1})
+    high_email_score = compare(a, b, weights={"email": 0.8})
+
+    assert default_score >= 75, f"Default should match, got {default_score}"
+    assert low_email_score >= 75, f"Low email weight should match, got {low_email_score}"
+    assert high_email_score >= 75, f"High email weight should match, got {high_email_score}"
+
+
+def test_compare_weighted_name_change_after_marriage():
+    """
+    Same person, last name changed but email/phone/title match.
+    Higher email weight should increase score.
+    """
+    a = mint(
+        name="Sarah Williams",
+        email="sarah.williams@cityofspringfield.gov",
+        phone="+15553334444",
+        department="Human Resources",
+        title="HR Manager",
+    )
+    b = mint(
+        name="Sarah Thompson",
+        email="sarah.williams@cityofspringfield.gov",
+        phone="+15553334444",
+        department="Human Resources",
+        title="HR Manager",
+    )
+
+    default_score = compare(a, b)
+    high_email_score = compare(a, b, weights={"name": 0.2, "email": 0.8})
+
+    assert default_score >= 75, f"Default should match, got {default_score}"
+    assert high_email_score > default_score, "High email weight should boost score"
+
+
+def test_compare_weighted_partial_data_nickname():
+    """
+    Partial scraped data with nickname (Bob=Robert) and abbreviated email.
+    Should match with default weights after email fuzzy matching.
+    """
+    a = mint(
+        name="Robert Chen",
+        email="rchen@cityofspringfield.gov",
+        title="City Engineer",
+    )
+    b = mint(
+        name="Bob Chen",
+        email="robert.chen@cityofspringfield.gov",
+        title="Engineer",
+    )
+
+    score = compare(a, b)
+    assert score >= 70, f"Nickname + abbreviated email should match, got {score}"
+
+
+def test_compare_weighted_different_people_similar_names():
+    """
+    Different people with similar names in same department.
+    Should NOT match regardless of weight config.
+    """
+    a = mint(
+        name="Michael Johnson",
+        email="mjohnson@cityofspringfield.gov",
+        phone="+15559876543",
+        department="Finance",
+        title="Accountant",
+    )
+    b = mint(
+        name="Michelle Johnson",
+        email="michelle.johnson@cityofspringfield.gov",
+        phone="+15551112222",
+        department="Finance",
+        title="Budget Analyst",
+    )
+
+    default_score = compare(a, b)
+    high_name_score = compare(a, b, weights={"name": 0.8, "email": 0.2})
+    high_email_score = compare(a, b, weights={"name": 0.2, "email": 0.8})
+
+    assert default_score < 75, f"Default should NOT match, got {default_score}"
+    assert high_name_score < 75, f"High name should NOT match, got {high_name_score}"
+    assert high_email_score < 75, f"High email should NOT match, got {high_email_score}"
+
+
+def test_compare_weight_ratio_scaling():
+    """
+    Verify that floor bonuses scale with weight ratios.
+    High weight on matching field should boost score.
+    """
+    a = mint(name="Jane Doe", email="jane@example.com")
+    b = mint(name="Jane Doe", email="jane@example.com")
+
+    default_score = compare(a, b)
+    high_email_score = compare(a, b, weights={"email": 0.8, "name": 0.2})
+
+    assert default_score >= 90, "Exact match should score very high"
+    assert high_email_score >= default_score, "Higher email weight should not decrease score"

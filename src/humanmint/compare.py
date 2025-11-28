@@ -159,12 +159,26 @@ def compare(
             fall back to the defaults used today.
     """
     weight_config = {**DEFAULT_COMPARE_WEIGHTS, **(weights or {})}
-    weights: list[tuple[float, float]] = []
+    # Ensure no negative weights
+    weight_config = {k: max(0.0, v) for k, v in weight_config.items()}
+
+    def _weight_ratio(key: str) -> float:
+        default = DEFAULT_COMPARE_WEIGHTS.get(key, 0.0)
+        if default <= 0:
+            return 0.0
+        weight = weight_config.get(key, default)
+        # Scale to default, but cap at 1.0 so floors/penalties do not exceed defaults
+        return min(weight / default, 1.0)
+
+    # Collect weighted contributions (each field contributes score * weight to final)
+    weighted_contributions: list[float] = []
+    active_weights: list[float] = []
 
     # Names
     name_score = _name_score(result_a.name, result_b.name)
     if result_a.name and result_b.name:
-        weights.append((name_score, weight_config["name"]))
+        weighted_contributions.append(name_score * weight_config["name"])
+        active_weights.append(weight_config["name"])
 
     # Email
     email_norm_a = result_a.email.get("normalized") if result_a.email else None
@@ -172,14 +186,38 @@ def compare(
     email_score = _exact_match_score(email_norm_a, email_norm_b)
     if email_norm_a and email_norm_b:
         if email_score == 0.0:
-            # Treat plus aliases as same user if domain/local_base match
+            # Parse email components
             local_a, _, domain_a = email_norm_a.partition("@")
             local_b, _, domain_b = email_norm_b.partition("@")
-            base_a = local_a.split("+", 1)[0]
-            base_b = local_b.split("+", 1)[0]
-            if domain_a == domain_b and base_a == base_b:
-                email_score = 95.0
-        weights.append((email_score, weight_config["email"]))
+
+            # Same domain comparison
+            if domain_a == domain_b:
+                # Remove plus-aliases for base comparison
+                base_a = local_a.split("+", 1)[0]
+                base_b = local_b.split("+", 1)[0]
+
+                if base_a == base_b:
+                    # Same base (e.g., john+work vs john+personal)
+                    email_score = 95.0
+                else:
+                    # Different bases but same domain - check similarity
+                    # Handle common patterns: rchen vs robert.chen, jsmith vs john.smith
+                    base_a_clean = base_a.replace(".", "").replace("-", "").replace("_", "")
+                    base_b_clean = base_b.replace(".", "").replace("-", "").replace("_", "")
+
+                    # Check if one is substring of the other (e.g., rchen in robert.chen)
+                    if base_a_clean in base_b_clean or base_b_clean in base_a_clean:
+                        email_score = 70.0
+                    else:
+                        # Fuzzy match on local parts (same domain suggests related)
+                        fuzzy_local = fuzz.ratio(base_a_clean, base_b_clean)
+                        if fuzzy_local >= 80:
+                            email_score = 65.0
+                        elif fuzzy_local >= 60:
+                            email_score = 50.0
+
+        weighted_contributions.append(email_score * weight_config["email"])
+        active_weights.append(weight_config["email"])
 
     # Phone (prefer E.164)
     phone_a = result_a.phone or {}
@@ -192,7 +230,8 @@ def compare(
     if phone_score == 0.0:
         phone_score = _exact_match_score(phone_pretty_a, phone_pretty_b)
     if (phone_e164_a or phone_pretty_a) and (phone_e164_b or phone_pretty_b):
-        weights.append((phone_score, weight_config["phone"]))
+        weighted_contributions.append(phone_score * weight_config["phone"])
+        active_weights.append(weight_config["phone"])
 
     # Department canonical fuzzy
     score_penalty = 0.0
@@ -201,7 +240,8 @@ def compare(
         (result_b.department or {}).get("canonical"),
     )
     if result_a.department and result_b.department:
-        weights.append((dept_score, weight_config["department"]))
+        weighted_contributions.append(dept_score * weight_config["department"])
+        active_weights.append(weight_config["department"])
         dept_can_a = _safe_lower((result_a.department or {}).get("canonical"))
         dept_can_b = _safe_lower((result_b.department or {}).get("canonical"))
         if (
@@ -238,25 +278,36 @@ def compare(
                 title_score = min(title_score, 35.0)
 
     if result_a.title and result_b.title:
-        weights.append((title_score, weight_config["title"]))
+        weighted_contributions.append(title_score * weight_config["title"])
+        active_weights.append(weight_config["title"])
 
-    score = _weighted_average(weights)
+    # Calculate final score: each field contributes (score/100 * weight) points
+    # Weights represent the maximum points each field can contribute
+    # Sum of all weights = maximum possible score
+    score = sum(weighted_contributions) / 100.0  # Since each contribution is score * weight
+
+    # Normalize to 0-100 scale based on sum of active weights
+    max_possible = sum(active_weights)
+    if max_possible > 0:
+        score = (score / max_possible) * 100.0
+    else:
+        score = 0.0
 
     # Gender penalty if conflicting and both present and name is weighted
     gender_a = _safe_lower((result_a.name or {}).get("gender"))
     gender_b = _safe_lower((result_b.name or {}).get("gender"))
     if weight_config["name"] > 0 and gender_a and gender_b and gender_a != gender_b:
-        score -= 3.0
-    score -= score_penalty
+        score -= 3.0 * _weight_ratio("name")
+    score -= score_penalty * _weight_ratio("department")
 
     # Strong name agreement should not collapse entirely from other disagreements
     if weight_config["name"] > 0 and name_score >= 95.0:
-        score = max(score, 45.0)
+        score = max(score, 45.0 * _weight_ratio("name"))
 
     # If we have strong identifiers (email/phone) matching exactly, ensure a high floor
-    if (
-        weight_config["email"] > 0 and email_score == 100.0
-    ) or (weight_config["phone"] > 0 and phone_score == 100.0):
-        score = max(score, 90.0)
+    email_floor = 90.0 * _weight_ratio("email") if weight_config["email"] > 0 and email_score == 100.0 else 0.0
+    phone_floor = 90.0 * _weight_ratio("phone") if weight_config["phone"] > 0 and phone_score == 100.0 else 0.0
+    if email_floor > 0 or phone_floor > 0:
+        score = max(score, max(email_floor, phone_floor))
 
     return max(0.0, min(100.0, score))
