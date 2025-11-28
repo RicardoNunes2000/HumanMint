@@ -170,10 +170,10 @@ results = bulk(records, workers=4, progress=True)
 
 ## Documentation
 
-- **[API Reference](docs/API.md)** — Full function documentation
-- **[Use Cases](docs/use_cases/)** — Real-world examples (Government contacts, HR, Salesforce, etc.)
-- **[Fields Guide](docs/FIELDS.md)** — Access all returned fields
-- **[Advanced](docs/ADVANCED.md)** — Custom weights, overrides, batch export
+- **[API Reference](https://github.com/RicardoNunes2000/HumanMint#api-reference)** — Full function documentation
+- **[Use Cases](https://github.com/RicardoNunes2000/HumanMint/tree/main/docs/use_cases)** — Real-world examples (Government contacts, HR, Salesforce, etc.)
+- **[Fields Guide](https://github.com/RicardoNunes2000/HumanMint/blob/main/docs/FIELDS.md)** — Access all returned fields
+- **[Advanced](https://github.com/RicardoNunes2000/HumanMint/blob/main/docs/ADVANCED.md)** — Custom weights, overrides, batch export
 
 ## CLI
 
