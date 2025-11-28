@@ -2,11 +2,12 @@ import time
 import random
 from faker import Faker
 import sys
+from pathlib import Path
 
 # Ensure we can import the library
 sys.path.insert(0, "src")
 
-from humanmint import mint
+from humanmint import mint, export_json, export_csv
 
 fake = Faker("en_US")
 
@@ -101,6 +102,18 @@ def main():
     print("\n=== PERFORMANCE ===")
     print(f"Total time: {total_ms:.2f} ms")
     print(f"Avg per record: {avg_ms:.4f} ms")
+
+    # Export results to root folder
+    root_dir = Path(__file__).parent.parent
+    json_file = root_dir / "department_edge_cases_results.json"
+    csv_file = root_dir / "department_edge_cases_results.csv"
+
+    print("\n=== EXPORTING RESULTS ===")
+    export_json(results, str(json_file))
+    print(f"Exported JSON: {json_file}")
+
+    export_csv(results, str(csv_file), flatten=True)
+    print(f"Exported CSV: {csv_file}")
 
     print("\nDone.")
 

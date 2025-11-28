@@ -85,6 +85,7 @@ HumanMint cleans and standardizes everything in one call.
 - **Pandas:** `df.humanmint.clean(...)` accessor with heuristic column guessing or explicit `name_col/email_col/...` mapping.
 - **CLI:** `humanmint clean input.csv output.csv` with auto-guessing or explicit column flags.
 - **Batch processing:** Parallel processing with `bulk()` for handling large datasets.
+- **Data export:** Export cleaned data to JSON, CSV, Parquet, or direct SQL database insertion via `export_*()` functions.
 - **Gzip-backed data:** Reference data ships as `.json.gz` caches for fast loads; raw sources live under `src/humanmint/data/original/`.
 - **Ethics:** Gender inference is probabilistic from historical name data and not a determination of identity; downstream use should respect that.
 
