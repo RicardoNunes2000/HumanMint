@@ -159,9 +159,11 @@ def _strip_trailing_dept_tokens(text: str) -> str:
 def _smart_title_case(text: str, preserve_caps: set[str]) -> str:
     """
     Title-case while keeping stopwords lowercase and short abbreviations uppercase.
+    Handles special cases like "Mc" + capital letter (McDonald, not Mc donald).
     """
     parts = []
-    for raw_token in text.split():
+    tokens = text.split()
+    for i, raw_token in enumerate(tokens):
         token = raw_token
         suffix = ""
         if token.endswith("."):
@@ -179,9 +181,21 @@ def _smart_title_case(text: str, preserve_caps: set[str]) -> str:
             parts.append(base_lower + suffix)
             continue
 
+        # Handle "Mc" + capital letter pattern (McDonald, not Mc donald)
+        if base_lower == "mc" and i + 1 < len(tokens):
+            next_token = tokens[i + 1]
+            next_first_char = next_token[0] if next_token else ""
+            if next_first_char.isupper():
+                # Join "Mc" with next token: "Mc Donald" -> "Mcdonald"
+                parts.append("Mc" + next_token.lower() + suffix)
+                # Skip the next token since we've absorbed it
+                tokens[i + 1] = ""
+                continue
+
         parts.append(token.capitalize() + suffix)
 
-    return " ".join(parts)
+    # Filter out empty tokens that were absorbed
+    return " ".join(p for p in parts if p)
 
 
 @lru_cache(maxsize=4096)

@@ -52,7 +52,7 @@ class DepartmentResult(TypedDict, total=False):
 class TitleResult(TypedDict, total=False):
     """Normalized and canonicalized job title."""
     raw: Optional[str]
-    cleaned: Optional[str]
+    normalized: Optional[str]
     canonical: Optional[str]
     is_valid: Optional[bool]
     confidence: float

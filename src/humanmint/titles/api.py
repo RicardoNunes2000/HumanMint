@@ -91,6 +91,20 @@ def normalize_title_full(
             "is_valid": False,
         }
 
+    # Step 1b: Reject if cleaned title is mostly symbols (no meaningful alphanumeric content)
+    # Count alphanumeric characters vs total length
+    if cleaned:
+        alphanumeric_count = sum(1 for c in cleaned if c.isalnum())
+        total_count = len(cleaned)
+        # If less than 40% alphanumeric (more than 60% symbols), reject as invalid
+        if total_count > 0 and alphanumeric_count / total_count < 0.4:
+            return {
+                "raw": raw_title,
+                "cleaned": cleaned,
+                "canonical": None,
+                "is_valid": False,
+            }
+
     # Step 2: Apply overrides if provided
     canonical = None
     confidence = 0.0
@@ -107,6 +121,7 @@ def normalize_title_full(
             cleaned,
             threshold=threshold,
             normalize=False,  # Already cleaned
+            dept_canonical=dept_canonical,
         )
 
     # Functional heuristics to mark common job patterns as valid even without canonical
@@ -204,7 +219,7 @@ def normalize_title_full(
     # Recompute canonical_value after any contextual overrides
     canonical_value = canonical if canonical else (cleaned if is_valid else None)
 
-    # Canonical should always be lowercase for consistency
+    # Canonical should always be lowercase for consistency with canonical titles database
     if isinstance(canonical_value, str):
         canonical_value = canonical_value.lower()
 

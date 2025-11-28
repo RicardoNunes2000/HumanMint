@@ -20,6 +20,7 @@ from .data_loader import (
     is_canonical,
 )
 from .normalize import normalize_title
+from .bls_loader import lookup_bls_title
 
 # Cache canonical titles and lowercase versions for matching
 _canonical_lowers: Optional[list[tuple[str, str]]] = None
@@ -53,23 +54,72 @@ def _get_canonical_lowers() -> list[tuple[str, str]]:
     return _canonical_lowers
 
 
+def _should_skip_generic_expansion(search_title: str, candidate: str, dept_canonical: Optional[str]) -> bool:
+    """
+    Check if a generic term should be expanded based on department context.
+
+    Generic terms like "coordinator" should only expand to specific titles
+    (e.g., "recreation coordinator") if the department context supports it.
+    Without context, keep the generic term.
+
+    Args:
+        search_title: The cleaned/normalized title
+        candidate: The fuzzy match candidate
+        dept_canonical: The canonical department name (optional)
+
+    Returns:
+        bool: True if we should skip this expansion due to lack of context
+    """
+    search_lower = search_title.lower()
+    cand_lower = candidate.lower()
+
+    # If search title is a single generic term and candidate adds specificity,
+    # check if the specificity makes sense for the department
+    if " " not in search_lower and " " in cand_lower:
+        # E.g., "coordinator" -> "recreation coordinator"
+        # Only allow if dept context supports it
+        generic_term = search_lower
+
+        # List of departments that support specific coordinator types
+        supported_coords = {
+            "recreation": {"recreation", "parks"},
+            "planning": {"planning"},
+            "human resources": {"human resources", "hr"},
+        }
+
+        if generic_term == "coordinator":
+            # If no dept context at all, skip the expansion
+            if not dept_canonical:
+                return True
+
+            dept_low = dept_canonical.lower()
+            for spec_type, dept_keywords in supported_coords.items():
+                if any(kw in dept_low for kw in dept_keywords):
+                    # Dept supports this type of coordinator
+                    return False
+            # Dept doesn't support this coordinator expansion
+            return True
+
+    return False
+
+
 @lru_cache(maxsize=4096)
-def _find_best_match_normalized(
+def _find_best_match_normalized_cached(
     search_title: str,
     threshold: float,
 ) -> tuple[Optional[str], float]:
     """
-    Cached core matcher for already-normalized titles.
+    Cached core matcher for already-normalized titles (without dept context).
 
     This function uses @lru_cache(maxsize=4096) to cache fuzzy matching results.
     For large batches with repeated job titles, caching avoids redundant fuzzy
     matching computations against the canonical title set.
 
     To clear the cache if memory is a concern:
-        >>> _find_best_match_normalized.cache_clear()
+        >>> _find_best_match_normalized_cached.cache_clear()
 
     To check cache statistics:
-        >>> _find_best_match_normalized.cache_info()
+        >>> _find_best_match_normalized_cached.cache_info()
     """
     search_title_lower = search_title.lower()
 
@@ -77,17 +127,39 @@ def _find_best_match_normalized(
     if is_canonical(search_title):
         return search_title, 1.0
 
-    # Strategy 2: Check heuristics mappings for exact match (O(1))
+    # Strategy 2: Check BLS official titles (4,800+ from DOL) (O(1))
+    # BLS titles take priority over heuristics since they're official government data
+    bls_record = lookup_bls_title(search_title)
+    if bls_record:
+        canonical = bls_record.get("canonical", search_title)
+        return canonical, 0.995  # Highest confidence - official DOL data
+
+    # Strategy 3: Check heuristics mappings for exact match (O(1))
     mapped = get_mapping_for_variant(search_title)
     if mapped:
-        return mapped, 0.98
+        return mapped, 0.95  # High confidence but lower than BLS
 
-    # Strategy 3: Check for substring match with canonical titles
+    # Strategy 4: Check for substring match with canonical titles
     # e.g., "Senior Software Developer" contains "Software Developer"
+    # BUT: Single-word searches (e.g., "Manager", "Director") should only match
+    # single-word canonicals or variations via heuristics, not arbitrary multi-word titles
     canonical_lowers = _get_canonical_lowers()
     matches = []
+    search_tokens = search_title_lower.split()
+    is_single_word = len(search_tokens) == 1
+
     for canonical, canonical_lower in canonical_lowers:
         if canonical_lower in search_title_lower or search_title_lower in canonical_lower:
+            # Guard: single-word searches should only match single-word canonicals
+            # This prevents "Manager" from matching "Deputy City Manager" or
+            # "Director" from matching "Information Technology Director"
+            if is_single_word:
+                canon_tokens = canonical_lower.split()
+                if len(canon_tokens) > 1:
+                    # Don't match single-word searches to multi-word canonicals via substring
+                    # (multi-word matches should come from heuristics or fuzzy matching)
+                    continue
+
             # Score: how early in the search string does this appear?
             # Prefer early matches and longer canonical names for specificity
             position = search_title_lower.find(canonical_lower)
@@ -99,7 +171,7 @@ def _find_best_match_normalized(
         best = max(matches, key=lambda x: x[0])[1]
         return best, 0.9
 
-    # Strategy 4: Find close matches using rapidfuzz (fallback)
+    # Strategy 5: Find close matches using rapidfuzz (fallback)
     canonicals = get_canonical_titles()
     score_cutoff = threshold * 100
     result = process.extractOne(
@@ -131,10 +203,46 @@ def _find_best_match_normalized(
     return None, score
 
 
+def _find_best_match_normalized(
+    search_title: str,
+    threshold: float,
+    dept_canonical: Optional[str] = None,
+) -> tuple[Optional[str], float]:
+    """
+    Core matcher for already-normalized titles with optional department context.
+
+    Wraps the cached version and applies context-aware filtering for generic terms.
+
+    Args:
+        search_title: Already-normalized job title.
+        threshold: Minimum similarity score (0.0 to 1.0).
+        dept_canonical: Optional canonical department for context-aware matching.
+
+    Returns:
+        tuple[Optional[str], float]: (canonical_title, confidence_score)
+    """
+    # Get the cached result (without dept context)
+    candidate, score = _find_best_match_normalized_cached(search_title, threshold)
+
+    if not candidate:
+        return candidate, score
+
+    # Check if we should skip generic expansion
+    # This happens when:
+    # 1. dept_canonical is None (no context) and it's a generic expansion
+    # 2. dept_canonical is provided but doesn't support this expansion
+    if _should_skip_generic_expansion(search_title, candidate, dept_canonical):
+        # Skip this expansion - return no match
+        return None, score
+
+    return candidate, score
+
+
 def find_best_match(
     job_title: str,
     threshold: float = 0.6,
     normalize: bool = True,
+    dept_canonical: Optional[str] = None,
 ) -> tuple[Optional[str], float]:
     """
     Find the best canonical job title match for a given title.
@@ -154,6 +262,8 @@ def find_best_match(
         job_title: Job title to match (raw or normalized).
         threshold: Minimum similarity score (0.0 to 1.0). Defaults to 0.6.
         normalize: Whether to normalize the input first. Defaults to True.
+        dept_canonical: Canonical department name for context (optional).
+                       Used to prevent inappropriate generic term expansions.
 
     Returns:
         Optional[str]: Best matching canonical job title, or None if no
@@ -176,7 +286,7 @@ def find_best_match(
         # If normalization fails, return None
         return None, 0.0
 
-    return _find_best_match_normalized(search_title, threshold)
+    return _find_best_match_normalized(search_title, threshold, dept_canonical)
 
 
 def find_all_matches(

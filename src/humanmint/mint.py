@@ -99,7 +99,10 @@ class MintResult:
             lines.append("  department: None")
 
         if self.title:
-            lines.append(f"  title: {self.title['canonical']}")
+            lines.append("  title:")
+            lines.append(f"    raw: {self.title.get('raw')}")
+            lines.append(f"    normalized: {self.title.get('normalized')}")
+            lines.append(f"    canonical: {self.title.get('canonical')}")
         else:
             lines.append("  title: None")
 
@@ -232,13 +235,23 @@ class MintResult:
 
     @property
     def title_str(self) -> Optional[str]:
-        """Get canonical title, or None."""
+        """Get canonical title (standardized form), or None."""
         return self.title["canonical"] if self.title else None
 
     @property
-    def title_cleaned(self) -> Optional[str]:
-        """Get cleaned (intermediate) title, or None."""
-        return self.title["cleaned"] if self.title else None
+    def title_raw(self) -> Optional[str]:
+        """Get raw title, or None."""
+        return self.title["raw"] if self.title else None
+
+    @property
+    def title_normalized(self) -> Optional[str]:
+        """Get normalized (intermediate) title, or None."""
+        return self.title["normalized"] if self.title else None
+
+    @property
+    def title_canonical(self) -> Optional[str]:
+        """Get canonical title, or None."""
+        return self.title["canonical"] if self.title else None
 
     @property
     def title_valid(self) -> Optional[bool]:
@@ -246,14 +259,69 @@ class MintResult:
         return self.title["is_valid"] if self.title else None
 
     @property
+    def title_confidence(self) -> float:
+        """Get title confidence score, or 0.0."""
+        return self.title["confidence"] if self.title else 0.0
+
+    @property
+    def address_raw(self) -> Optional[str]:
+        """Get raw address, or None."""
+        return self.address.get("raw") if self.address else None
+
+    @property
+    def address_street(self) -> Optional[str]:
+        """Get street address, or None."""
+        return self.address.get("street") if self.address else None
+
+    @property
+    def address_unit(self) -> Optional[str]:
+        """Get unit/apt number, or None."""
+        return self.address.get("unit") if self.address else None
+
+    @property
+    def address_city(self) -> Optional[str]:
+        """Get city, or None."""
+        return self.address.get("city") if self.address else None
+
+    @property
+    def address_state(self) -> Optional[str]:
+        """Get state, or None."""
+        return self.address.get("state") if self.address else None
+
+    @property
+    def address_zip(self) -> Optional[str]:
+        """Get ZIP code, or None."""
+        return self.address.get("zip") if self.address else None
+
+    @property
+    def address_country(self) -> Optional[str]:
+        """Get country, or None."""
+        return self.address.get("country") if self.address else None
+
+    @property
     def address_canonical(self) -> Optional[str]:
         """Get canonical address string, or None."""
-        return self.address["canonical"] if self.address else None
+        return self.address.get("canonical") if self.address else None
+
+    @property
+    def organization_raw(self) -> Optional[str]:
+        """Get raw organization name, or None."""
+        return self.organization.get("raw") if self.organization else None
+
+    @property
+    def organization_normalized(self) -> Optional[str]:
+        """Get normalized organization name, or None."""
+        return self.organization.get("normalized") if self.organization else None
 
     @property
     def organization_canonical(self) -> Optional[str]:
         """Get canonical organization name, or None."""
-        return self.organization["canonical"] if self.organization else None
+        return self.organization.get("canonical") if self.organization else None
+
+    @property
+    def organization_confidence(self) -> float:
+        """Get organization confidence score, or 0.0."""
+        return self.organization.get("confidence", 0.0) if self.organization else 0.0
 
     def get(self, field: str, default=None) -> any:
         """

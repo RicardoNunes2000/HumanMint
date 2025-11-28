@@ -284,9 +284,18 @@ def process_title(
             dept_canonical=dept_canonical,
             overrides=overrides,
         )
+        # Return None only if the title is mostly symbols/garbage (no alphanumeric content)
+        cleaned = result.get("cleaned", "")
+        if cleaned:
+            alphanumeric_count = sum(1 for c in cleaned if c.isalnum())
+            total_count = len(cleaned)
+            # If less than 40% alphanumeric, reject as completely invalid
+            if total_count > 0 and alphanumeric_count / total_count < 0.4:
+                return None
+
         return {
             "raw": result.get("raw"),
-            "cleaned": result.get("cleaned"),
+            "normalized": result.get("cleaned"),
             "canonical": result.get("canonical"),
             "is_valid": result.get("is_valid"),
             "confidence": result.get("confidence", 0.0),
