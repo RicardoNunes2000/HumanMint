@@ -5,6 +5,80 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b2] - 2025-11-30
+
+### Major Features
+
+- **Semantic Safeguard System** - Domain-based token voting to prevent semantically incompatible fuzzy matches
+  - Blocks cross-domain matches (e.g., "Web Developer" vs "Water Developer")
+  - Uses 940+ semantic tokens mapping to 5 domains: IT, HEALTH, EDU, INFRA, SAFETY
+  - Fail-open design: allows matches when semantic information is insufficient
+  - Integrated into both title and department matching pipelines
+  - <5% performance overhead with lazy loading and module-level caching
+
+### Added
+
+- `src/humanmint/semantics.py` - Core semantic safeguard module with token voting logic
+  - `check_semantic_conflict()` - Main API for conflict detection
+  - `_extract_domains()` - Maps tokens to semantic domains
+  - `_tokenize()` - Extracts normalized tokens from text
+  - Lazy-loading vocabulary for minimal startup overhead
+
+- Semantic tokens vocabulary (940+ entries)
+  - Source: `src/humanmint/data/original/semantic_tokens.json`
+  - Compressed: `src/humanmint/data/semantic_tokens.json.gz` (4.6 KB)
+  - Maps keywords to domains: IT, HEALTH, EDU, INFRA, SAFETY
+
+- Build script integration
+  - `build_semantic_tokens_pickle()` in `scripts/build_caches.py`
+  - Automatically compresses vocabulary during build process
+
+- Comprehensive test coverage
+  - 44 new unit tests in `unittests/test_semantics.py`
+  - Covers tokenization, domain extraction, conflict detection, real-world scenarios, edge cases
+  - All tests passing with 100% success rate
+
+### Changed
+
+- **Title matching** - Integrated semantic safeguard veto at fuzzy matching stage
+  - Hard veto: returns None if semantic conflict detected
+  - Prevents false positives from linguistically similar but semantically different titles
+
+- **Department matching** - Integrated semantic safeguard into multi-scorer loop
+  - Soft veto: continues to next scorer on conflict (allows fallback strategies)
+  - Maintains multi-strategy resilience while preventing cross-domain matches
+
+### Fixed
+
+- **Bug #7: NaN handling in mint()** - Fixed TypeError when pandas DataFrame contains NaN values
+  - Validation checks now use `isinstance(x, str)` instead of falsy checks
+  - Properly handles NaN from pandas DataFrames without crashing
+  - Maintains type safety for all input validation
+
+### Testing
+
+- All 478 tests pass (2 skipped)
+- Zero regressions from semantic safeguard integration
+- Real-world scenario validation:
+  - "Web Developer" ≠ "Water Developer" (correctly blocked)
+  - "Software Engineer" ≈ "Senior Software Engineer" (correctly allowed)
+  - "Manager" ≈ "Director" (correctly allowed via fail-open)
+  - "Teacher" ≠ "Mechanic" (correctly blocked: EDU vs INFRA)
+
+### Performance
+
+- Semantic check overhead: <5% relative to fuzzy matching
+- Initial load: ~5-10ms (vocabulary decompression + parsing)
+- Subsequent calls: <1ms (cached lookups + set operations)
+- Compressed vocabulary: 4.6 KB (940+ tokens)
+
+### Migration Notes
+
+- **No breaking changes** - Semantic safeguard is transparent to users
+- Existing code automatically benefits from improved match quality
+- Fail-open design ensures backward compatibility with existing behavior
+- Can be disabled by deleting semantic_tokens.json.gz (graceful degradation)
+
 ## [2.0.0b1] - 2025-11-30
 
 ### Major Changes (Milestone Release)
