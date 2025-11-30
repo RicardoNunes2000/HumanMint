@@ -11,11 +11,12 @@ Example:
     >>> export_json(results, "cleaned.json")
 """
 
-import json
 import csv
 import re
 from pathlib import Path
 from typing import List, Any, Dict
+
+import orjson
 
 from .mint import MintResult
 
@@ -43,6 +44,9 @@ def export_json(results: List[MintResult], filepath: str) -> None:
     """
     Export normalized results to JSON file.
 
+    Uses orjson for fast serialization with native dataclass support.
+    Eliminates intermediate conversion step for maximum performance.
+
     Args:
         results: List of MintResult objects from mint() or bulk().
         filepath: Path to write JSON file to.
@@ -53,10 +57,17 @@ def export_json(results: List[MintResult], filepath: str) -> None:
         >>> export_json(results, "cleaned.json")
     """
     output_path = Path(filepath)
-    data = [result.model_dump() for result in results]
 
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    # orjson natively serializes dataclasses with OPT_SERIALIZE_DATACLASS
+    # This eliminates the need for .model_dump() conversion
+    # 10-20x faster than standard json, especially for large datasets
+    json_bytes = orjson.dumps(
+        results,
+        option=orjson.OPT_INDENT_2 | orjson.OPT_SERIALIZE_DATACLASS
+    )
+
+    with output_path.open("wb") as f:
+        f.write(json_bytes)
 
 
 def export_csv(
