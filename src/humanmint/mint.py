@@ -482,19 +482,20 @@ def mint(
         }
     """
     # Validate input field lengths to prevent DoS attacks
-    if name and len(name) > MAX_NAME_LENGTH:
+    # Note: Check isinstance(x, str) to handle NaN from pandas DataFrames
+    if isinstance(name, str) and len(name) > MAX_NAME_LENGTH:
         raise ValueError(f"Name exceeds maximum length of {MAX_NAME_LENGTH} characters")
-    if email and len(email) > MAX_EMAIL_LENGTH:
+    if isinstance(email, str) and len(email) > MAX_EMAIL_LENGTH:
         raise ValueError(f"Email exceeds maximum length of {MAX_EMAIL_LENGTH} characters")
-    if phone and len(phone) > MAX_PHONE_LENGTH:
+    if isinstance(phone, str) and len(phone) > MAX_PHONE_LENGTH:
         raise ValueError(f"Phone exceeds maximum length of {MAX_PHONE_LENGTH} characters")
-    if department and len(department) > MAX_DEPT_LENGTH:
+    if isinstance(department, str) and len(department) > MAX_DEPT_LENGTH:
         raise ValueError(f"Department exceeds maximum length of {MAX_DEPT_LENGTH} characters")
-    if title and len(title) > MAX_TITLE_LENGTH:
+    if isinstance(title, str) and len(title) > MAX_TITLE_LENGTH:
         raise ValueError(f"Title exceeds maximum length of {MAX_TITLE_LENGTH} characters")
-    if address and len(address) > MAX_ADDRESS_LENGTH:
+    if isinstance(address, str) and len(address) > MAX_ADDRESS_LENGTH:
         raise ValueError(f"Address exceeds maximum length of {MAX_ADDRESS_LENGTH} characters")
-    if organization and len(organization) > MAX_ORG_LENGTH:
+    if isinstance(organization, str) and len(organization) > MAX_ORG_LENGTH:
         raise ValueError(f"Organization exceeds maximum length of {MAX_ORG_LENGTH} characters")
 
     department_result = process_department(department, dept_overrides)

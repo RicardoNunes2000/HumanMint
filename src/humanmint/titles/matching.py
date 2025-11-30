@@ -16,6 +16,8 @@ from typing import Optional
 
 from rapidfuzz import fuzz, process
 
+from humanmint.semantics import check_semantic_conflict
+
 from .bls_loader import lookup_bls_title
 from .data_loader import (find_exact_job_title, find_similar_job_titles,
                           get_canonical_titles, get_mapping_for_variant,
@@ -260,6 +262,10 @@ def _find_best_match_normalized_cached(
 
     # Guard: if fuzzy score is weak (<0.75), consider it too risky
     if fuzzy_score < 0.75:
+        return None, fuzzy_score
+
+    # Semantic safeguard: veto cross-domain matches
+    if check_semantic_conflict(search_title, candidate):
         return None, fuzzy_score
 
     # Allow exact or very high confidence fuzzy matches even if generic

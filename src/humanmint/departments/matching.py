@@ -21,6 +21,7 @@ from typing import Optional
 
 from rapidfuzz import fuzz, process
 
+from humanmint.semantics import check_semantic_conflict
 from humanmint.text_clean import extract_tokens
 
 from .data_loader import CANONICAL_DEPARTMENTS, CANONICAL_DEPARTMENTS_SET
@@ -448,6 +449,10 @@ def _find_best_match_normalized(
             continue
 
         candidate = result[0]
+
+        # Semantic safeguard: skip this scorer's result if cross-domain
+        if check_semantic_conflict(search_name, candidate):
+            continue  # Try next scorer in the loop
 
         # Validate token overlap
         cand_tokens = _extract_tokens(candidate.lower(), exclude_generic=True)
