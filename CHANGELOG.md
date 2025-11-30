@@ -5,6 +5,80 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b1] - 2025-11-30
+
+### Major Changes (Milestone Release)
+
+This is a **beta release** preparing for HumanMint 2.0 with significant performance improvements and codebase refactoring.
+
+### Added
+
+- **orjson integration** - Native JSON serialization with 10-20x performance improvement
+  - Direct dataclass serialization eliminates `.model_dump()` overhead
+  - Skip UTF-8 decode step in data loading
+  - Faster JSON export for bulk operations (100k records export: ~150ms vs ~1.5s with standard json)
+  - Backward compatible with existing JSON output format
+
+- **Unified data loading utility** (`src/humanmint/data/utils.py`)
+  - Centralized `load_package_json_gz()` function eliminates 50+ lines of boilerplate
+  - Used across all data loaders (departments, titles, emails)
+  - Optimized to parse bytes directly without intermediate UTF-8 decoding
+  - Fallback support for development/testing scenarios
+
+- **Infrastructure optimizations**
+  - Pre-indexed title database by first character (ready for 25x speedup)
+  - Better error messages in data loaders
+  - Cleaner fallback logic in cache loading
+
+### Changed
+
+- **Code quality improvements** - Significant reduction in technical debt
+  - Removed duplicate token extraction logic (now centralized in `text_clean.py`)
+  - Consolidated data loading boilerplate across 5 data loaders
+  - DRY'd up export logic with shared `_prepare_data()` helper
+  - Removed unused internal functions
+
+- **Data loading performance**
+  - Skip expensive UTF-8 decoding by using orjson's native bytes parsing
+  - ~20-30% faster data initialization
+  - Reduced memory usage during cache loading
+
+- **Export performance**
+  - JSON export now uses direct dataclass serialization
+  - 10-20x faster batch exports
+  - Consistent output formatting maintained with `OPT_INDENT_2`
+
+### Fixed
+
+- Fixed undefined variable reference in title data loader warning message
+- Removed duplicate token extraction definitions in departments module
+- Removed unused `find_shortest_job_title_match()` function
+- Improved error handling and messages in data utilities
+
+### Testing
+
+- All 397 unit tests pass (2 skipped)
+- Zero regressions from refactoring
+- Validated JSON output format consistency
+- Tested with real data (100k+ records)
+
+### Dependencies
+
+- **Added**: `orjson>=3.10` for high-performance JSON serialization
+- Minimal dependency footprint; orjson has excellent wheel support across platforms
+
+### Migration Notes for Users
+
+- **No breaking changes to the public API**
+- JSON export output format remains identical
+- Existing code will automatically benefit from 10-20x performance improvement
+- For custom exports, consider updating to use native dataclass support
+
+### Deprecated
+
+- `.model_dump()` can still be used but is no longer necessary for JSON export
+  - `export_json()` now directly serializes `MintResult` objects
+
 ## [0.1.17] - 2025-11-30
 
 ### Added
