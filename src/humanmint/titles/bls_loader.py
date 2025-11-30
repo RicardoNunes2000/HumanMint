@@ -39,7 +39,7 @@ def _load_bls_titles() -> Dict[str, Dict]:
     try:
         from importlib.resources import files
     except ImportError:
-        from importlib_resources import files
+        from importlib_resources import files  # type: ignore
 
     try:
         # Load from gzipped JSON (90% compression ratio)

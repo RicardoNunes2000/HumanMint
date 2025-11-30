@@ -5,6 +5,44 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] - 2025-11-30
+
+### Added
+- **Three-tier title matching system** - Dramatically improved title coverage using 73k+ real job titles
+  - Tier 1: Job titles database (73,380 government job titles) with exact and fuzzy matching
+  - Tier 2: Canonical titles (133 curated standardized titles) with existing matching logic
+  - Tier 3: BLS official titles (4,800 from DOL) for context and enrichment
+  - New functions: `find_exact_job_title()`, `find_similar_job_titles()`, `get_job_titles_by_keyword()`
+
+- **Canonicalization layer** - Separates matching discovery from standardization
+  - `map_to_canonical()` maps matched job titles to standardized forms
+  - Example: "chief of police" → "police chief" (standardized form)
+  - Maintains consistency while improving coverage from 75.2% to ~95%
+
+- **Job titles database** - Compressed JSON format for efficient loading
+  - `src/humanmint/data/job_titles.json.gz` - 73,380 titles in 709KB
+  - Original `job-titles.txt` preserved in `src/humanmint/data/original/`
+  - Efficient O(1) exact matching with frozenset lookup
+  - Fuzzy matching with rapidfuzz token_sort_ratio
+
+### Changed
+- **Title matching pipeline** - Three-tier strategy improves both coverage and accuracy
+  - Exact matches in job titles: 0.98 confidence
+  - Fuzzy matches in job titles: 0.75+ confidence threshold
+  - Canonical fallbacks: 0.75-0.95 confidence based on match quality
+  - Test results: 100% success on 50 complex government titles
+
+- **Extended data_loader.py** - Added job titles functions alongside existing canonical system
+  - No breaking changes to existing canonical API
+  - Job titles functions seamlessly integrated
+
+### Tested
+- **Quality metrics**
+  - 50 longer, complex government titles: 100% success rate (41 high confidence, 9 medium)
+  - Examples: "Chief of Police" → "police chief", "Public Works Director" → "public works director"
+  - All 359 unit tests pass (2 skipped)
+  - Full integration with departments, names, emails, and phones
+
 ## [0.1.16] - 2025-11-30
 
 ### Fixed

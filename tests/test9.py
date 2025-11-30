@@ -242,7 +242,7 @@ for ex in analyses["email"]["examples"][:5]:
     status = "VALID" if ex["valid"] else "INVALID"
     print(f"  Input:  {ex['raw']:30} -> {ex['normalized']:30} [{status}]")
     if ex["free"]:
-        print(f"          (FREE PROVIDER)")
+        print("(FREE PROVIDER)")
 
 print("\n" + "=" * 120)
 print("PHONES")
