@@ -9,13 +9,12 @@ Tests the three-tier matching system with 73k+ job titles, including:
 """
 
 import pytest
-from humanmint.titles.data_loader import (
-    find_exact_job_title,
-    find_similar_job_titles,
-    get_job_titles_by_keyword,
-    map_to_canonical,
-    get_all_job_titles,
-)
+
+from humanmint.titles.data_loader import (find_exact_job_title,
+                                          find_similar_job_titles,
+                                          get_all_job_titles,
+                                          get_job_titles_by_keyword,
+                                          map_to_canonical)
 
 
 class TestFindExactJobTitle:

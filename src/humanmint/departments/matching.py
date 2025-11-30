@@ -14,12 +14,15 @@ Strategy:
    c. partial_ratio with lowered threshold (catches typos like "Polce" -> "Police")
 """
 
-import re
 import logging
+import re
 from functools import lru_cache
 from typing import Optional
+
 from rapidfuzz import fuzz, process
+
 from humanmint.text_clean import extract_tokens
+
 from .data_loader import CANONICAL_DEPARTMENTS, CANONICAL_DEPARTMENTS_SET
 from .normalize import normalize_department
 

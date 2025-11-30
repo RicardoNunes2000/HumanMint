@@ -9,7 +9,6 @@ from typing import Optional, Set
 
 from humanmint.data.utils import load_package_json_gz
 
-
 _FREE_PROVIDERS_CACHE: Optional[Set[str]] = None
 
 

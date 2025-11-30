@@ -11,7 +11,8 @@ from typing import Dict, Optional
 
 from nameparser import HumanName
 
-from humanmint.constants.names import PLACEHOLDER_NAMES, TITLE_PREFIXES, US_SUFFIXES
+from humanmint.constants.names import (PLACEHOLDER_NAMES, TITLE_PREFIXES,
+                                       US_SUFFIXES)
 from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
 
 _EMPTY_NAME: Dict[str, Optional[str]] = {

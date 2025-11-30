@@ -1,11 +1,7 @@
-from humanmint.departments import (
-    find_best_match,
-    get_all_categories,
-    get_department_category,
-    get_departments_by_category,
-    load_mappings,
-    normalize_department,
-)
+from humanmint.departments import (find_best_match, get_all_categories,
+                                   get_department_category,
+                                   get_departments_by_category, load_mappings,
+                                   normalize_department)
 from humanmint.processors import process_department
 
 

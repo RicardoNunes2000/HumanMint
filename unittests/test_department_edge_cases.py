@@ -1,9 +1,10 @@
 """Comprehensive test suite for department matching edge cases."""
 
 import sys
+
 sys.path.insert(0, "src")
 
-from humanmint.departments.matching import find_best_match, find_all_matches
+from humanmint.departments.matching import find_all_matches, find_best_match
 
 # Test cases: (input, expected_canonical, description)
 test_cases = [

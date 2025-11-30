@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
-from typing import Optional, Union, Callable
+from typing import Callable, Optional, Union
 
 from .column_guess import COLUMN_GUESSES, guess_column
-from .mint import mint, bulk
+from .mint import bulk, mint
 
 
 def _resolve_columns(

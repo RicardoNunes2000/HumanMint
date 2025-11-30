@@ -7,6 +7,7 @@ Usage:
 
 import sys
 import time
+
 from faker import Faker
 
 # Ensure local src/ is importable when run directly

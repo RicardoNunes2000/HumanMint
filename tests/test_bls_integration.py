@@ -6,15 +6,12 @@ from the U.S. Department of Labor Bureau of Labor Statistics.
 """
 
 import sys
+
 sys.path.insert(0, "src")
 
 from humanmint import mint
-from humanmint.titles.bls_loader import (
-    lookup_bls_title,
-    get_bls_category,
-    get_all_bls_titles,
-    get_bls_stats,
-)
+from humanmint.titles.bls_loader import (get_all_bls_titles, get_bls_category,
+                                         get_bls_stats, lookup_bls_title)
 
 
 def test_bls_stats():

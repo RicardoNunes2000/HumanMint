@@ -8,7 +8,9 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.text_clean import normalize_unicode_ascii, strip_garbage, strip_codes_and_ids, remove_parentheticals
+from humanmint.text_clean import (normalize_unicode_ascii,
+                                  remove_parentheticals, strip_codes_and_ids,
+                                  strip_garbage)
 
 _PHONE_PATTERN = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
 _EXT_PATTERN = re.compile(r"\b(?:ext|x|extension)[\s.]*\d+\b", flags=re.IGNORECASE)

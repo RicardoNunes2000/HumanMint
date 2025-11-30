@@ -1,6 +1,6 @@
-import sys
 import json
-from typing import List, Dict
+import sys
+from typing import Dict, List
 
 # Ensure we can import the library
 sys.path.insert(0, "src")

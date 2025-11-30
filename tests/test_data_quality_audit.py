@@ -1,6 +1,7 @@
 import sys
-import pandas as pd
 from io import StringIO
+
+import pandas as pd
 
 # Ensure local src/ is importable so we can run without installing
 sys.path.insert(0, "src")

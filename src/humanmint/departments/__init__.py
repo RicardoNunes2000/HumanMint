@@ -15,27 +15,15 @@ Example:
     "Public Works"
 """
 
+from .categories import (categorize_departments, get_all_categories,
+                         get_department_category, get_departments_by_category)
+from .data_loader import (CANONICAL_DEPARTMENTS, get_canonical_departments,
+                          get_mapping_for_original,
+                          get_originals_for_canonical, is_canonical,
+                          load_mappings)
+from .matching import (find_all_matches, find_best_match, get_similarity_score,
+                       match_departments)
 from .normalize import normalize_department
-from .matching import (
-    find_best_match,
-    find_all_matches,
-    match_departments,
-    get_similarity_score,
-)
-from .categories import (
-    get_department_category,
-    get_all_categories,
-    get_departments_by_category,
-    categorize_departments,
-)
-from .data_loader import (
-    CANONICAL_DEPARTMENTS,
-    get_canonical_departments,
-    is_canonical,
-    load_mappings,
-    get_mapping_for_original,
-    get_originals_for_canonical,
-)
 
 __all__ = [
     # Normalization

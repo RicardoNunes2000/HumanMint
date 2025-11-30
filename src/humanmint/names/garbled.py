@@ -22,7 +22,7 @@ Examples:
 import re
 from typing import Optional
 
-from humanmint.constants.garbled import SQL_KEYWORDS, SQL_KEYWORD_PATTERN
+from humanmint.constants.garbled import SQL_KEYWORD_PATTERN, SQL_KEYWORDS
 
 
 def clean_garbled_name(text: Optional[str]) -> Optional[str]:

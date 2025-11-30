@@ -4,7 +4,6 @@ sys.path.insert(0, "src")
 
 from humanmint import mint
 
-
 TEST_RECORDS = [
     {
         "name": "Michael J. Barrett",

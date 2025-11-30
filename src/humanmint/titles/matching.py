@@ -13,17 +13,14 @@ Strategy:
 
 from functools import lru_cache
 from typing import Optional
+
 from rapidfuzz import fuzz, process
-from .data_loader import (
-    get_canonical_titles,
-    get_mapping_for_variant,
-    is_canonical,
-    find_exact_job_title,
-    find_similar_job_titles,
-    map_to_canonical,
-)
-from .normalize import normalize_title
+
 from .bls_loader import lookup_bls_title
+from .data_loader import (find_exact_job_title, find_similar_job_titles,
+                          get_canonical_titles, get_mapping_for_variant,
+                          is_canonical, map_to_canonical)
+from .normalize import normalize_title
 
 # Cache canonical titles and lowercase versions for matching
 _canonical_lowers: Optional[list[tuple[str, str]]] = None

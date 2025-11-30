@@ -2,8 +2,7 @@ import sys
 
 sys.path.insert(0, "src")
 
-from humanmint import mint, compare
-
+from humanmint import compare, mint
 
 # -------------------------
 # CORE HIGH-SIMILARITY CASES

@@ -1,10 +1,10 @@
-import sys
 import json
+import sys
 
 # Ensure local src/ is importable
 sys.path.insert(0, "src")
 
-from humanmint import mint, compare
+from humanmint import compare, mint
 
 
 def print_record(label, record):

@@ -1,10 +1,12 @@
 """Test extreme edge cases that challenge HumanMint's robustness."""
 
 import sys
+
 sys.path.insert(0, "src")
 
-from humanmint import mint
 import json
+
+from humanmint import mint
 
 # 10 extreme edge-case scenarios
 test_scenarios = [

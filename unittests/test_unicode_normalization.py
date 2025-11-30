@@ -1,6 +1,7 @@
 """Test Unicode normalization in default pipeline."""
 
 import sys
+
 sys.path.insert(0, "src")
 
 from humanmint import mint

@@ -1,9 +1,10 @@
+import random
+import statistics
 import sys
 import time
-import random
+from typing import Dict, List
+
 import pandas as pd
-import statistics
-from typing import List, Dict
 
 # Ensure we can import the library
 sys.path.insert(0, "src")

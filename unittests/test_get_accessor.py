@@ -6,9 +6,11 @@ with dot notation and default value support.
 """
 
 import sys
+
 sys.path.insert(0, "src")
 
 import pytest
+
 from humanmint import mint
 
 

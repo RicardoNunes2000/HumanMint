@@ -9,10 +9,9 @@ Combines:
 
 import gzip
 import json
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
-import warnings
-
 
 # Cache for names dataset (lazy-loaded)
 _gender_cache: Optional[Dict[str, str]] = None

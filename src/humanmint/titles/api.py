@@ -5,9 +5,10 @@ Provides the main normalize_title_full() function that returns a structured
 result dictionary with raw, cleaned, and canonical information.
 """
 
-from typing import Optional, TypedDict, Dict
-from .normalize import normalize_title
+from typing import Dict, Optional, TypedDict
+
 from .matching import find_best_match
+from .normalize import normalize_title
 from .normalize import re as _re
 
 

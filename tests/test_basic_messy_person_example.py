@@ -2,8 +2,9 @@ import sys
 
 sys.path.insert(0, "src")
 
-from humanmint import mint
 import json
+
+from humanmint import mint
 
 # 1. Create a "messy" random person record
 # (Simulating bad data from a CSV or legacy database)

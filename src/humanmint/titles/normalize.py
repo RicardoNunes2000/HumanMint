@@ -8,12 +8,11 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.constants.titles import (
-    PRESERVE_ABBREVIATIONS,
-    STOPWORDS,
-    TITLE_ABBREVIATIONS,
-)
-from humanmint.text_clean import normalize_unicode_ascii, strip_garbage, strip_codes_and_ids, remove_parentheticals
+from humanmint.constants.titles import (PRESERVE_ABBREVIATIONS, STOPWORDS,
+                                        TITLE_ABBREVIATIONS)
+from humanmint.text_clean import (normalize_unicode_ascii,
+                                  remove_parentheticals, strip_codes_and_ids,
+                                  strip_garbage)
 
 
 def _strip_garbage(text: str) -> str:

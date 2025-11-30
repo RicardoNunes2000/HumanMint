@@ -1,9 +1,11 @@
 """Test pandas_ext functionality."""
 
 import sys
+
 sys.path.insert(0, "src")
 
 import pandas as pd
+
 import humanmint
 
 # Create a test DataFrame

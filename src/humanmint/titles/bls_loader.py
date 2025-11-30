@@ -8,7 +8,7 @@ canonical title matching.
 
 import json
 from functools import lru_cache
-from typing import Optional, Dict, Set
+from typing import Dict, Optional, Set
 
 
 @lru_cache(maxsize=1)

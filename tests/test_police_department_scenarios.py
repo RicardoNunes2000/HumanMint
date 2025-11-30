@@ -1,7 +1,8 @@
-import time
 import random
-from faker import Faker
 import sys
+import time
+
+from faker import Faker
 
 # Ensure local src/ is importable so we can run without installing
 sys.path.insert(0, "src")

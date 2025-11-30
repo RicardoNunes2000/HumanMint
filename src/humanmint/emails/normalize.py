@@ -7,12 +7,13 @@ Simple, functional, predictable.
 import re
 from functools import lru_cache
 from typing import Dict, Optional, Set
-from email_validator import validate_email, EmailNotValidError
 from urllib.parse import urlsplit
 
-from .classifier import is_free_provider
+from email_validator import EmailNotValidError, validate_email
+
 from humanmint.data.utils import load_package_json_gz
 
+from .classifier import is_free_provider
 
 _GENERIC_INBOXES_CACHE: Optional[Set[str]] = None
 _EMPTY_EMAIL: Dict[str, Optional[str]] = {

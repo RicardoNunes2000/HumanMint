@@ -8,15 +8,16 @@ Tests all export formats (JSON, CSV, Parquet, SQL) with various scenarios:
 - Multi-record exports
 """
 
-import sys
-import json
 import csv
+import json
+import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, "src")
 
-from humanmint import mint, bulk, export_json, export_csv, export_parquet, export_sql
+from humanmint import (bulk, export_csv, export_json, export_parquet,
+                       export_sql, mint)
 
 
 def test_export_json_single_record():
@@ -218,8 +219,8 @@ def test_export_parquet_nested():
 def test_export_sql():
     """Test exporting to SQL database."""
     try:
-        from sqlalchemy import create_engine
         import pandas as pd
+        from sqlalchemy import create_engine
     except ImportError:
         print("[SKIP] SQL export: skipped (sqlalchemy/pandas not installed)")
         return
@@ -252,8 +253,8 @@ def test_export_sql():
 def test_export_sql_append():
     """Test SQL export with append mode."""
     try:
-        from sqlalchemy import create_engine
         import pandas as pd
+        from sqlalchemy import create_engine
     except ImportError:
         print("[SKIP] SQL export (append): skipped (sqlalchemy/pandas not installed)")
         return

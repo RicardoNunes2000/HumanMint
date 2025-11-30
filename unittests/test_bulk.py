@@ -2,7 +2,7 @@ import sys
 
 sys.path.insert(0, "src")
 
-from humanmint import mint, bulk
+from humanmint import bulk, mint
 
 
 def test_bulk_processing():

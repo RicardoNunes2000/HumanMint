@@ -5,12 +5,11 @@ Analyzes known email-to-name mappings to detect organizational email conventions
 and generates likely email addresses for new individuals.
 """
 
-from typing import List, Tuple, Dict, Optional
 from collections import Counter
+from typing import Dict, List, Optional, Tuple
 
-from .normalize import normalize_email
 from ._pattern_definitions import PATTERNS
-
+from .normalize import normalize_email
 
 # ============================================================================
 # NAME PARSING

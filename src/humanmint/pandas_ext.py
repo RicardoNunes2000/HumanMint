@@ -9,11 +9,12 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Iterable, Optional, Callable, Union
+from typing import Callable, Iterable, Optional, Union
+
 import pandas as pd
 
-from .mint import mint, bulk
 from .column_guess import COLUMN_GUESSES, guess_column
+from .mint import bulk, mint
 
 
 @pd.api.extensions.register_dataframe_accessor("humanmint")

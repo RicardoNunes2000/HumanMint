@@ -1,8 +1,9 @@
 """Test that all examples in documentation actually work."""
 
-from humanmint import mint, compare, bulk, export_csv
-import tempfile
 import os
+import tempfile
+
+from humanmint import bulk, compare, export_csv, mint
 
 
 def test_readme_basic_example():

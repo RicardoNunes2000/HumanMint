@@ -4,9 +4,8 @@ Advanced phone number detection for HumanMint.
 Detects patterns that indicate impossible numbers, fax lines, and VoIP providers.
 """
 
-from typing import Dict, Optional
 import re
-
+from typing import Dict, Optional
 
 # VoIP provider patterns (common VoIP area codes and prefixes)
 # This is a curated list of known VoIP indicators

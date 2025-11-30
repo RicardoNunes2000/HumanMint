@@ -9,8 +9,8 @@ Provides access to:
 Uses compressed JSON caches for fast loads.
 """
 
-from typing import Optional
 import warnings
+from typing import Optional
 
 from humanmint.data.utils import load_package_json_gz
 

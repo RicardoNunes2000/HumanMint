@@ -1,13 +1,14 @@
-import time
 import random
-from faker import Faker
 import sys
+import time
 from pathlib import Path
+
+from faker import Faker
 
 # Ensure we can import the library
 sys.path.insert(0, "src")
 
-from humanmint import mint, export_json, export_csv
+from humanmint import export_csv, export_json, mint
 
 fake = Faker("en_US")
 

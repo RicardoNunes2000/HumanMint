@@ -10,10 +10,10 @@ Provides unified handling for:
 This module eliminates repeated boilerplate across data loaders.
 """
 
-import sys
 import gzip
-from typing import Any
+import sys
 from pathlib import Path
+from typing import Any
 
 import orjson
 

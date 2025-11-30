@@ -12,29 +12,20 @@ These are internal helpers; use mint() from the main facade instead.
 """
 
 from typing import Optional
+
 from rapidfuzz import fuzz
 
-from .names import normalize_name, enrich_name
-from .emails import normalize_email
-from .phones import normalize_phone
-from .departments import (
-    normalize_department,
-    find_best_match as find_best_department_match,
-    get_department_category,
-)
 from .addresses import normalize_address
-from .organizations import normalize_organization
+from .departments import find_best_match as find_best_department_match
+from .departments import get_department_category, normalize_department
 from .departments.matching import is_likely_non_department
+from .emails import normalize_email
+from .names import enrich_name, normalize_name
+from .organizations import normalize_organization
+from .phones import normalize_phone
 from .titles import normalize_title_full
-from .types import (
-    NameResult,
-    EmailResult,
-    PhoneResult,
-    DepartmentResult,
-    TitleResult,
-    AddressResult,
-    OrganizationResult,
-)
+from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
+                    OrganizationResult, PhoneResult, TitleResult)
 
 
 def process_name(
@@ -59,7 +50,8 @@ def process_name(
         # Apply aggressive cleaning if requested
         cleaned_name = raw_name
         if aggressive_clean:
-            from .names.garbled import clean_garbled_name, should_use_garbled_cleaning
+            from .names.garbled import (clean_garbled_name,
+                                        should_use_garbled_cleaning)
 
             # Auto-detect if cleaning is needed
             if should_use_garbled_cleaning(raw_name):

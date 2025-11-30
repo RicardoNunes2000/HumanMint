@@ -27,27 +27,14 @@ Example:
     'Infrastructure'
 """
 
-from typing import Iterable, Optional, Callable, Union
 from dataclasses import dataclass
+from typing import Callable, Iterable, Optional, Union
 
-from .processors import (
-    process_name,
-    process_email,
-    process_phone,
-    process_department,
-    process_title,
-    process_address,
-    process_organization,
-)
-from .types import (
-    NameResult,
-    EmailResult,
-    PhoneResult,
-    DepartmentResult,
-    TitleResult,
-    AddressResult,
-    OrganizationResult,
-)
+from .processors import (process_address, process_department, process_email,
+                         process_name, process_organization, process_phone,
+                         process_title)
+from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
+                    OrganizationResult, PhoneResult, TitleResult)
 
 # Input length limits to prevent DoS and data validation
 MAX_NAME_LENGTH = 1000
@@ -570,15 +557,10 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (
-                    BarColumn,
-                    MofNCompleteColumn,
-                    Progress,
-                    SpinnerColumn,
-                    TextColumn,
-                    TimeElapsedColumn,
-                    TimeRemainingColumn,
-                )
+                from rich.progress import (BarColumn, MofNCompleteColumn,
+                                           Progress, SpinnerColumn, TextColumn,
+                                           TimeElapsedColumn,
+                                           TimeRemainingColumn)
 
                 rp = Progress(
                     SpinnerColumn(),

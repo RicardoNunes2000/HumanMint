@@ -10,7 +10,8 @@ Tests the quality improvements made to address critical bugs:
 """
 
 import pytest
-from humanmint import mint, bulk
+
+from humanmint import bulk, mint
 
 
 class TestNameValidation:
