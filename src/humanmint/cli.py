@@ -46,7 +46,38 @@ def clean_csv(
     use_bulk: bool = True,
     progress: Union[bool, str, Callable[[], None]] = False,
 ) -> None:
-    """Clean a CSV file using humanmint.mint."""
+    """
+    Clean a CSV file using humanmint.mint.
+
+    Args:
+        input_file: Path to input CSV file.
+        output_file: Path to output CSV file.
+        name_col: Name column header.
+        email_col: Email column header.
+        phone_col: Phone column header.
+        address_col: Address column header.
+        org_col: Organization column header.
+        dept_col: Department column header.
+        title_col: Title column header.
+        workers: Number of worker threads.
+        use_bulk: Whether to use bulk parallel processing.
+        progress: Show progress indicator.
+
+    Raises:
+        FileNotFoundError: If input file does not exist.
+        IsADirectoryError: If input path is a directory.
+    """
+    # Resolve to absolute paths to prevent directory traversal
+    input_file = input_file.resolve()
+    output_file = output_file.resolve()
+
+    # Validate input file exists and is not a directory
+    if not input_file.exists():
+        raise FileNotFoundError(f"Input file not found: {input_file}")
+
+    if input_file.is_dir():
+        raise IsADirectoryError(f"Input must be a file, not directory: {input_file}")
+
     with input_file.open("r", encoding="utf-8", newline="") as f_in:
         reader = csv.DictReader(f_in)
         if reader.fieldnames is None:

@@ -15,16 +15,75 @@ Strategy:
 """
 
 import re
+import logging
 from functools import lru_cache
 from typing import Optional
 from rapidfuzz import fuzz, process
+from humanmint.text_clean import extract_tokens
 from .data_loader import CANONICAL_DEPARTMENTS, CANONICAL_DEPARTMENTS_SET
 from .normalize import normalize_department
+
+logger = logging.getLogger(__name__)
+
+# Keywords that indicate generic department terms (needed early for token extraction)
+_GENERIC_DEPT_TOKENS = {
+    "dept",
+    "department",
+    "division",
+    "office",
+    "services",
+    "service",
+    "ops",
+    "operations",
+    "administration",
+    "admin",
+}
+
+
+def _extract_tokens(text: str, exclude_generic: bool = True) -> set[str]:
+    """
+    Extract alphanumeric tokens from text, optionally excluding generic department terms.
+
+    Wrapper around the centralized extract_tokens function with department-specific logic.
+
+    Args:
+        text: Text to extract tokens from (assumed lowercase).
+        exclude_generic: If True, exclude generic department terms.
+
+    Returns:
+        Set of alphanumeric tokens.
+    """
+    exclude_set = _GENERIC_DEPT_TOKENS if exclude_generic else None
+    return extract_tokens(text, exclude=exclude_set)
+
 
 # Cache for CSV mappings to avoid repeated file reads
 _mapping_cache = None
 _mapping_keys = None
 _canonical_lowers = [(c, c.lower()) for c in CANONICAL_DEPARTMENTS]
+
+# Pre-computed segment-to-canonical mapping for fast lookup
+# Maps token → list of (canonical, token_count) tuples
+_SEGMENT_TO_CANONICAL: dict[str, list[tuple[str, int]]] = {}
+
+
+def _build_segment_cache():
+    """Pre-compute segment matches for fast lookup (O(1) instead of O(n))."""
+    global _SEGMENT_TO_CANONICAL
+    if _SEGMENT_TO_CANONICAL:  # Already built
+        return
+
+    for canonical, canonical_lower in _canonical_lowers:
+        canonical_tokens = _extract_tokens(canonical_lower, exclude_generic=True)
+        token_count = len(canonical_tokens)
+        for token in canonical_tokens:
+            if token not in _SEGMENT_TO_CANONICAL:
+                _SEGMENT_TO_CANONICAL[token] = []
+            _SEGMENT_TO_CANONICAL[token].append((canonical, token_count))
+
+
+# Build cache on module import
+_build_segment_cache()
 
 # Keywords that indicate non-department data (building names, locations, etc.)
 _NON_DEPARTMENT_KEYWORDS = {
@@ -64,18 +123,7 @@ _COMMON_ABBREVIATIONS = {
 
 # Regex pattern for location-like inputs (e.g., "Room 101", "Building 5A", "Suite 200")
 _LOCATION_PATTERN = r"(room|floor|building|suite|office|bldg|rm|apt)\s*\d"
-_GENERIC_DEPT_TOKENS = {
-    "dept",
-    "department",
-    "division",
-    "office",
-    "services",
-    "service",
-    "ops",
-    "operations",
-    "administration",
-    "admin",
-}
+
 _KEYWORD_CANONICAL = {
     "sheriff": "Sheriff",
     "transit": "Transportation Services",
@@ -209,8 +257,9 @@ def _find_best_match_normalized(
     """
     search_name_lower = search_name.lower()
     search_name_ascii = search_name_lower.replace("'", "'")
-    search_tokens = {t for t in re.findall(r"[a-z0-9]+", search_name_ascii) if t}
-    filtered_tokens = {t for t in search_tokens if t not in _GENERIC_DEPT_TOKENS}
+    all_tokens = _extract_tokens(search_name_ascii, exclude_generic=False)
+    filtered_tokens = _extract_tokens(search_name_ascii, exclude_generic=True)
+    search_tokens = all_tokens  # For keyword matching below
 
     # Avoid over-eager matches on single-letter inputs (e.g., "X")
     if len(filtered_tokens) == 1 and len(next(iter(filtered_tokens))) <= 1:
@@ -241,6 +290,7 @@ def _find_best_match_normalized(
         return search_name
 
     # Quick exact/trimmed mapping check before any segmentation
+    mapping_cache = None
     try:
         mapping_cache = _get_mapping_cache()
         if search_name_lower in mapping_cache:
@@ -248,7 +298,11 @@ def _find_best_match_normalized(
         trimmed_search = " ".join(t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS)
         if trimmed_search and trimmed_search in mapping_cache:
             return mapping_cache[trimmed_search]
-    except Exception:
+    except (FileNotFoundError, KeyError, AttributeError, TypeError) as e:
+        logger.warning(f"Failed to load mapping cache for quick lookup: {e}")
+        mapping_cache = None
+    except Exception as e:
+        logger.error(f"Unexpected error loading mapping cache: {e}")
         mapping_cache = None
 
     # Strategy 0: Segment-aware scoring to prefer strong sub-part matches
@@ -257,11 +311,15 @@ def _find_best_match_normalized(
         segment_best = None
         try:
             mapping_cache = _get_mapping_cache()
-        except Exception:
+        except (FileNotFoundError, KeyError, AttributeError, TypeError) as e:
+            logger.warning(f"Failed to load mapping cache for segment matching: {e}")
+            mapping_cache = None
+        except Exception as e:
+            logger.error(f"Unexpected error loading mapping cache: {e}")
             mapping_cache = None
 
         for seg in segments:
-            seg_tokens = {t for t in re.findall(r"[a-z0-9]+", seg) if t and t not in _GENERIC_DEPT_TOKENS}
+            seg_tokens = _extract_tokens(seg, exclude_generic=True)
             if not seg_tokens:
                 continue
 
@@ -279,12 +337,19 @@ def _find_best_match_normalized(
                             segment_best = candidate_score
                         break
 
-            # Canonical overlap scoring
-            for canonical, canonical_lower in _canonical_lowers:
-                canonical_tokens = {t for t in canonical_lower.split() if t not in _GENERIC_DEPT_TOKENS}
+            # Canonical overlap scoring (optimized: use pre-computed segment cache)
+            # Instead of checking all 65+ canonicals, only check those containing our tokens
+            candidates_to_check = set()
+            for token in seg_tokens:
+                if token in _SEGMENT_TO_CANONICAL:
+                    for canonical, token_count in _SEGMENT_TO_CANONICAL[token]:
+                        candidates_to_check.add((canonical, token_count))
+
+            for canonical, canonical_token_count in candidates_to_check:
+                canonical_tokens = _extract_tokens(canonical.lower(), exclude_generic=True)
                 overlap = _overlap_score(canonical_tokens, seg_tokens)
                 if overlap >= 2:
-                    candidate_score = (overlap, len(canonical_tokens), canonical)
+                    candidate_score = (overlap, canonical_token_count, canonical)
                     if segment_best is None or candidate_score > segment_best:
                         segment_best = candidate_score
 
@@ -351,58 +416,46 @@ def _find_best_match_normalized(
                 return mapping_cache.get(best_strong[3])
             if best_any:
                 return mapping_cache.get(best_any[3])
-    except Exception:
-        pass
+    except (FileNotFoundError, KeyError, AttributeError, TypeError) as e:
+        logger.warning(f"Failed to load mapping cache for Strategy 2: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error in mapping cache lookup: {e}")
 
-    # Strategy 3: Find close matches using rapidfuzz (fallback)
-    # Try multiple scoring strategies to find the best match
+    # Strategy 3: Multi-scorer fuzzy matching (optimized single pass)
+    # Try multiple scoring strategies in order of accuracy, with early exit on valid match
     score_cutoff = max(80, threshold * 100)
+    lower_cutoff = max(score_cutoff - 15, 65)
 
-    # First try token_set_ratio (better for extra words like "Polce Department")
-    result = process.extractOne(
-        search_name,
-        CANONICAL_DEPARTMENTS,
-        scorer=fuzz.token_set_ratio,
-        score_cutoff=score_cutoff,
-    )
-    if result and result[1] >= score_cutoff:  # Verify score meets threshold
-        candidate = result[0]
-        # Require at least one meaningful token overlap to prevent cross-domain mismaps
-        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
-        filtered_search = filtered_tokens
-        overlap = _overlap_score(cand_tokens, filtered_search) if cand_tokens and filtered_search else 0
-        if overlap >= 2 or (overlap == 1 and "office" in candidate.lower()):
-            return candidate
+    # Define scorers to try in order (try most accurate first)
+    scorers = [
+        (fuzz.token_set_ratio, score_cutoff),
+        (fuzz.token_sort_ratio, score_cutoff),
+        (fuzz.partial_ratio, lower_cutoff),
+    ]
 
-    # If token_set_ratio fails, try token_sort_ratio
-    result = process.extractOne(
-        search_name,
-        CANONICAL_DEPARTMENTS,
-        scorer=fuzz.token_sort_ratio,
-        score_cutoff=score_cutoff,
-    )
-    if result and result[1] >= score_cutoff:  # Verify score meets threshold
-        candidate = result[0]
-        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
-        filtered_search = filtered_tokens
-        if cand_tokens and filtered_search and cand_tokens.intersection(filtered_search):
-            return candidate
+    for scorer, cutoff in scorers:
+        result = process.extractOne(
+            search_name,
+            CANONICAL_DEPARTMENTS,
+            scorer=scorer,
+            score_cutoff=cutoff,
+        )
 
-    # If still no match, try with a slightly lower threshold using partial_ratio
-    # This catches typos better (e.g., "Polce" -> "Police")
-    # But only if the match quality is genuinely good (at least 65%)
-    lower_cutoff = max(score_cutoff - 15, 65)  # At least 65% match for fallback
-    result = process.extractOne(
-        search_name,
-        CANONICAL_DEPARTMENTS,
-        scorer=fuzz.partial_ratio,
-        score_cutoff=lower_cutoff,
-    )
-    if result and result[1] >= lower_cutoff:  # Verify score meets lower threshold
+        if not result or result[1] < cutoff:
+            continue
+
         candidate = result[0]
-        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
+
+        # Validate token overlap
+        cand_tokens = _extract_tokens(candidate.lower(), exclude_generic=True)
         overlap = _overlap_score(cand_tokens, filtered_tokens) if cand_tokens and filtered_tokens else 0
+
+        # Accept if overlap requirements met
         if overlap >= 2 or (overlap == 1 and "office" in candidate.lower()):
+            return candidate
+
+        # For token_sort_ratio (second scorer), also accept if there's any overlap
+        if scorer == fuzz.token_sort_ratio and cand_tokens and filtered_tokens and cand_tokens.intersection(filtered_tokens):
             return candidate
 
     return None

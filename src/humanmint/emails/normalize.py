@@ -4,9 +4,6 @@ Email normalization for HumanMint.
 Simple, functional, predictable.
 """
 
-import sys
-import gzip
-import json
 import re
 from functools import lru_cache
 from typing import Dict, Optional, Set
@@ -14,11 +11,7 @@ from email_validator import validate_email, EmailNotValidError
 from urllib.parse import urlsplit
 
 from .classifier import is_free_provider
-
-if sys.version_info >= (3, 9):
-    from importlib.resources import files
-else:
-    from importlib_resources import files
+from humanmint.data.utils import load_package_json_gz
 
 
 _GENERIC_INBOXES_CACHE: Optional[Set[str]] = None
@@ -45,34 +38,21 @@ def _load_generic_inboxes() -> Set[str]:
     if _GENERIC_INBOXES_CACHE is not None:
         return _GENERIC_INBOXES_CACHE
 
-    inboxes = set()
-
     try:
-        # Load from package data using importlib.resources
-        data_files = files("humanmint").joinpath("data")
-
-        # Require compressed JSON cache; no text fallback
-        cache_file = data_files.joinpath("generic_inboxes.json.gz")
-        data = gzip.decompress(cache_file.read_bytes())
-        payload = json.loads(data.decode("utf-8"))
+        payload = load_package_json_gz("generic_inboxes.json.gz")
         if isinstance(payload, (set, list, tuple)):
             inboxes = {str(item).lower() for item in payload}
             _GENERIC_INBOXES_CACHE = inboxes
             return inboxes
-    except (FileNotFoundError, AttributeError, TypeError):
-        # Fallback if package data is not found (should not happen in normal use)
-        pass
-    except Exception:
-        pass
-
-    if not inboxes:
+    except FileNotFoundError:
         raise FileNotFoundError(
             "Generic inbox cache not found or unreadable. "
             "Run scripts/build_caches.py to regenerate generic_inboxes.json.gz."
         )
-
-    _GENERIC_INBOXES_CACHE = inboxes
-    return inboxes
+    except Exception as e:
+        raise FileNotFoundError(
+            "Failed to load generic inboxes cache: " + str(e)
+        )
 
 
 def _clean(raw: str) -> str:

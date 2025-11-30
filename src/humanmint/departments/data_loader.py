@@ -5,15 +5,10 @@ Provides access to canonical departments and department mappings from the
 data folder. Uses compressed JSON caches for fast loads.
 """
 
-import gzip
-import json
-from pathlib import Path
 from typing import Optional
 import warnings
 
-# Path to the mappings cache
-DATA_DIR = Path(__file__).parent.parent / "data"
-MAPPINGS_CACHE = DATA_DIR / "department_mappings_list.json.gz"
+from humanmint.data.utils import load_package_json_gz
 
 # Canonical list of all standardized department names
 CANONICAL_DEPARTMENTS = [
@@ -118,15 +113,14 @@ def is_canonical(dept: str) -> bool:
 
 def _load_from_cache() -> Optional[tuple[dict[str, list[str]], dict[str, str]]]:
     """Load mappings from a precomputed cache if available."""
-    if not MAPPINGS_CACHE.exists():
-        return None
     try:
-        data = gzip.decompress(MAPPINGS_CACHE.read_bytes())
-        payload = json.loads(data.decode("utf-8"))
+        payload = load_package_json_gz("department_mappings_list.json.gz")
         mappings = payload.get("mappings")
         reverse = payload.get("reverse")
         if isinstance(mappings, dict) and isinstance(reverse, dict):
             return mappings, reverse
+    except FileNotFoundError:
+        return None
     except Exception:
         return None
     return None

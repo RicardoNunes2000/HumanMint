@@ -13,10 +13,30 @@ Example:
 
 import json
 import csv
+import re
 from pathlib import Path
 from typing import List, Any, Dict
 
 from .mint import MintResult
+
+
+def _prepare_data(results: List[MintResult], flatten: bool = True) -> List[Dict[str, Any]]:
+    """
+    Prepare data for export by optionally flattening nested structures.
+
+    Args:
+        results: List of MintResult objects.
+        flatten: If True, flatten nested dicts. If False, keep as model_dump().
+
+    Returns:
+        List of dictionaries ready for export.
+    """
+    if not results:
+        return []
+
+    if flatten:
+        return [_flatten_result(result) for result in results]
+    return [result.model_dump() for result in results]
 
 
 def export_json(results: List[MintResult], filepath: str) -> None:
@@ -61,19 +81,11 @@ def export_csv(
         >>> results = bulk([{"name": "Jane Doe", "email": "jane@example.com"}])
         >>> export_csv(results, "cleaned.csv")
     """
-    if not results:
-        return
-
-    output_path = Path(filepath)
-
-    if flatten:
-        rows = [_flatten_result(result) for result in results]
-    else:
-        rows = [result.model_dump() for result in results]
-
+    rows = _prepare_data(results, flatten)
     if not rows:
         return
 
+    output_path = Path(filepath)
     fieldnames = list(rows[0].keys())
 
     with output_path.open("w", newline="", encoding="utf-8") as f:
@@ -114,13 +126,9 @@ def export_parquet(
             "export_parquet requires pandas. Install with: pip install pandas pyarrow"
         )
 
-    if not results:
+    rows = _prepare_data(results, flatten)
+    if not rows:
         return
-
-    if flatten:
-        rows = [_flatten_result(result) for result in results]
-    else:
-        rows = [result.model_dump() for result in results]
 
     df = pd.DataFrame(rows)
     df.to_parquet(filepath, index=False)
@@ -149,6 +157,7 @@ def export_sql(
 
     Raises:
         ImportError: If pandas and sqlalchemy are not installed.
+        ValueError: If table_name or if_exists parameters are invalid.
 
     Example:
         >>> from humanmint import bulk, export_sql
@@ -157,6 +166,19 @@ def export_sql(
         >>> results = bulk([{"name": "Jane Doe", "email": "jane@example.com"}])
         >>> export_sql(results, engine, "cleaned_contacts")
     """
+    # Validate table_name: alphanumeric, underscores, dots only
+    if not re.match(r"^[a-zA-Z0-9_\.]+$", table_name):
+        raise ValueError(
+            f"Invalid table name '{table_name}'. Must contain only alphanumeric characters, underscores, and dots."
+        )
+
+    # Validate if_exists parameter
+    valid_if_exists = ("fail", "replace", "append")
+    if if_exists not in valid_if_exists:
+        raise ValueError(
+            f"Invalid if_exists value '{if_exists}'. Must be one of: {', '.join(valid_if_exists)}"
+        )
+
     try:
         import pandas as pd
     except ImportError:
@@ -164,13 +186,9 @@ def export_sql(
             "export_sql requires pandas. Install with: pip install pandas sqlalchemy"
         )
 
-    if not results:
+    rows = _prepare_data(results, flatten)
+    if not rows:
         return
-
-    if flatten:
-        rows = [_flatten_result(result) for result in results]
-    else:
-        rows = [result.model_dump() for result in results]
 
     df = pd.DataFrame(rows)
     df.to_sql(table_name, connection, if_exists=if_exists, index=False)

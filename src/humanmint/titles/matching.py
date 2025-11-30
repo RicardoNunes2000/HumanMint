@@ -20,7 +20,6 @@ from .data_loader import (
     is_canonical,
     find_exact_job_title,
     find_similar_job_titles,
-    find_shortest_job_title_match,
     map_to_canonical,
 )
 from .normalize import normalize_title
@@ -191,12 +190,13 @@ def _find_best_match_normalized_cached(
         confidence = 0.95 if is_exact else 0.90
         return mapped, confidence
 
-    # Strategy 2d: Check for substring match with canonical titles
+    # Strategy 2d: Check for substring match with canonical titles (with early exit)
     # e.g., "Senior Software Developer" contains "Software Developer"
     # BUT: Single-word searches (e.g., "Manager", "Director") should only match
     # single-word canonicals or variations via heuristics, not arbitrary multi-word titles
     canonical_lowers = _get_canonical_lowers()
-    matches = []
+    best_match = None
+    best_score = None
     search_tokens = search_title_lower.split()
     is_single_word = len(search_tokens) == 1
 
@@ -216,15 +216,21 @@ def _find_best_match_normalized_cached(
             # Prefer early matches and longer canonical names for specificity
             position = search_title_lower.find(canonical_lower)
             score = (-position, len(canonical))  # Negative position = earlier = higher score
-            matches.append((score, canonical))
 
-    if matches:
-        # Return the best match (earliest appearance, then longest)
-        best_score, best = max(matches, key=lambda x: x[0])
+            # Early exit on perfect match at start of string
+            if position == 0 and len(canonical) >= len(search_title_lower) * 0.8:
+                # Near-perfect match at start → high confidence, return immediately
+                return canonical, 0.95
 
+            # Update best match if this is better
+            if best_score is None or score > best_score:
+                best_match = canonical
+                best_score = score
+
+    if best_match:
         # Dynamic confidence based on match quality
-        # Best score is a tuple: (negative position, canonical length)
-        position_penalty, _ = best_score
+        # best_score is a tuple: (negative position, canonical length)
+        position_penalty, canonical_length = best_score
         position = -position_penalty  # Convert back to positive
 
         # Confidence calculation:
@@ -234,10 +240,10 @@ def _find_best_match_normalized_cached(
         base_confidence = 0.85
         if position == 0:
             base_confidence = 0.90  # Early appearance bonus
-        elif position > len(best):
+        elif position > canonical_length:
             base_confidence = 0.80  # Late appearance penalty
 
-        return best, base_confidence
+        return best_match, base_confidence
 
     # Strategy 2e: Find close matches using rapidfuzz against canonicals (fallback)
     canonicals = get_canonical_titles()
