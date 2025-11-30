@@ -32,10 +32,10 @@ def test_rank_in_name_is_not_parsed_as_name():
 def test_paralegal_and_rank_title_confidence():
     paralegal = normalize_title_full("Paralegal")
     captain = normalize_title_full("Captain", dept_canonical="Fire Department")
-    # BLS match - "Paralegals and legal assistants" is official DOL title
-    assert paralegal["canonical"] == "paralegals and legal assistants"
+    # With three-tier matching, "paralegal" matches to job-titles.txt entry (exact match, high confidence)
+    assert paralegal["canonical"] in ("paralegal", "paralegals and legal assistants")
     assert paralegal["is_valid"] is True
-    assert paralegal["confidence"] >= 0.95  # BLS matches have confidence 0.95-0.98
+    assert paralegal["confidence"] >= 0.95  # Job titles exact match or BLS match have high confidence
     assert captain["canonical"] == "fire captain"
     assert captain["confidence"] >= 0.7
 

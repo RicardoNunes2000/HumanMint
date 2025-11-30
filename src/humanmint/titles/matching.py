@@ -18,6 +18,9 @@ from .data_loader import (
     get_canonical_titles,
     get_mapping_for_variant,
     is_canonical,
+    find_exact_job_title,
+    find_similar_job_titles,
+    find_shortest_job_title_match,
 )
 from .normalize import normalize_title
 from .bls_loader import lookup_bls_title
@@ -111,9 +114,14 @@ def _find_best_match_normalized_cached(
     """
     Cached core matcher for already-normalized titles (without dept context).
 
+    Three-tier matching strategy:
+    1. Job titles (73k+ real titles from government data) - exact & fuzzy match
+    2. Canonical titles (133 curated titles) - all existing logic
+    3. BLS official titles (4,800 from DOL) - as context enrichment
+
     This function uses @lru_cache(maxsize=4096) to cache fuzzy matching results.
     For large batches with repeated job titles, caching avoids redundant fuzzy
-    matching computations against the canonical title set.
+    matching computations.
 
     To clear the cache if memory is a concern:
         >>> _find_best_match_normalized_cached.cache_clear()
@@ -123,11 +131,34 @@ def _find_best_match_normalized_cached(
     """
     search_title_lower = search_title.lower()
 
-    # Strategy 1: Check if already canonical (O(1))
+    # ============================================================================
+    # TIER 1: JOB TITLES (73k+ real government job titles)
+    # ============================================================================
+
+    # Strategy 1a: Exact match in job-titles.txt (O(1))
+    exact_job_title = find_exact_job_title(search_title)
+    if exact_job_title:
+        return exact_job_title, 0.98  # High confidence for exact match
+
+    # Strategy 1b: Fuzzy match in job-titles.txt (O(n) but fast with 73k)
+    # Returns list of (title, score) tuples
+    similar_matches = find_similar_job_titles(search_title, top_n=1, min_length=0)
+    if similar_matches:
+        candidate, score = similar_matches[0]
+        # Only accept fuzzy job-title matches with score >= 0.75
+        # (lower threshold allows for slight spelling variations)
+        if score >= 0.75:
+            return candidate, score
+
+    # ============================================================================
+    # TIER 2: CANONICAL TITLES (133 curated standardized titles)
+    # ============================================================================
+
+    # Strategy 2a: Check if already canonical (O(1))
     if is_canonical(search_title):
         return search_title, 1.0
 
-    # Strategy 2: Check BLS official titles (4,800+ from DOL) (O(1))
+    # Strategy 2b: Check BLS official titles (4,800+ from DOL) (O(1))
     # BLS titles take priority over heuristics since they're official government data
     bls_record = lookup_bls_title(search_title)
     if bls_record:
@@ -137,7 +168,7 @@ def _find_best_match_normalized_cached(
         confidence = 0.98 if is_exact else 0.95
         return canonical, confidence
 
-    # Strategy 3: Check heuristics mappings for exact match (O(1))
+    # Strategy 2c: Check heuristics mappings for exact match (O(1))
     mapped = get_mapping_for_variant(search_title)
     if mapped:
         # Dynamic confidence: exact match gets 0.95, case-insensitive gets 0.90
@@ -145,7 +176,7 @@ def _find_best_match_normalized_cached(
         confidence = 0.95 if is_exact else 0.90
         return mapped, confidence
 
-    # Strategy 4: Check for substring match with canonical titles
+    # Strategy 2d: Check for substring match with canonical titles
     # e.g., "Senior Software Developer" contains "Software Developer"
     # BUT: Single-word searches (e.g., "Manager", "Director") should only match
     # single-word canonicals or variations via heuristics, not arbitrary multi-word titles
@@ -193,7 +224,7 @@ def _find_best_match_normalized_cached(
 
         return best, base_confidence
 
-    # Strategy 5: Find close matches using rapidfuzz (fallback)
+    # Strategy 2e: Find close matches using rapidfuzz against canonicals (fallback)
     canonicals = get_canonical_titles()
     score_cutoff = threshold * 100
     result = process.extractOne(
