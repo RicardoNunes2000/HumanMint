@@ -25,10 +25,10 @@ def _expand_abbreviations(text: str) -> str:
     """Expand common job title abbreviations."""
     parts = []
     for token in text.split():
-        # Strip trailing periods (e.g., "Dir." -> "dir")
-        clean_token = token.rstrip(".").lower()
+        # Strip trailing periods and commas (e.g., "Dir." -> "dir", "Dir.," -> "dir")
+        clean_token = token.rstrip(".,").lower()
         if clean_token in PRESERVE_ABBREVIATIONS:
-            parts.append(token.rstrip("."))
+            parts.append(token.rstrip(".,"))
         elif clean_token in TITLE_ABBREVIATIONS:
             expanded = TITLE_ABBREVIATIONS[clean_token]
             # Preserve common shorthand like "ops" alongside expansion

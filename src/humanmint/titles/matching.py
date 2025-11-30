@@ -178,7 +178,7 @@ def _find_best_match_normalized_cached(
 
         # Dynamic confidence based on match quality
         # Best score is a tuple: (negative position, canonical length)
-        position_penalty, canon_length = best_score
+        position_penalty, _ = best_score
         position = -position_penalty  # Convert back to positive
 
         # Confidence calculation:
@@ -207,15 +207,17 @@ def _find_best_match_normalized_cached(
         return None, 0.0
 
     candidate = result[0]
-    score = result[1] / 100.0 if len(result) > 1 else 0.0
+    fuzzy_score = result[1] / 100.0 if len(result) > 1 else 0.0
 
     # Guard: if fuzzy score is weak (<0.75), consider it too risky
-    if score < 0.75:
-        return None, score
+    if fuzzy_score < 0.75:
+        return None, fuzzy_score
 
     # Allow exact or very high confidence fuzzy matches even if generic
-    if score >= 0.95:
-        return candidate, score
+    if fuzzy_score >= 0.95:
+        # Excellent fuzzy match - use dynamic confidence mapping
+        confidence = 0.92  # Very high but not absolute (it's still fuzzy)
+        return candidate, confidence
 
     search_tokens = {t for t in search_title_lower.split() if t}
     cand_tokens = {t for t in candidate.lower().split() if t}
@@ -224,10 +226,17 @@ def _find_best_match_normalized_cached(
     meaningful_overlap = {
         t for t in search_tokens.intersection(cand_tokens) if t not in _GENERIC_TITLE_TOKENS
     }
-    if meaningful_overlap or score >= 0.90:
-        return candidate, score
 
-    return None, score
+    if meaningful_overlap:
+        # Has meaningful overlap - map fuzzy score to confidence range [0.75, 0.90]
+        confidence = 0.75 + (fuzzy_score * 0.15)  # Scales 0.75-0.90
+        return candidate, confidence
+    elif fuzzy_score >= 0.90:
+        # High fuzzy score even without meaningful overlap - acceptable
+        confidence = 0.88
+        return candidate, confidence
+
+    return None, fuzzy_score
 
 
 def _find_best_match_normalized(

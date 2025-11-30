@@ -102,6 +102,7 @@ def process_name(
             "full": full_name or raw_name,
             "gender": gender,
             "canonical": canonical_val,
+            "is_valid": enriched.get("is_valid", False),
         }
     except (ValueError, AttributeError, TypeError, FileNotFoundError):
         return None

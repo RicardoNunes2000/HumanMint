@@ -302,6 +302,41 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
     text = text.title()
     # Fix common apostrophe casing artifacts after title()
     text = text.replace("'S", "'s")
+
+    # Deduplicate consecutive repeated tokens BEFORE acronym restoration
+    # This ensures "IT IT" becomes "Information Technology" (singular) after expansion
+    # Also handles multi-word duplicates like "Information Technology Information Technology"
+    tokens = text.split()
+    deduped = []
+    i = 0
+    while i < len(tokens):
+        # Check if current token sequence repeats
+        token_window = []
+        j = i
+        # Build a window of consecutive identical sequences
+        while j < len(tokens):
+            token_window.append(tokens[j])
+            # If we've built a reasonable window, check if it repeats
+            if len(token_window) > 0 and j + len(token_window) < len(tokens):
+                is_repeat = True
+                for k in range(len(token_window)):
+                    if j + 1 + k >= len(tokens) or tokens[j + 1 + k].lower() != token_window[k].lower():
+                        is_repeat = False
+                        break
+                if is_repeat:
+                    # Found a repeat - add the window once and skip the repeat
+                    deduped.extend(token_window)
+                    i = j + 1 + len(token_window)
+                    break
+            j += 1
+        else:
+            # No repeat found - just add the token
+            if i < len(tokens):
+                deduped.append(tokens[i])
+            i += 1
+
+    text = ' '.join(deduped)
+
     text = _restore_acronyms(text)
 
     return text
