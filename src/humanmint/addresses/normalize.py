@@ -120,6 +120,74 @@ def _clean_text(raw: str) -> str:
     return cleaned.strip()
 
 
+def _parse_unstructured_address(cleaned: str) -> Dict[str, Optional[str]]:
+    """
+    Parse address without comma delimiters using regex patterns.
+
+    Extracts ZIP first (most reliable), then state, then street number,
+    then uses heuristics to split street name from city.
+
+    Example:
+        "123 Main St Springfield MA 12345" -> street, city, state, ZIP
+
+    Args:
+        cleaned: Cleaned address string without commas
+
+    Returns:
+        Dictionary with extracted components
+    """
+    # Extract ZIP code first (most reliable anchor)
+    zip_match = re.search(r"\b(\d{5}(?:-\d{4})?)\b", cleaned)
+    zip_code = zip_match.group(1) if zip_match else None
+    remainder = (
+        re.sub(r"\b\d{5}(?:-\d{4})?\b", "", cleaned).strip()
+        if zip_code
+        else cleaned
+    )
+
+    # Extract state (2-letter code)
+    state = None
+    state_match = re.search(r"\b([A-Z]{2})\b", remainder)
+    if state_match and state_match.group(1) in _US_STATES:
+        state = state_match.group(1)
+        remainder = re.sub(r"\b" + re.escape(state) + r"\b", "", remainder).strip()
+
+    # Extract street number (leading digits)
+    street_number = None
+    number_match = re.match(r"^(\d+[A-Za-z]?)\s+", remainder)
+    if number_match:
+        street_number = number_match.group(1)
+        remainder = remainder[number_match.end() :].strip()
+
+    # Split street name from city using suffix patterns
+    street_name = None
+    city = None
+    if remainder:
+        suffix_pattern = r"\b(" + "|".join(_SUFFIXES.values()) + r")\b"
+        suffix_match = re.search(suffix_pattern, remainder, re.IGNORECASE)
+
+        if suffix_match:
+            street_name = remainder[: suffix_match.end()].strip()
+            city = remainder[suffix_match.end() :].strip() or None
+        else:
+            # Fallback: assume last word(s) are city
+            tokens = remainder.split()
+            if len(tokens) >= 2:
+                street_name = " ".join(tokens[:-1])
+                city = tokens[-1]
+            else:
+                street_name = remainder
+                city = None
+
+    street = " ".join([t for t in [street_number, street_name] if t])
+    return {
+        "street": street if street else None,
+        "city": city,
+        "state": state,
+        "zip": zip_code,
+    }
+
+
 def _expand_directional(token: str) -> str:
     low = token.lower().strip(".")
     return _DIRECTIONALS.get(low, token)
@@ -224,54 +292,76 @@ def normalize_address(raw: Optional[str]) -> Optional[Dict[str, Optional[str]]]:
     if not cleaned:
         return None
 
-    parts = [p.strip() for p in cleaned.split(",") if p.strip()]
-    street_part = parts[0] if parts else cleaned
-    tail_parts = parts[1:] if len(parts) > 1 else []
+    # Check if address has commas (structured) or not (unstructured)
+    has_commas = "," in cleaned
 
-    unit = None
-    unit_match = re.search(r"(?:apt|unit|#)\s*([A-Za-z0-9-]+)", street_part, re.IGNORECASE)
-    if unit_match:
-        unit = unit_match.group(1)
-        street_part = street_part[: unit_match.start()].strip()
+    street = street_number = city = state = zip_code = unit = None
 
-    street_tokens = street_part.split()
-    street_number = None
-    street_name_tokens = []
-    if street_tokens and re.match(r"\d+[A-Za-z]?$", street_tokens[0]):
-        street_number = street_tokens[0]
-        street_name_tokens = street_tokens[1:]
-    else:
-        street_name_tokens = street_tokens
+    if has_commas:
+        # Original comma-based parsing for structured addresses
+        parts = [p.strip() for p in cleaned.split(",") if p.strip()]
+        street_part = parts[0] if parts else cleaned
+        tail_parts = parts[1:] if len(parts) > 1 else []
 
-    expanded_tokens = []
-    for tok in street_name_tokens:
-        if tok.lower().strip(".") in _DIRECTIONALS:
-            expanded_tokens.append(_expand_directional(tok))
+        unit = None
+        unit_match = re.search(r"(?:apt|unit|#)\s*([A-Za-z0-9-]+)", street_part, re.IGNORECASE)
+        if unit_match:
+            unit = unit_match.group(1)
+            street_part = street_part[: unit_match.start()].strip()
+
+        street_tokens = street_part.split()
+        street_number = None
+        street_name_tokens = []
+        if street_tokens and re.match(r"\d+[A-Za-z]?$", street_tokens[0]):
+            street_number = street_tokens[0]
+            street_name_tokens = street_tokens[1:]
         else:
-            expanded_tokens.append(_expand_suffix(tok))
-    street_name = " ".join(expanded_tokens).title() if expanded_tokens else None
+            street_name_tokens = street_tokens
 
-    city = state = zip_code = None
-    if tail_parts:
-        state_zip_part = tail_parts[-1]
-        zip_match = re.search(r"\b(\d{5}(?:-\d{4})?)\b", state_zip_part)
-        if zip_match:
-            zip_code = zip_match.group(1)
-        state_match = re.search(r"\b([A-Za-z]{2})\b", state_zip_part)
-        if state_match:
-            state = state_match.group(1).upper()
-        if len(tail_parts) >= 2:
-            city = tail_parts[-2].title() if tail_parts[-2] else None
+        expanded_tokens = []
+        for tok in street_name_tokens:
+            if tok.lower().strip(".") in _DIRECTIONALS:
+                expanded_tokens.append(_expand_directional(tok))
+            else:
+                expanded_tokens.append(_expand_suffix(tok))
+        street_name = " ".join(expanded_tokens).title() if expanded_tokens else None
+        street = " ".join([t for t in [street_number, street_name] if t])
+
+        city = state = zip_code = None
+        if tail_parts:
+            state_zip_part = tail_parts[-1]
+            zip_match = re.search(r"\b(\d{5}(?:-\d{4})?)\b", state_zip_part)
+            if zip_match:
+                zip_code = zip_match.group(1)
+            state_match = re.search(r"\b([A-Za-z]{2})\b", state_zip_part)
+            if state_match:
+                state = state_match.group(1).upper()
+            if len(tail_parts) >= 2:
+                city = tail_parts[-2].title() if tail_parts[-2] else None
+        else:
+            # Try inline city/state/zip
+            zip_match = re.search(r"\b(\d{5}(?:-\d{4})?)\b", cleaned)
+            if zip_match:
+                zip_code = zip_match.group(1)
+            state_match = re.search(r"\b([A-Za-z]{2})\b", cleaned)
+            if state_match:
+                state = state_match.group(1).upper()
     else:
-        # Try inline city/state/zip
-        zip_match = re.search(r"\b(\d{5}(?:-\d{4})?)\b", cleaned)
-        if zip_match:
-            zip_code = zip_match.group(1)
-        state_match = re.search(r"\b([A-Za-z]{2})\b", cleaned)
-        if state_match:
-            state = state_match.group(1).upper()
+        # Use smart non-comma parser for unstructured addresses
+        parsed = _parse_unstructured_address(cleaned)
+        street = parsed["street"]
+        city = parsed["city"]
+        state = parsed["state"]
+        zip_code = parsed["zip"]
 
-    street = " ".join([t for t in [street_number, street_name] if t])
+        # Extract unit if present
+        unit_match = re.search(r"(?:apt|unit|#)\s*([A-Za-z0-9-]+)", cleaned, re.IGNORECASE)
+        if unit_match:
+            unit = unit_match.group(1)
+
+        # Titlecase city if found
+        if city:
+            city = city.title()
     raw_lower = raw.lower()
     has_us_indicator = "usa" in raw_lower or "united states" in raw_lower
     is_us_state = state in _US_STATES if state else False

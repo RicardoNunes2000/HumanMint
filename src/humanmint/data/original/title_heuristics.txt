@@ -98,3 +98,37 @@ provost,vice chancellor,chancellor
 dean,dean of stem,dean of education,dean of student affairs
 registrar,university registrar,director of admissions
 ciso,chief information security officer,director of information security,it security manager,cybersecurity manager
+receptionist,front desk receptionist,office receptionist,reception clerk
+typist,stenographer,court reporter,transcriptionist,office typist
+clerk,office clerk,general clerk,file clerk,data entry clerk,clerical assistant,administrative clerk,records clerk
+electrician,lead electrician,journeyman electrician,licensed electrician,master electrician,electrical technician
+plumber,lead plumber,journeyman plumber,licensed plumber,master plumber,plumbing technician
+carpenter,lead carpenter,general carpenter,rough carpenter,finish carpenter,carpentry technician
+welder,lead welder,certified welder,welding technician,tig welder,mig welder,arc welder
+gis specialist,gis analyst,gis technician,gis developer,geographic information systems specialist,geographic information systems analyst
+epidemiologist,senior epidemiologist,epidemiologic investigator,disease investigator
+sanitarian,environmental health specialist,health inspector,environmental health inspector,sanitation inspector,health sanitarian
+building services coordinator,building services technician,building attendant,building service worker
+painter,lead painter,exterior painter,interior painter,general painter,painting technician
+hvac technician,hvac mechanic,heating and cooling technician,air conditioning technician,mechanical technician
+principal planner,senior planner,associate planner,assistant planner,planning technician,urban planner
+zoning board member,board of adjustment,planning board member,zoning board of appeals
+planning commissioner,planning board chair,planning board secretary
+building permit coordinator,permit technician,permit specialist,plan reviewer
+development review coordinator,project coordinator,development coordinator
+sustainability director,director of sustainability,sustainability coordinator,environmental sustainability coordinator
+stormwater coordinator,stormwater manager,stormwater engineer,erosion control specialist
+emergency dispatcher,911 operator,emergency communications dispatcher,dispatch supervisor
+utility technician,meter reader,utility inspector,water utility technician,sewer utility technician
+laboratory technician,lab tech,quality control technician,lab analyst,analytical technician
+data analyst,business analyst,systems analyst,data specialist
+grants coordinator,grants manager,grant writer,grants administrator
+procurement specialist,buyer,purchasing specialist,contract specialist
+occupational health and safety specialist,safety director,safety coordinator,safety officer,ehs manager
+training coordinator,training specialist,training director,staff development coordinator
+records management,records specialist,document management specialist
+park ranger,recreation ranger,park attendant,park maintenance worker
+community outreach coordinator,outreach specialist,outreach manager,community liaison
+senior center director,senior services coordinator,senior programs coordinator
+youth programs coordinator,youth services director,youth program manager,youth counselor
+internship coordinator,volunteer coordinator,volunteer manager,volunteer services director

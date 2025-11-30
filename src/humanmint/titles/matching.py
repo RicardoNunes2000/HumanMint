@@ -132,12 +132,18 @@ def _find_best_match_normalized_cached(
     bls_record = lookup_bls_title(search_title)
     if bls_record:
         canonical = bls_record.get("canonical", search_title)
-        return canonical, 0.995  # Highest confidence - official DOL data
+        # Dynamic confidence: exact match gets 0.98, case-insensitive match gets 0.95
+        is_exact = search_title == canonical
+        confidence = 0.98 if is_exact else 0.95
+        return canonical, confidence
 
     # Strategy 3: Check heuristics mappings for exact match (O(1))
     mapped = get_mapping_for_variant(search_title)
     if mapped:
-        return mapped, 0.95  # High confidence but lower than BLS
+        # Dynamic confidence: exact match gets 0.95, case-insensitive gets 0.90
+        is_exact = search_title.lower() == mapped.lower()
+        confidence = 0.95 if is_exact else 0.90
+        return mapped, confidence
 
     # Strategy 4: Check for substring match with canonical titles
     # e.g., "Senior Software Developer" contains "Software Developer"
@@ -168,8 +174,24 @@ def _find_best_match_normalized_cached(
 
     if matches:
         # Return the best match (earliest appearance, then longest)
-        best = max(matches, key=lambda x: x[0])[1]
-        return best, 0.9
+        best_score, best = max(matches, key=lambda x: x[0])
+
+        # Dynamic confidence based on match quality
+        # Best score is a tuple: (negative position, canonical length)
+        position_penalty, canon_length = best_score
+        position = -position_penalty  # Convert back to positive
+
+        # Confidence calculation:
+        # - Perfect substring match at start: 0.90
+        # - Perfect substring match later: 0.85
+        # - Partial match: 0.80
+        base_confidence = 0.85
+        if position == 0:
+            base_confidence = 0.90  # Early appearance bonus
+        elif position > len(best):
+            base_confidence = 0.80  # Late appearance penalty
+
+        return best, base_confidence
 
     # Strategy 5: Find close matches using rapidfuzz (fallback)
     canonicals = get_canonical_titles()
@@ -190,6 +212,11 @@ def _find_best_match_normalized_cached(
     # Guard: if fuzzy score is weak (<0.75), consider it too risky
     if score < 0.75:
         return None, score
+
+    # Allow exact or very high confidence fuzzy matches even if generic
+    if score >= 0.95:
+        return candidate, score
+
     search_tokens = {t for t in search_title_lower.split() if t}
     cand_tokens = {t for t in candidate.lower().split() if t}
 
@@ -197,7 +224,7 @@ def _find_best_match_normalized_cached(
     meaningful_overlap = {
         t for t in search_tokens.intersection(cand_tokens) if t not in _GENERIC_TITLE_TOKENS
     }
-    if meaningful_overlap:
+    if meaningful_overlap or score >= 0.90:
         return candidate, score
 
     return None, score
