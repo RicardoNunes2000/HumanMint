@@ -5,6 +5,65 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.16] - 2025-11-30
+
+### Fixed
+- **Bug #4: Title confidence calibration** - Dynamic confidence scoring now correctly reflects match quality
+  - Exact BLS matches: 0.98, case-insensitive: 0.95
+  - Heuristics exact matches: 0.95, fuzzy: 0.90
+  - Substring matches: 0.75-0.95 based on position and length
+  - Fuzzy matches: 0.75-0.92 based on actual match score
+
+- **Bug #6: Abbreviation expansion** - Title abbreviations now properly expand with punctuation handling
+  - Fixed handling of titles with commas and periods (e.g., "Dir., Planning" → "Director, Planning")
+  - Added missing abbreviations: "mngr", "ast", "supr", "dir"
+  - Improved abbreviation matching for complex titles
+
+- **Bug #7: Department deduplication** - Multi-token phrase repetition now correctly removed
+  - "Police Police Department" → "Police Department"
+  - "IT IT Department" → "IT Department"
+  - "Information Technology Information Technology" → "Information Technology"
+  - Sophisticated algorithm handles token windows up to phrase length
+
+- **Bug #8: MintResult field propagation** (undiscovered in original report) - Name validation field now correctly propagated
+  - Fixed missing `is_valid` field in NameResult dictionary
+  - Validation tests now correctly show "Valid: 15/15" instead of "Valid: 0/15"
+
+- **Title matching expansion** - Added 34 new job title heuristics for improved coverage
+  - Support roles: Receptionist, Typist, Clerk
+  - Trades: Electrician, Carpenter, Welder
+  - Planning: Principal Planner, Senior Planner, Planning Commissioner, etc.
+  - Emergency/Health: Sanitarian, Paramedic, Epidemiologist
+  - Specialized roles: GIS Specialist, HVAC Technician, Lab Technician, etc.
+
+### Added
+- Comprehensive unit test suite with 359+ tests covering all bug fixes
+  - 9 test classes: Name Validation, Title Matching, Address Parsing, Confidence Scoring, Abbreviation Expansion, Department Deduplication, Bulk Processing, Regression Cases, Integration Tests
+  - All critical bugs now have regression test coverage
+
+## [0.1.15] - 2025-11-30
+
+### Fixed
+- Improved normalization and validation for all fields
+- Enhanced email, phone, and address parsing accuracy
+
+## [0.1.14] - 2025-11-29
+
+### Changed
+- Improved normalization and validation for all fields
+- Enhanced address and name normalization logic
+
+## [0.1.13] - 2025-11-28
+
+### Changed
+- Bumped version to 0.1.13 and updated project URLs
+- Updated project links to GitHub repository
+
+## [0.1.12] - 2025-11-28
+
+### Changed
+- Version bump and internal improvements
+
 ## [0.1.11] - 2025-11-28
 
 ### Added
