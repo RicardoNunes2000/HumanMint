@@ -21,6 +21,7 @@ from .data_loader import (
     find_exact_job_title,
     find_similar_job_titles,
     find_shortest_job_title_match,
+    map_to_canonical,
 )
 from .normalize import normalize_title
 from .bls_loader import lookup_bls_title
@@ -138,7 +139,14 @@ def _find_best_match_normalized_cached(
     # Strategy 1a: Exact match in job-titles.txt (O(1))
     exact_job_title = find_exact_job_title(search_title)
     if exact_job_title:
-        return exact_job_title, 0.98  # High confidence for exact match
+        # Try to map to canonical form (standardization)
+        canonical_form = map_to_canonical(exact_job_title)
+        if canonical_form:
+            # Found a standardized canonical form (e.g., "chief of police" → "police chief")
+            return canonical_form, 0.98
+        else:
+            # No canonical mapping exists; use the matched title as-is
+            return exact_job_title, 0.98  # Still high confidence for exact match
 
     # Strategy 1b: Fuzzy match in job-titles.txt (O(n) but fast with 73k)
     # Returns list of (title, score) tuples
@@ -148,7 +156,14 @@ def _find_best_match_normalized_cached(
         # Only accept fuzzy job-title matches with score >= 0.75
         # (lower threshold allows for slight spelling variations)
         if score >= 0.75:
-            return candidate, score
+            # Try to map to canonical form (standardization)
+            canonical_form = map_to_canonical(candidate)
+            if canonical_form:
+                # Found a standardized canonical form
+                return canonical_form, score
+            else:
+                # No canonical mapping; use the matched title (lower confidence since it's not standardized)
+                return candidate, max(score, 0.70)
 
     # ============================================================================
     # TIER 2: CANONICAL TITLES (133 curated standardized titles)

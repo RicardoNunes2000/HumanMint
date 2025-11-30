@@ -50,8 +50,8 @@ assert result.department["canonical"] == "Public Works"
 assert result.department["category"] == "infrastructure"
 
 # Title should be canonicalized
-# Note: With the new three-tier matching system, "director of public works"
-# is now found in the 73k job titles database with high confidence
-assert result.title["canonical"] in (None, "public works director", "director of public works")
+# With the three-tier matching + canonicalization, "Dir. of Public Works"
+# is matched to job-titles.txt and then mapped to canonical "public works director"
+assert result.title["canonical"] in (None, "public works director")
 
 print("\n[SUCCESS] Test passed! The random person was successfully minted.")

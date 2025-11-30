@@ -59,8 +59,7 @@ class TestGetAccessor:
     def test_get_title_canonical(self):
         """Test accessing title.canonical via get()."""
         result = mint(title="Chief of Police")
-        # With three-tier matching, may match to job-titles.txt entry
-        assert result.get("title.canonical") in ("police chief", "chief of police")
+        assert result.get("title.canonical") == "police chief"
 
     def test_get_root_object(self):
         """Test accessing root objects (without nested field)."""
@@ -137,9 +136,9 @@ class TestGetAccessor:
         assert result.get("department.category") == "planning & development"
 
         # Title
-        # With three-tier matching, may match differently
-        assert result.get("title.canonical") is not None
-        assert "planner" in result.get("title.canonical").lower() or "chief" in result.get("title.canonical").lower()
+        # Canonicalization maps to canonical form (may be reordered due to fuzzy matching)
+        title_canonical = result.get("title.canonical").lower()
+        assert "planner" in title_canonical and "chief" in title_canonical
 
         # Organization
         assert result.get("organization.canonical") == "Springfield"

@@ -306,3 +306,46 @@ def get_job_titles_by_keyword(keyword: str) -> list[str]:
     all_titles = get_all_job_titles()
 
     return [t for t in all_titles if search_key in t]
+
+
+def map_to_canonical(job_title: str) -> Optional[str]:
+    """
+    Map a job title (from job-titles.txt) to a canonical title (from 133-title list).
+
+    Uses fuzzy matching against the canonical titles to find the best standardized form.
+    For example: "driver" → might map to "driver" or stay as-is if no good match exists.
+
+    Args:
+        job_title: A title from the job-titles.txt database.
+
+    Returns:
+        Canonical title if a good match found, None otherwise.
+
+    Example:
+        >>> map_to_canonical("chief of police")
+        "police chief"
+        >>> map_to_canonical("driver")
+        None  # (driver might not be in canonical list)
+    """
+    if not job_title:
+        return None
+
+    from rapidfuzz import fuzz, process
+
+    canonicals = get_canonical_titles()
+    if not canonicals:
+        return None
+
+    # Try to find a canonical that matches this job title
+    # Use token_sort_ratio for flexible matching
+    result = process.extractOne(
+        job_title.lower(),
+        canonicals,
+        scorer=fuzz.token_sort_ratio,
+        score_cutoff=80,  # Only match if similarity >= 80%
+    )
+
+    if result:
+        return result[0]  # Return the canonical title
+
+    return None

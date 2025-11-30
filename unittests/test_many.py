@@ -240,9 +240,9 @@ def test_messy_4():
 
 def test_messy_5():
     r = mint(title="Dir. of Ops / PW")
-    # With three-tier matching, finds "director of operations" from job titles
+    # Three-tier matching + canonicalization maps to canonical form
     assert r.title["canonical"] is not None
-    assert ("ops" in r.title["canonical"].lower() or "operation" in r.title["canonical"].lower())
+    assert "operation" in r.title["canonical"].lower()
 
 
 def test_messy_6():
