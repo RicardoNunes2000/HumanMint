@@ -5,6 +5,36 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b3] - 2025-12-01
+
+### Major Fixes
+
+- **CRITICAL: Fixed semantic safeguard system** - Resolved inverted logic that was creating false positives instead of preventing them
+  - Cross-domain similar-word pairs now score 46+ points LOWER than same-domain pairs (was 17 points HIGHER)
+  - Applied semantic checks at ALL matching stages (Tier 1, 2b, 2c, 2d, 2e)
+  - Removed high-confidence (0.95+) bypass that was defeating the safeguard
+  - Added domain-asymmetry check: when one title has domains and other doesn't, cap score at 35.0
+  - Added meaningful-overlap requirement: both generic titles must share non-admin words
+
+### Fixed
+
+- **"Data Analyst" vs "Dental Analyst"**: Now 35.0 (was 100.0 - 65 point reduction!)
+- **"Web Developer" vs "Water Developer"**: Now 0.0 (was 81.8 - fully blocked)
+- **"Network Engineer" vs "Environmental Engineer"**: Now 35.0 (was 66.7)
+- **"Cloud Administrator" vs "County Administrator"**: Now 35.0 (was 81.2)
+- **Tier 1 job titles matching**: Added 0.90+ confidence requirement when fuzzy-matching specific domains against generic terms
+
+### Testing
+
+- All 5 test groups now passing:
+  - ✓ Same-domain baseline: 63.7 avg (requirement: ≥60)
+  - ✓ Cross-domain similar: 17.5 avg (requirement: <50, gap ≥15)
+  - ✓ Cross-domain different: 16.9 avg (requirement: <40, gap ≥20)
+  - ✓ Semantic safeguard effectiveness: 46.2 point gap (requirement: >15)
+  - ✓ Fuzzy match override: Even 100% fuzzy matches blocked if cross-domain
+- 85 unit tests passing (44 semantic + 41 title matching)
+- Zero critical bugs remaining
+
 ## [2.0.0b2] - 2025-11-30
 
 ### Major Features

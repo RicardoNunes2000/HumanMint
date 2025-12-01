@@ -16,13 +16,15 @@ from typing import Optional
 
 from rapidfuzz import fuzz, process
 
-from humanmint.semantics import check_semantic_conflict
+from humanmint.semantics import check_semantic_conflict, _extract_domains
 
 from .bls_loader import lookup_bls_title
 from .data_loader import (find_exact_job_title, find_similar_job_titles,
                           get_canonical_titles, get_mapping_for_variant,
                           is_canonical, map_to_canonical)
 from .normalize import normalize_title
+from .enhancements import (get_match_quality_score, check_rank_degradation,
+                           check_acronym_protection, check_semantic_cluster_conflict)
 
 # Cache canonical titles and lowercase versions for matching
 _canonical_lowers: Optional[list[tuple[str, str]]] = None
@@ -154,14 +156,28 @@ def _find_best_match_normalized_cached(
         # Only accept fuzzy job-title matches with score >= 0.75
         # (lower threshold allows for slight spelling variations)
         if score >= 0.75:
-            # Try to map to canonical form (standardization)
-            canonical_form = map_to_canonical(candidate)
-            if canonical_form:
-                # Found a standardized canonical form
-                return canonical_form, score
+            # Semantic safeguard: reject cross-domain matches
+            if check_semantic_conflict(search_title, candidate):
+                # Cross-domain conflict detected - skip this match
+                pass  # Fall through to next strategy
             else:
-                # No canonical mapping; use the matched title (lower confidence since it's not standardized)
-                return candidate, max(score, 0.70)
+                # Additional safety: if candidate has no semantic domain but search_title does,
+                # require higher confidence to avoid false positives on generic matches
+                # (e.g., "Water Developer" vs "Pattern Developer" where "pattern" is generic)
+                search_domains = _extract_domains(search_title)
+                candidate_domains = _extract_domains(candidate)
+                if search_domains and not candidate_domains and score < 0.90:
+                    # Skip this match - specific domain should not match generic term
+                    pass  # Fall through to next strategy
+                else:
+                    # Try to map to canonical form (standardization)
+                    canonical_form = map_to_canonical(candidate)
+                    if canonical_form:
+                        # Found a standardized canonical form
+                        return canonical_form, score
+                    else:
+                        # No canonical mapping; use the matched title (lower confidence since it's not standardized)
+                        return candidate, max(score, 0.70)
 
     # ============================================================================
     # TIER 2: CANONICAL TITLES (133 curated standardized titles)
@@ -176,18 +192,22 @@ def _find_best_match_normalized_cached(
     bls_record = lookup_bls_title(search_title)
     if bls_record:
         canonical = bls_record.get("canonical", search_title)
-        # Dynamic confidence: exact match gets 0.98, case-insensitive match gets 0.95
-        is_exact = search_title == canonical
-        confidence = 0.98 if is_exact else 0.95
-        return canonical, confidence
+        # Semantic safeguard: check for cross-domain conflicts
+        if not check_semantic_conflict(search_title, canonical):
+            # Dynamic confidence: exact match gets 0.98, case-insensitive match gets 0.95
+            is_exact = search_title == canonical
+            confidence = 0.98 if is_exact else 0.95
+            return canonical, confidence
 
     # Strategy 2c: Check heuristics mappings for exact match (O(1))
     mapped = get_mapping_for_variant(search_title)
     if mapped:
-        # Dynamic confidence: exact match gets 0.95, case-insensitive gets 0.90
-        is_exact = search_title.lower() == mapped.lower()
-        confidence = 0.95 if is_exact else 0.90
-        return mapped, confidence
+        # Semantic safeguard: check for cross-domain conflicts
+        if not check_semantic_conflict(search_title, mapped):
+            # Dynamic confidence: exact match gets 0.95, case-insensitive gets 0.90
+            is_exact = search_title.lower() == mapped.lower()
+            confidence = 0.95 if is_exact else 0.90
+            return mapped, confidence
 
     # Strategy 2d: Check for substring match with canonical titles (with early exit)
     # e.g., "Senior Software Developer" contains "Software Developer"
@@ -227,22 +247,31 @@ def _find_best_match_normalized_cached(
                 best_score = score
 
     if best_match:
-        # Dynamic confidence based on match quality
-        # best_score is a tuple: (negative position, canonical length)
-        position_penalty, canonical_length = best_score
-        position = -position_penalty  # Convert back to positive
+        # Semantic safeguard: check for cross-domain conflicts
+        if not check_semantic_conflict(search_title, best_match):
+            # Quality checks (NEW ENHANCEMENT)
+            if (check_rank_degradation(search_title, best_match) or
+                check_acronym_protection(search_title, best_match) or
+                check_semantic_cluster_conflict(search_title, best_match)):
+                # Match fails quality checks - skip to next strategy
+                pass
+            else:
+                # Dynamic confidence based on match quality
+                # best_score is a tuple: (negative position, canonical length)
+                position_penalty, canonical_length = best_score
+                position = -position_penalty  # Convert back to positive
 
-        # Confidence calculation:
-        # - Perfect substring match at start: 0.90
-        # - Perfect substring match later: 0.85
-        # - Partial match: 0.80
-        base_confidence = 0.85
-        if position == 0:
-            base_confidence = 0.90  # Early appearance bonus
-        elif position > canonical_length:
-            base_confidence = 0.80  # Late appearance penalty
+                # Confidence calculation:
+                # - Perfect substring match at start: 0.90
+                # - Perfect substring match later: 0.85
+                # - Partial match: 0.80
+                base_confidence = 0.85
+                if position == 0:
+                    base_confidence = 0.90  # Early appearance bonus
+                elif position > canonical_length:
+                    base_confidence = 0.80  # Late appearance penalty
 
-        return best_match, base_confidence
+                return best_match, base_confidence
 
     # Strategy 2e: Find close matches using rapidfuzz against canonicals (fallback)
     canonicals = get_canonical_titles()
@@ -264,11 +293,18 @@ def _find_best_match_normalized_cached(
     if fuzzy_score < 0.75:
         return None, fuzzy_score
 
-    # Semantic safeguard: veto cross-domain matches
+    # Semantic safeguard: veto cross-domain matches (applies to ALL confidence levels)
     if check_semantic_conflict(search_title, candidate):
         return None, fuzzy_score
 
-    # Allow exact or very high confidence fuzzy matches even if generic
+    # Quality checks: rank, acronyms, semantic clusters (NEW ENHANCEMENT)
+    quality_score = get_match_quality_score(search_title, candidate, fuzzy_score)
+    if quality_score == 0.0:
+        # Match fails quality checks (rank degradation, acronym corruption, cluster conflict)
+        return None, fuzzy_score
+
+    # High-confidence fuzzy match - return immediately
+    # (Semantic safeguard already filtered out cross-domain matches)
     if fuzzy_score >= 0.95:
         # Excellent fuzzy match - use dynamic confidence mapping
         confidence = 0.92  # Very high but not absolute (it's still fuzzy)

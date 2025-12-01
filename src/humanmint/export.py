@@ -40,7 +40,11 @@ def _prepare_data(results: List[MintResult], flatten: bool = True) -> List[Dict[
     return [result.model_dump() for result in results]
 
 
-def export_json(results: List[MintResult], filepath: str) -> None:
+def export_json(
+    results: List[MintResult],
+    filepath: str,
+    flatten: bool = False,
+) -> None:
     """
     Export normalized results to JSON file.
 
@@ -50,21 +54,33 @@ def export_json(results: List[MintResult], filepath: str) -> None:
     Args:
         results: List of MintResult objects from mint() or bulk().
         filepath: Path to write JSON file to.
+        flatten: If True, flatten nested dicts (name_first, email_domain, etc.).
+                If False (default), keep nested structure as JSON objects.
 
     Example:
         >>> from humanmint import bulk, export_json
         >>> results = bulk([{"name": "Jane Doe", "email": "jane@example.com"}])
         >>> export_json(results, "cleaned.json")
+        >>> # Output has nested structure: {"name": {"first": "Jane", ...}, ...}
+        >>> export_json(results, "cleaned_flat.json", flatten=True)
+        >>> # Flattened output: {"name_first": "Jane", ...}
     """
     output_path = Path(filepath)
 
-    # orjson natively serializes dataclasses with OPT_SERIALIZE_DATACLASS
-    # This eliminates the need for .model_dump() conversion
-    # 10-20x faster than standard json, especially for large datasets
-    json_bytes = orjson.dumps(
-        results,
-        option=orjson.OPT_INDENT_2 | orjson.OPT_SERIALIZE_DATACLASS
-    )
+    if flatten:
+        # Flatten nested structures for consistency with CSV/Parquet/SQL exports
+        rows = _prepare_data(results, flatten=True)
+        json_bytes = orjson.dumps(
+            rows,
+            option=orjson.OPT_INDENT_2
+        )
+    else:
+        # Keep nested structure using native dataclass serialization (default)
+        # 10-20x faster than standard json, especially for large datasets
+        json_bytes = orjson.dumps(
+            results,
+            option=orjson.OPT_INDENT_2 | orjson.OPT_SERIALIZE_DATACLASS
+        )
 
     with output_path.open("wb") as f:
         f.write(json_bytes)

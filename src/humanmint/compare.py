@@ -15,6 +15,7 @@ from rapidfuzz import fuzz
 
 from .mint import MintResult
 from .names.matching import compare_first_names, compare_last_names
+from .semantics import check_semantic_conflict, _extract_domains
 
 DEFAULT_COMPARE_WEIGHTS: dict[str, float] = {
     "name": 0.4,
@@ -221,6 +222,42 @@ def compare(
         _fuzzy_score(title_can_a, title_can_b),
         _fuzzy_score(title_clean_a, title_clean_b),
     )
+
+    # Semantic safeguard: veto cross-domain title matches
+    # Check both canonical and cleaned versions for semantic conflicts
+    has_semantic_conflict = False
+    if title_can_a and title_can_b:
+        has_semantic_conflict = check_semantic_conflict(title_can_a, title_can_b)
+    if not has_semantic_conflict and title_clean_a and title_clean_b:
+        has_semantic_conflict = check_semantic_conflict(title_clean_a, title_clean_b)
+
+    # If semantic conflict detected, heavily penalize the score
+    if has_semantic_conflict:
+        title_score = min(title_score, 35.0)
+
+    # Additional safeguard: if one title has clear semantic domains and the other
+    # doesn't (or is all NULL), penalize heavily to avoid false positives
+    # (e.g., "Network Engineer" vs "Environmental Engineer" where "environmental"→NULL)
+    if title_can_a and title_can_b:
+        domains_a = _extract_domains(title_can_a)
+        domains_b = _extract_domains(title_can_b)
+        # One has domains, the other doesn't → likely cross-domain mismatch
+        if (domains_a and not domains_b) or (domains_b and not domains_a):
+            title_score = min(title_score, 35.0)
+        # Both have NO semantic domains: require meaningful token overlap
+        # Avoid false positives like "Cloud Administrator" vs "Zoning Administrator"
+        # which only share the generic "administrator" word
+        elif not domains_a and not domains_b and title_score > 50:
+            # Check if they share meaningful (non-generic) tokens
+            generic_admin_tokens = {"administrator", "manager", "director", "officer",
+                                   "coordinator", "specialist", "analyst", "consultant"}
+            tokens_a = {t.lower() for t in (title_can_a or "").split()}
+            tokens_b = {t.lower() for t in (title_can_b or "").split()}
+            meaningful_overlap = tokens_a.intersection(tokens_b) - generic_admin_tokens
+            # If no meaningful overlap, penalize
+            if not meaningful_overlap:
+                title_score = min(title_score, 35.0)
+
     # Penalize titles that only share generic tokens (chief/officer/manager) but differ otherwise
     generic_tokens = {"chief", "officer", "manager", "director"}
     if title_score > 0:
