@@ -5,6 +5,33 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b6] - 2025-12-01
+
+### Changed (Breaking)
+
+- **Refactored Result Field Names** - Renamed properties for clarity and consistency
+  - `EmailResult`: `is_valid` → `email_is_valid_format`, `is_generic` → `email_is_generic_inbox`, `is_free_provider` → `email_is_free_provider`
+  - `PhoneResult`: `is_valid` → `phone_is_valid_number`, `type` → `phone_detected_type`
+  - `DepartmentResult`: `canonical` → `department_mapped_to`, `is_override` → `department_was_overridden`
+  - `TitleResult`: `canonical` → `title_mapped_to`, `is_valid` → `title_is_valid_match`
+  - Updated all `MintResult` properties to match new field names
+  - Backward compatibility: `title_canonical` property still available (deprecated)
+
+### Enhanced
+
+- **Result Clarity** - Field names now self-document their purpose:
+  - Boolean checks follow `*_is_*` pattern (e.g., `email_is_valid_format`, `phone_is_valid_number`)
+  - Override/source flags use `*_was_*` pattern (e.g., `department_was_overridden`)
+  - Mapped/canonical values use `*_mapped_to` (e.g., `department_mapped_to`, `title_mapped_to`)
+  - Makes it obvious which fields are lookup results vs metadata flags
+
+### Testing
+
+- All existing tests updated and passing (no functional changes to logic)
+- All 440+ pytest tests passing
+- All 25 manual integration tests passing
+- No regressions from naming refactor
+
 ## [2.0.0b5] - 2025-12-01
 
 ### Added
