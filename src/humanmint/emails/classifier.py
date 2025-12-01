@@ -4,17 +4,10 @@ Email classification utilities for HumanMint.
 Classifies emails based on domain properties (free provider, generic inbox, etc.).
 """
 
-import gzip
-import json
-import sys
 from functools import lru_cache
 from typing import Optional, Set
 
-if sys.version_info >= (3, 9):
-    from importlib.resources import files
-else:
-    from importlib_resources import files
-
+from humanmint.data.utils import load_package_json_gz
 
 _FREE_PROVIDERS_CACHE: Optional[Set[str]] = None
 
@@ -34,31 +27,21 @@ def _load_free_email_providers() -> Set[str]:
     if _FREE_PROVIDERS_CACHE is not None:
         return _FREE_PROVIDERS_CACHE
 
-    providers = set()
-
     try:
-        # Load from package data using importlib.resources
-        data_files = files("humanmint").joinpath("data")
-        cache_file = data_files.joinpath("free_email_providers.json.gz")
-        data = gzip.decompress(cache_file.read_bytes())
-        payload = json.loads(data.decode("utf-8"))
+        payload = load_package_json_gz("free_email_providers.json.gz")
         if isinstance(payload, (set, list, tuple)):
             providers = {str(item).lower() for item in payload}
             _FREE_PROVIDERS_CACHE = providers
             return providers
-    except (FileNotFoundError, AttributeError, TypeError):
-        pass
-    except Exception:
-        pass
-
-    if not providers:
+    except FileNotFoundError:
         raise FileNotFoundError(
             "Free email providers cache not found or unreadable. "
             "Run scripts/build_caches.py to regenerate free_email_providers.json.gz."
         )
-
-    _FREE_PROVIDERS_CACHE = providers
-    return providers
+    except Exception as e:
+        raise FileNotFoundError(
+            "Failed to load free email providers cache: " + str(e)
+        )
 
 
 @lru_cache(maxsize=4096)

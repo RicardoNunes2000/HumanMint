@@ -2716,6 +2716,7 @@ Burt-mullett Cemetery,Cemetery
 Bus,Transportation
 Busbarn,Transportation
 Bus Barn,Transportation
+Bus Barn / Garage,Transportation
 Bus Barn Office,Transportation
 Bus Barn Paraprofessionals Transportation,Transportation
 Bus Barn Transportation,Transportation
@@ -21288,7 +21289,7 @@ Transit Maintenance,Transit
 Transit - Maintenance,Transit
 Transit - Maint Non-line,Transit
 Transit Office,Transit
-Transit Operations,Transit
+Transit Operations,Transportation Services
 Transit - Operations,Transit
 Transit & Parking,Transit
 Transit Projects & Programs,Transit

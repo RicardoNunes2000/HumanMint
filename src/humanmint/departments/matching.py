@@ -1,571 +1,506 @@
 """
 Department fuzzy matching for HumanMint.
 
-Fuzzy matching engine to find the best canonical department match for
-normalized department names using multi-strategy similarity scoring.
+Strict matching engine prioritizing department_mappings_list as the source of truth.
+NO BLS data is used.
 
 Strategy:
-1. Check if already canonical (O(1))
-2. Check CSV mappings for exact match (O(1) with cache)
-3. Check for substring match with canonicals (O(n))
-4. Fall back to multi-scorer fuzzy matching with rapidfuzz:
-   a. token_set_ratio (handles extra words like "Polce Department")
-   b. token_sort_ratio (handles word reordering)
-   c. partial_ratio with lowered threshold (catches typos like "Polce" -> "Police")
+1. Garbage Filter: Reject physical locations (Room 101), but allow "Stock Room", "Mail Room".
+2. Exact Match: Check Canonical list and Reverse Mappings (O(1)).
+3. Two-Pass Fuzzy Matching:
+   - Pass 1 (Strict): 90% threshold, no validation.
+   - Pass 2 (Lenient): 80% threshold, with semantic tag agreement check only.
 """
 
+import logging
 import re
 from functools import lru_cache
-from typing import Optional
+from typing import Dict, List, Optional, Set
+
 from rapidfuzz import fuzz, process
-from .data_loader import CANONICAL_DEPARTMENTS, CANONICAL_DEPARTMENTS_SET
+
+from humanmint.data.utils import load_package_json_gz
+from humanmint.text_clean import extract_tokens
+
+# Import from your provided data_loader
+from .data_loader import CANONICAL_DEPARTMENTS_SET, get_mapping_for_original
 from .normalize import normalize_department
 
-# Cache for CSV mappings to avoid repeated file reads
-_mapping_cache = None
-_mapping_keys = None
-_canonical_lowers = [(c, c.lower()) for c in CANONICAL_DEPARTMENTS]
+logger = logging.getLogger(__name__)
 
-# Keywords that indicate non-department data (building names, locations, etc.)
-_NON_DEPARTMENT_KEYWORDS = {
+# ---------------------------------------------------------------------------
+# Constants & Patterns
+# ---------------------------------------------------------------------------
+
+# Keywords that suggest a location/furniture, not a department
+_NON_DEPT_KEYWORDS = {
     "building",
     "room",
     "floor",
     "suite",
-    "office",
     "desk",
     "wing",
-    "unit",
     "bldg",
     "rm",
     "apt",
     "space",
     "block",
-    "section",
-    "area",
-    "zone",
     "lot",
+    "cubicle",
+    "station",
+    "ladder",
 }
 
-_COMMON_ABBREVIATIONS = {
-    "it": "Information Technology",
-    "is": "Information Technology",
-    "hr": "Human Resources",
-    "pw": "Public Works",
-    "dpw": "Public Works",
-    "rec": "Parks & Recreation",
-    "parks": "Parks & Recreation",
-    "pd": "Police",
-    "fd": "Fire",
-    "em": "Emergency Management",
-    "fin": "Finance",
-    "eng": "Engineering",
-}
-
-# Regex pattern for location-like inputs (e.g., "Room 101", "Building 5A", "Suite 200")
-_LOCATION_PATTERN = r"(room|floor|building|suite|office|bldg|rm|apt)\s*\d"
-_GENERIC_DEPT_TOKENS = {
-    "dept",
+# Generic container words that clutter fuzzy matching and should be stripped
+# These are metadata about what the field represents, not distinctive features
+_GENERIC_TOKENS = {
     "department",
+    "dept",
     "division",
+    "div",
+    "bureau",
     "office",
-    "services",
-    "service",
-    "ops",
-    "operations",
-    "administration",
-    "admin",
-}
-_KEYWORD_CANONICAL = {
-    "sheriff": "Sheriff",
-    "transit": "Transportation Services",
-    "transportation": "Transportation Services",
-    "transport": "Transportation Services",
-    "bus": "Transportation Services",
-    "garage": "Fleet Services",
-    "metro": "Transportation Services",
-    "it": "Information Technology",
-    "digital": "Information Technology",
-    "technology": "Information Technology",
-    "tech": "Information Technology",
-    "library": "Library",
-    "election": "Elections",
-    "elections": "Elections",
-    "recorder": "Recorder",
-    "recorders": "Recorder",
-    "clerk": "City Clerk",
-    "isd": "Board of Education",
-    "school": "Board of Education",
-    "district": "Board of Education",
-    "planning": "Planning",
-    "planner": "Planning",
-    "housing": "Housing",
-    "engineering": "Engineering",
-    "engineer": "Engineering",
-    "code": "Code Enforcement",
+    "agency",
+    "city",
+    "county",
+    "state",
+    "government",
+    "municipal",
+    "commission",
+    "board",
+    "authority",
 }
 
+# Exceptions: "Rooms" that are actually departments
+_ALLOWED_ROOM_PREFIXES = {
+    "mail",
+    "stock",
+    "server",
+    "control",
+    "emergency",
+    "waiting",
+    "media",
+}
 
-def _overlap_score(cand_tokens: set[str], filtered_tokens: set[str]) -> int:
-    """Return count of meaningful-token overlap between candidate and search."""
-    if not cand_tokens or not filtered_tokens:
-        return 0
-    return len(cand_tokens.intersection(filtered_tokens))
+# Regex to catch "Room 101", "Bldg C", "Suite 500"
+_LOCATION_PATTERN = re.compile(
+    r"\b(room|floor|bldg|suite|ste|rm|apt|unit|wing)\s*[\d#A-Z]", re.IGNORECASE
+)
+
+# ---------------------------------------------------------------------------
+# Data Initialization
+# ---------------------------------------------------------------------------
+
+_SEMANTIC_CACHE: Dict[str, str] = {}
+_FUZZY_CANDIDATES: List[str] = []
+_CANDIDATE_TO_CANONICAL: Dict[str, str] = {}
 
 
-def _split_segments(text: str) -> list[str]:
+def _ensure_data_loaded():
+    """Lazy load semantic tokens and build fuzzy candidate lists."""
+    global _SEMANTIC_CACHE, _FUZZY_CANDIDATES, _CANDIDATE_TO_CANONICAL
+
+    if not _SEMANTIC_CACHE:
+        try:
+            data = load_package_json_gz("semantic_tokens.json.gz")
+            if isinstance(data, dict):
+                _SEMANTIC_CACHE = {k.lower(): v for k, v in data.items()}
+        except Exception as e:
+            logger.warning(f"Could not load semantic_tokens.json.gz: {e}")
+            _SEMANTIC_CACHE = {}
+
+    if not _FUZZY_CANDIDATES:
+        # IMPORTANT: Only fuzzy match against the 67 canonical department names,
+        # NOT against all 5914 variations in the mappings file.
+        # Using variations causes false positives (e.g., "City Manager's Office"
+        # matches "County Managers Office" which maps to "County Manager").
+        from .data_loader import get_canonical_departments
+
+        candidates = {}
+        for canonical in get_canonical_departments():
+            candidates[canonical.lower()] = canonical
+
+        _CANDIDATE_TO_CANONICAL = candidates
+        _FUZZY_CANDIDATES = list(candidates.keys())
+
+
+# ---------------------------------------------------------------------------
+# Helper Logic
+# ---------------------------------------------------------------------------
+
+
+def _strip_generic_tokens(text: str) -> str:
     """
-    Split a department string on common separators (/, &, +, |, comma, and 'and').
+    Remove generic container words that don't contribute to fuzzy matching.
 
-    Returns non-empty, trimmed segments.
-    """
-    # Replace explicit " and " with a separator to align with others
-    cleaned = re.sub(r"\band\b", "|", text, flags=re.IGNORECASE)
-    parts = re.split(r"[\\/|&,+]", cleaned)
-    return [p.strip() for p in parts if p and p.strip()]
+    These words (department, county, city, etc.) are metadata about what the field
+    represents, not distinctive features of the department itself. Stripping them
+    improves fuzzy matching by reducing noise.
 
-
-def _is_likely_non_department(text: str) -> bool:
-    """
-    Detect if input looks like a building/location rather than a department.
-
-    Returns True if the text contains:
-    - Location keywords (Room, Building, Suite, etc.)
-    - Location patterns (Room 101, Building 5A, etc.)
-    - Very short keywords that are unlikely to be departments
+    Example:
+        >>> _strip_generic_tokens("Public Works Department")
+        "Public Works"
+        >>> _strip_generic_tokens("Parks and Recreation Bureau")
+        "Parks and Recreation"
 
     Args:
-        text: Normalized department text to check.
+        text: Input text (should already be lowercase).
 
     Returns:
-        True if text appears to be a location/building name, False otherwise.
+        str: Text with generic tokens removed, normalized to single spaces.
+    """
+    tokens = text.split()
+    filtered = [t for t in tokens if t.lower() not in _GENERIC_TOKENS]
+    result = " ".join(filtered).strip()
+    return result if result else text  # Return original if nothing left
+
+
+def is_likely_non_department(text: str) -> bool:
+    """
+    Detects if a string is likely a physical location (Room, Suite).
+    Handles exceptions like 'Stock Room' or 'Mail Room'.
     """
     if not text:
         return False
-
-    # If already canonical, do not flag as location-only noise
     if text in CANONICAL_DEPARTMENTS_SET:
         return False
 
     text_lower = text.lower()
-    has_digit = any(ch.isdigit() for ch in text_lower)
 
-    # Check for location pattern (Room 101, Building 5, etc.)
-    if re.search(_LOCATION_PATTERN, text_lower, re.IGNORECASE):
+    # 1. Regex Pattern Check (e.g., "Room 404")
+    if _LOCATION_PATTERN.search(text_lower):
         return True
 
-    # Check for non-department keywords
-    words = text_lower.split()
-    for word in words:
-        cleaned = word.rstrip(".,;-")
-        if cleaned in {"room", "suite", "desk", "rm", "apt"}:
+    # 2. Keyword Check
+    tokens = extract_tokens(text_lower)
+
+    # Check if we have a "Room" word
+    intersection = tokens.intersection(_NON_DEPT_KEYWORDS)
+    if intersection:
+        # If it contains a "Room" word, check if it's an allowed exception
+        if not tokens.isdisjoint(_ALLOWED_ROOM_PREFIXES):
+            return False  # It IS a department (Stock Room)
+
+        # If it has digits + a location word -> Garbage
+        if any(ch.isdigit() for ch in text_lower):
             return True
-        if cleaned in _NON_DEPARTMENT_KEYWORDS and has_digit:
+
+        # If it is JUST "Room" or "Suite" -> Garbage
+        if len(tokens) == 1:
             return True
 
     return False
 
 
-# Exposed wrapper for reuse in other modules without touching the private cache
-def is_likely_non_department(text: str) -> bool:
-    """Public-facing helper to detect location-like inputs."""
-    return _is_likely_non_department(text)
+def _get_all_semantic_tags(text: str) -> Set[str]:
+    """Get all semantic tags from text (excluding GENERIC and NULL)."""
+    tokens = extract_tokens(text)
+    tags = set()
+    for token in tokens:
+        if token in _SEMANTIC_CACHE:
+            tag = _SEMANTIC_CACHE[token]
+            if tag not in ("GENERIC", "NULL"):
+                tags.add(tag)
+    return tags
 
 
-def _get_mapping_cache():
-    """Lazy-load and cache CSV mappings."""
-    global _mapping_cache, _mapping_keys
-    if _mapping_cache is None:
-        # Load full mappings dict for fast lookups
-        from .data_loader import load_mappings
+def _have_semantic_agreement(tags1: Set[str], tags2: Set[str]) -> bool:
+    """
+    Check if two sets of semantic tags agree.
 
-        _mapping_cache = {}
-        # Build reverse mapping: original_name -> canonical
-        all_mappings = load_mappings()
-        for canonical, originals in all_mappings.items():
-            for original in originals:
-                _mapping_cache[original.lower()] = canonical
-        _mapping_keys = list(_mapping_cache.keys())
-    return _mapping_cache
+    Rules:
+    - If both have tags: they must overlap (at least one tag in common)
+    - If both are empty: agree (untagged, generic terms)
+    - If only one has tags: agree (one side is likely generic/untagged like "Maintenance")
+
+    This is lenient because canonical department names may not be tagged if they're
+    generic terms, and the fuzzy score should be the primary signal.
+
+    Args:
+        tags1: First set of semantic tags.
+        tags2: Second set of semantic tags.
+
+    Returns:
+        bool: True if tags agree, False if they conflict.
+    """
+    # If both are empty, they agree (both untagged/generic)
+    if not tags1 and not tags2:
+        return True
+
+    # If only one has tags, agree (one side is likely generic/untagged)
+    if not tags1 or not tags2:
+        return True
+
+    # Both have tags - they must overlap
+    return bool(tags1.intersection(tags2))
+
+
+# ---------------------------------------------------------------------------
+# Core Matching Engine
+# ---------------------------------------------------------------------------
+
+
+def _find_best_match_strict(search_name: str) -> Optional[str]:
+    """
+    Strict pass: 90% fuzzy threshold, no validation.
+
+    Returns best match if fuzzy similarity >= 90%, otherwise None.
+    """
+    search_lower = search_name.lower()
+
+    if len(search_lower) < 3:
+        return None
+
+    # Strip generic tokens to avoid noise in fuzzy matching
+    search_clean = _strip_generic_tokens(search_lower)
+
+    result = process.extractOne(
+        search_clean,
+        _FUZZY_CANDIDATES,
+        scorer=fuzz.token_sort_ratio,
+        score_cutoff=90.0,
+    )
+
+    if not result:
+        return None
+
+    candidate_key, _score, _ = result
+    canonical_match = _CANDIDATE_TO_CANONICAL.get(candidate_key)
+
+    return canonical_match
+
+
+def _find_best_match_lenient(search_name: str) -> Optional[str]:
+    """
+    Lenient pass: 70% fuzzy threshold with semantic agreement check.
+
+    Returns best match if:
+    1. Fuzzy score >= 70%
+    2. Semantic tags agree (both tagged and overlap, OR both untagged)
+
+    This catches cases like "Library – Youth Programs" → "Library"
+    where strict fuzzy matching fails but semantic context is clear.
+    """
+    search_lower = search_name.lower()
+
+    if len(search_lower) < 3:
+        return None
+
+    # Strip generic tokens to avoid noise in fuzzy matching
+    search_clean = _strip_generic_tokens(search_lower)
+
+    result = process.extractOne(
+        search_clean,
+        _FUZZY_CANDIDATES,
+        scorer=fuzz.token_sort_ratio,
+        score_cutoff=70.0,
+    )
+
+    if not result:
+        return None
+
+    candidate_key, _score, _ = result
+    canonical_match = _CANDIDATE_TO_CANONICAL.get(candidate_key)
+
+    if not canonical_match:
+        return None
+
+    # Check semantic agreement
+    input_tags = _get_all_semantic_tags(search_lower)
+    candidate_tags = _get_all_semantic_tags(candidate_key)
+
+    if not _have_semantic_agreement(input_tags, candidate_tags):
+        return None
+
+    return canonical_match
+
+
+def _find_best_match_partial(search_name: str) -> Optional[str]:
+    """
+    Partial pass: Use token_set_ratio for cases where fuzzy matching fails.
+
+    Returns best match if fuzzy score >= 60% using token_set_ratio,
+    which handles extra words better than token_sort_ratio.
+
+    This catches cases like "Food Service High School Cafeteria" → "Food Service"
+    where location-specific noise prevents standard fuzzy matching.
+    """
+    search_lower = search_name.lower()
+
+    if len(search_lower) < 3:
+        return None
+
+    # Strip generic tokens to avoid noise in fuzzy matching
+    search_clean = _strip_generic_tokens(search_lower)
+
+    result = process.extractOne(
+        search_clean,
+        _FUZZY_CANDIDATES,
+        scorer=fuzz.token_set_ratio,
+        score_cutoff=60.0,
+    )
+
+    if not result:
+        return None
+
+    candidate_key, _score, _ = result
+    canonical_match = _CANDIDATE_TO_CANONICAL.get(candidate_key)
+
+    if not canonical_match:
+        return None
+
+    # Check semantic agreement (lenient - only reject if both have conflicting tags)
+    input_tags = _get_all_semantic_tags(search_lower)
+    candidate_tags = _get_all_semantic_tags(candidate_key)
+
+    if not _have_semantic_agreement(input_tags, candidate_tags):
+        return None
+
+    return canonical_match
 
 
 @lru_cache(maxsize=4096)
-def _find_best_match_normalized(
-    search_name: str,
-    threshold: float,
-) -> Optional[str]:
+def _find_best_match_normalized(search_name: str, threshold: float) -> Optional[str]:
     """
-    Cached core matcher for already-normalized names.
+    Find best canonical department match using three-pass approach.
 
-    This function uses @lru_cache(maxsize=4096) to cache fuzzy matching results.
-    For large batches with repeated department names, this significantly improves performance
-    by avoiding redundant fuzzy matching computations.
+    Pass 1 (Strict): 90% token_sort_ratio threshold, no validation.
+    Pass 2 (Lenient): 70% token_sort_ratio threshold, semantic agreement required.
+    Pass 3 (Partial): 60% token_set_ratio threshold for cases with extra words.
 
-    To clear the cache if memory is a concern:
-        >>> _find_best_match_normalized.cache_clear()
+    Returns the first match found, or None if no pass succeeds.
 
-    To check cache statistics:
-        >>> _find_best_match_normalized.cache_info()
+    Args:
+        search_name: Normalized department name.
+        threshold: Not used (kept for backward compatibility).
+
+    Returns:
+        Optional[str]: Canonical department name, or None if no match found.
     """
-    search_name_lower = search_name.lower()
-    search_name_ascii = search_name_lower.replace("'", "'")
-    search_tokens = {t for t in re.findall(r"[a-z0-9]+", search_name_ascii) if t}
-    filtered_tokens = {t for t in search_tokens if t not in _GENERIC_DEPT_TOKENS}
+    _ensure_data_loaded()
 
-    # Avoid over-eager matches on single-letter inputs (e.g., "X")
-    if len(filtered_tokens) == 1 and len(next(iter(filtered_tokens))) <= 1:
+    # 1. GARBAGE FILTER
+    if is_likely_non_department(search_name):
         return None
 
-    parts = [p for p in search_name_lower.split() if p]
-    for part in parts:
-        token = part.strip(".")
-        if token.isdigit():
-            continue
-        if token in _COMMON_ABBREVIATIONS:
-            return _COMMON_ABBREVIATIONS[token]
-        # Only look at the leading meaningful token for abbreviation shortcuts
-        break
+    search_lower = search_name.lower()
 
-    # Keyword-based shortcuts to keep domain-correct matches
-    for kw, canon in _KEYWORD_CANONICAL.items():
-        if kw in search_tokens and canon is not None:
-            return canon
-
-    # Early rejection: if input looks like a building/location, don't force-match
-    # This prevents "Harbor Building 04B" from matching to "Budget"
-    if _is_likely_non_department(search_name):
-        return None
-
-    # Check if already canonical (O(1))
+    # 2. EXACT MATCH (O(1))
     if search_name in CANONICAL_DEPARTMENTS_SET:
         return search_name
 
-    # Quick exact/trimmed mapping check before any segmentation
-    try:
-        mapping_cache = _get_mapping_cache()
-        if search_name_lower in mapping_cache:
-            return mapping_cache[search_name_lower]
-        trimmed_search = " ".join(t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS)
-        if trimmed_search and trimmed_search in mapping_cache:
-            return mapping_cache[trimmed_search]
-    except Exception:
-        mapping_cache = None
+    exact_map = get_mapping_for_original(search_name)
+    if exact_map:
+        return exact_map
 
-    # Strategy 0: Segment-aware scoring to prefer strong sub-part matches
-    segments = _split_segments(search_name_lower)
-    if len(segments) > 1:
-        segment_best = None
-        try:
-            mapping_cache = _get_mapping_cache()
-        except Exception:
-            mapping_cache = None
+    # 3. PASS 1: Strict (90% token_sort, no validation)
+    match = _find_best_match_strict(search_lower)
+    if match:
+        return match
 
-        for seg in segments:
-            seg_tokens = {t for t in re.findall(r"[a-z0-9]+", seg) if t and t not in _GENERIC_DEPT_TOKENS}
-            if not seg_tokens:
-                continue
+    # 4. PASS 2: Lenient (70% token_sort + semantic agreement)
+    match = _find_best_match_lenient(search_lower)
+    if match:
+        return match
 
-            # Exact/trimmed mapping check per segment
-            if mapping_cache is not None:
-                trimmed = " ".join(t for t in seg.split() if t not in _GENERIC_DEPT_TOKENS)
-                for candidate_key in (seg, trimmed):
-                    if not candidate_key:
-                        continue
-                    candidate_key_lower = candidate_key.lower()
-                    if candidate_key_lower in mapping_cache:
-                        candidate = mapping_cache[candidate_key_lower]
-                        candidate_score = (len(seg_tokens), float("inf"), candidate)
-                        if segment_best is None or candidate_score > segment_best:
-                            segment_best = candidate_score
-                        break
+    # 5. PASS 3: Partial (60% token_set for extra words, semantic agreement)
+    match = _find_best_match_partial(search_lower)
+    if match:
+        return match
 
-            # Canonical overlap scoring
-            for canonical, canonical_lower in _canonical_lowers:
-                canonical_tokens = {t for t in canonical_lower.split() if t not in _GENERIC_DEPT_TOKENS}
-                overlap = _overlap_score(canonical_tokens, seg_tokens)
-                if overlap >= 2:
-                    candidate_score = (overlap, len(canonical_tokens), canonical)
-                    if segment_best is None or candidate_score > segment_best:
-                        segment_best = candidate_score
-
-        if segment_best:
-            return segment_best[2]
-
-    # Strategy 1: Check for substring match with canonical departments, requiring meaningful token overlap
-    matches = []
-    for canonical, canonical_lower in _canonical_lowers:
-        if canonical_lower in search_name_lower or search_name_lower in canonical_lower:
-            canonical_tokens = {t for t in canonical_lower.split() if t not in _GENERIC_DEPT_TOKENS}
-            # Permit "Office of ..." leading tokens to count as meaningful for office-prefixed canonicals
-            overlap = _overlap_score(canonical_tokens, filtered_tokens)
-            if (
-                filtered_tokens
-                and canonical_tokens
-                and (overlap >= 2 or (overlap == 1 and "office" in canonical_lower))
-            ):
-                # Score: how early in the search string does this appear? (prefer early matches)
-                # and prefer longer canonical names for specificity
-                position = search_name_lower.find(canonical_lower)
-                score = (
-                    -position,
-                    len(canonical),
-                )  # Negative position = earlier = higher score
-                matches.append((score, canonical))
-
-    if matches:
-        # Return the best match (earliest appearance, then longest)
-        return max(matches, key=lambda x: x[0])[1]
-
-    # Strategy 2: Check CSV mappings for exact/fuzzy match (O(1)/fast)
-    try:
-        mapping_cache = _get_mapping_cache()
-        if search_name_lower in mapping_cache:
-            return mapping_cache[search_name_lower]
-        trimmed_search = " ".join(t for t in search_name_lower.split() if t not in _GENERIC_DEPT_TOKENS)
-        if trimmed_search and trimmed_search in mapping_cache:
-            return mapping_cache[trimmed_search]
-        if _mapping_keys:
-            score_cutoff = max(80, threshold * 100)
-            fuzzy_results = process.extract(
-                search_name_lower,
-                _mapping_keys,
-                scorer=fuzz.token_set_ratio,
-                score_cutoff=score_cutoff,
-                limit=5,
-            )
-            best_strong = None  # Requires ≥2 overlapping meaningful tokens
-            best_any = None     # At least one overlapping token
-            for candidate_key, score, _ in fuzzy_results:
-                cand_tokens = {t for t in candidate_key.split() if t not in _GENERIC_DEPT_TOKENS}
-                if not cand_tokens or not filtered_tokens:
-                    continue
-                overlap_count = _overlap_score(cand_tokens, filtered_tokens)
-                if overlap_count:
-                    candidate_tuple = (overlap_count, score, len(cand_tokens), candidate_key)
-                    if best_any is None or candidate_tuple > best_any:
-                        best_any = candidate_tuple
-                    if overlap_count >= 2:
-                        if best_strong is None or candidate_tuple > best_strong:
-                            best_strong = candidate_tuple
-            if best_strong:
-                return mapping_cache.get(best_strong[3])
-            if best_any:
-                return mapping_cache.get(best_any[3])
-    except Exception:
-        pass
-
-    # Strategy 3: Find close matches using rapidfuzz (fallback)
-    # Try multiple scoring strategies to find the best match
-    score_cutoff = max(80, threshold * 100)
-
-    # First try token_set_ratio (better for extra words like "Polce Department")
-    result = process.extractOne(
-        search_name,
-        CANONICAL_DEPARTMENTS,
-        scorer=fuzz.token_set_ratio,
-        score_cutoff=score_cutoff,
-    )
-    if result and result[1] >= score_cutoff:  # Verify score meets threshold
-        candidate = result[0]
-        # Require at least one meaningful token overlap to prevent cross-domain mismaps
-        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
-        filtered_search = filtered_tokens
-        overlap = _overlap_score(cand_tokens, filtered_search) if cand_tokens and filtered_search else 0
-        if overlap >= 2 or (overlap == 1 and "office" in candidate.lower()):
-            return candidate
-
-    # If token_set_ratio fails, try token_sort_ratio
-    result = process.extractOne(
-        search_name,
-        CANONICAL_DEPARTMENTS,
-        scorer=fuzz.token_sort_ratio,
-        score_cutoff=score_cutoff,
-    )
-    if result and result[1] >= score_cutoff:  # Verify score meets threshold
-        candidate = result[0]
-        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
-        filtered_search = filtered_tokens
-        if cand_tokens and filtered_search and cand_tokens.intersection(filtered_search):
-            return candidate
-
-    # If still no match, try with a slightly lower threshold using partial_ratio
-    # This catches typos better (e.g., "Polce" -> "Police")
-    # But only if the match quality is genuinely good (at least 65%)
-    lower_cutoff = max(score_cutoff - 15, 65)  # At least 65% match for fallback
-    result = process.extractOne(
-        search_name,
-        CANONICAL_DEPARTMENTS,
-        scorer=fuzz.partial_ratio,
-        score_cutoff=lower_cutoff,
-    )
-    if result and result[1] >= lower_cutoff:  # Verify score meets lower threshold
-        candidate = result[0]
-        cand_tokens = {t for t in re.findall(r"[a-z0-9]+", candidate.lower()) if t not in _GENERIC_DEPT_TOKENS}
-        overlap = _overlap_score(cand_tokens, filtered_tokens) if cand_tokens and filtered_tokens else 0
-        if overlap >= 2 or (overlap == 1 and "office" in candidate.lower()):
-            return candidate
-
+    # 6. No match found
     return None
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
 def find_best_match(
-    dept_name: str,
-    threshold: float = 0.6,
-    normalize: bool = True,
+    dept_name: str, threshold: float = 0.6, normalize: bool = True
 ) -> Optional[str]:
     """
-    Find the best canonical department match for a given department name.
+    Find the best canonical department match using two-pass approach.
 
-    Uses difflib.get_close_matches to find fuzzy matches against the canonical
-    department list. If the input is not already normalized, it will be
-    normalized first.
-
-    Example:
-        >>> find_best_match("Public Works 850-123-1234")
-        "Public Works"
-        >>> find_best_match("PW Dept", threshold=0.6)
-        "Public Works"
-        >>> find_best_match("Nonexistent Dept", threshold=0.6)
-        None
+    Returns None if no match found (caller should handle as appropriate).
 
     Args:
-        dept_name: Department name to match (raw or normalized).
-        threshold: Minimum similarity score (0.0 to 1.0). Defaults to 0.6.
-        normalize: Whether to normalize the input first. Defaults to True.
+        dept_name: Raw or normalized department name.
+        threshold: Ignored (kept for backward compatibility).
+        normalize: If True, normalize input before matching. Default True.
 
     Returns:
-        Optional[str]: Best matching canonical department name, or None if no
-                      match exceeds the threshold.
+        Optional[str]: Canonical department name, or None if no match found.
 
     Raises:
-        ValueError: If dept_name is empty.
-        ValueError: If threshold is not between 0.0 and 1.0.
+        ValueError: If department name is invalid.
     """
     if not dept_name:
         raise ValueError("Department name cannot be empty")
 
-    if not 0.0 <= threshold <= 1.0:
-        raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
-
-    # Normalize the input if requested
     search_name = normalize_department(dept_name) if normalize else dept_name
     return _find_best_match_normalized(search_name, threshold)
 
 
 def find_all_matches(
-    dept_name: str,
-    threshold: float = 0.6,
-    top_n: int = 3,
-    normalize: bool = True,
+    dept_name: str, threshold: float = 0.6, top_n: int = 3, normalize: bool = True
 ) -> list[str]:
-    """
-    Find all canonical department matches above a similarity threshold.
-
-    Returns multiple matches ranked by similarity score, useful for
-    interactive selection or validation.
-
-    Example:
-        >>> find_all_matches("Public Works", threshold=0.5, top_n=3)
-        ["Public Works", "Public Safety"]
-
-    Args:
-        dept_name: Department name to match (raw or normalized).
-        threshold: Minimum similarity score (0.0 to 1.0). Defaults to 0.6.
-        top_n: Maximum number of matches to return. Defaults to 3.
-        normalize: Whether to normalize the input first. Defaults to True.
-
-    Returns:
-        list[str]: List of matching canonical department names, ranked by
-                   similarity. Empty list if no matches exceed the threshold.
-
-    Raises:
-        ValueError: If dept_name is empty.
-        ValueError: If threshold is not between 0.0 and 1.0.
-    """
-    if not dept_name:
-        raise ValueError("Department name cannot be empty")
-
-    if not 0.0 <= threshold <= 1.0:
-        raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
-
-    # Normalize the input if requested
+    """Returns top N matches, skipping semantic validation."""
+    _ensure_data_loaded()
     search_name = normalize_department(dept_name) if normalize else dept_name
 
-    # Check if already canonical
-    if search_name in CANONICAL_DEPARTMENTS_SET:
-        return [search_name]
+    if is_likely_non_department(search_name):
+        return []
 
-    # Find all close matches
     score_cutoff = threshold * 100
     matches = process.extract(
-        search_name,
-        CANONICAL_DEPARTMENTS,
+        search_name.lower(),
+        _FUZZY_CANDIDATES,
         scorer=fuzz.token_sort_ratio,
         limit=top_n,
         score_cutoff=score_cutoff,
     )
-    return [m[0] for m in matches]
+
+    results = []
+    seen = set()
+    for m in matches:
+        candidate_key = m[0]
+        canonical = _CANDIDATE_TO_CANONICAL.get(candidate_key)
+        if canonical and canonical not in seen:
+            results.append(canonical)
+            seen.add(canonical)
+
+    return results
 
 
 def match_departments(
-    dept_names: list[str],
-    threshold: float = 0.6,
-    normalize: bool = True,
+    dept_names: list[str], threshold: float = 0.6, normalize: bool = True
 ) -> dict[str, Optional[str]]:
     """
-    Match multiple department names to their canonical equivalents.
-
-    Processes a list of raw or normalized department names and returns a
-    mapping of original names to their best matches. Useful for batch
-    processing.
-
-    Example:
-        >>> match_departments(["Public Works", "PW Dept", "Unknown"])
-        {
-            "Public Works": "Public Works",
-            "PW Dept": "Public Works",
-            "Unknown": None
-        }
+    Match multiple departments.
 
     Args:
-        dept_names: List of department names to match.
-        threshold: Minimum similarity score (0.0 to 1.0). Defaults to 0.6.
-        normalize: Whether to normalize inputs first. Defaults to True.
+        dept_names: List of raw department names.
+        threshold: Ignored (kept for backward compatibility).
+        normalize: If True, normalize inputs before matching.
 
     Returns:
-        dict[str, Optional[str]]: Mapping of input names to canonical matches
-                                  (None if no match found).
-
-    Raises:
-        ValueError: If threshold is not between 0.0 and 1.0.
+        dict: Mapping of input names to canonical names (or None if no match).
     """
-    if not 0.0 <= threshold <= 1.0:
-        raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
-
     result = {}
     for dept in dept_names:
         try:
             match = find_best_match(dept, threshold=threshold, normalize=normalize)
             result[dept] = match
         except ValueError:
-            # If normalization fails, record as no match
             result[dept] = None
-
     return result
 
 
 def get_similarity_score(dept1: str, dept2: str) -> float:
     """
-    Calculate similarity score between two department names.
-
-    Uses rapidfuzz token_sort_ratio to compute a similarity ratio between
-    0.0 (completely different) and 1.0 (identical).
-
-    Example:
-        >>> get_similarity_score("Public Works", "Public Works")
-        1.0
-        >>> get_similarity_score("Public Works", "Public Safety")
-        0.615...
+    Get normalized similarity score between two department names (0.0 to 1.0).
 
     Args:
         dept1: First department name.
@@ -576,6 +511,5 @@ def get_similarity_score(dept1: str, dept2: str) -> float:
     """
     if not dept1 or not dept2:
         return 0.0
-
     score = fuzz.token_sort_ratio(dept1.lower(), dept2.lower())
     return score / 100.0

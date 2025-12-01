@@ -4,60 +4,34 @@ Tests are organized by module and cover all public functions.
 """
 
 import pytest
-from humanmint.names import (
-    normalize_name,
-    infer_gender,
-    enrich_name,
-    detect_nickname,
-    get_nickname_variants,
-    get_name_equivalents,
-    compare_first_names,
-    compare_last_names,
-    match_names,
-)
-from humanmint.emails import (
-    normalize_email,
-    is_free_provider,
-    guess_email,
-    get_pattern_scores,
-    describe_pattern,
-)
-from humanmint.phones import (
-    normalize_phone,
-    detect_impossible,
-    detect_fax_pattern,
-    detect_voip_pattern,
-)
-from humanmint.departments import (
-    normalize_department,
-    find_best_match,
-    find_all_matches,
-    match_departments,
-    get_similarity_score,
-    get_department_category,
-    get_all_categories,
-    get_departments_by_category,
-    categorize_departments,
-    get_canonical_departments,
-    is_canonical,
-    load_mappings,
-    get_mapping_for_original,
-    get_originals_for_canonical,
-)
-from humanmint.titles import (
-    normalize_title_full,
-    normalize_title,
-    find_best_match as match_title,
-    find_all_matches as match_all_titles,
-    get_similarity_score as title_similarity,
-    get_canonical_titles,
-    is_canonical as title_is_canonical,
-    get_mapping_for_variant,
-    get_all_mappings,
-)
-from humanmint.addresses import normalize_address
-from humanmint.organizations import normalize_organization
 
+from humanmint.addresses import normalize_address
+from humanmint.departments import (categorize_departments, find_all_matches,
+                                   find_best_match, get_all_categories,
+                                   get_canonical_departments,
+                                   get_department_category,
+                                   get_departments_by_category,
+                                   get_mapping_for_original,
+                                   get_originals_for_canonical,
+                                   get_similarity_score, is_canonical,
+                                   load_mappings, match_departments,
+                                   normalize_department)
+from humanmint.emails import (describe_pattern, get_pattern_scores,
+                              guess_email, is_free_provider, normalize_email)
+from humanmint.names import (compare_first_names, compare_last_names,
+                             detect_nickname, enrich_name,
+                             get_name_equivalents, get_nickname_variants,
+                             infer_gender, match_names, normalize_name)
+from humanmint.organizations import normalize_organization
+from humanmint.phones import (detect_fax_pattern, detect_impossible,
+                              detect_voip_pattern, normalize_phone)
+from humanmint.titles import find_all_matches as match_all_titles
+from humanmint.titles import find_best_match as match_title
+from humanmint.titles import (get_all_mappings, get_canonical_titles,
+                              get_mapping_for_variant)
+from humanmint.titles import get_similarity_score as title_similarity
+from humanmint.titles import is_canonical as title_is_canonical
+from humanmint.titles import normalize_title, normalize_title_full
 
 # ============================================================================
 # NAMES MODULE TESTS

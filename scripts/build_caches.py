@@ -134,11 +134,25 @@ def build_free_email_providers_pickle() -> Path:
     return cache_path
 
 
+def build_semantic_tokens_pickle() -> Path:
+    """Build semantic tokens cache for domain-based semantic validation."""
+    _ensure_dirs()
+    json_path = ORIGINAL_DIR / "semantic_tokens.json"
+    cache_path = DATA_DIR / "semantic_tokens.json.gz"
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    cache_path.write_bytes(gzip.compress(json.dumps(data).encode("utf-8")))
+    return cache_path
+
+
 def main() -> None:
     builders: Tuple[tuple[str, Callable[[], Path]], ...] = (
         ("Departments", build_department_pickle),
         ("Names", build_names_pickle),
         ("Titles", build_titles_pickle),
+        ("Semantic tokens", build_semantic_tokens_pickle),
         ("Generic inboxes", build_generic_inboxes_pickle),
         ("Free email providers", build_free_email_providers_pickle),
     )

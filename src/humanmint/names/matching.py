@@ -6,10 +6,11 @@ Uses the nicknames library for canonical nickname mappings and rapidfuzz for fuz
 """
 
 from typing import Dict, Optional
+
 from nicknames import NickNamer
 from rapidfuzz import fuzz
-from .normalize import normalize_name
 
+from .normalize import normalize_name
 
 # Global nickname mapper (lazy-loaded)
 _nicknames_mapper: Optional[NickNamer] = None

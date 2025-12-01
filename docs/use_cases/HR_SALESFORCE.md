@@ -43,10 +43,10 @@ for i, r1 in enumerate(results):
         score = compare(r1, r2)
         if score > 85:
             duplicates.append({
-                "name1": r1.name_str,
-                "name2": r2.name_str,
-                "email1": r1.email_str,
-                "email2": r2.email_str,
+                "name1": r1.name_standardized,
+                "name2": r2.name_standardized,
+                "email1": r1.email_standardized,
+                "email2": r2.email_standardized,
                 "similarity": score
             })
 
@@ -109,17 +109,17 @@ print(result.name_last)          # "Johnson"
 print(result.name_gender)        # "female"
 
 # Email
-print(result.email_str)          # "sarah@company.com"
+print(result.email_standardized)          # "sarah@company.com"
 print(result.email_domain)       # "company.com"
 
 # Phone
-print(result.phone_str)          # "+1 415-555-0123"
+print(result.phone_standardized)          # "+1 415-555-0123"
 print(result.phone_extension)    # "456"
 
 # Title transformation stages
 print(result.title["raw"])       # "Senior Software Engineer" (original)
 print(result.title["canonical"]) # "senior software engineer" (standardized)
-print(result.title_str)          # "senior software engineer" (shorthand for canonical)
+print(result.title_canonical)          # "senior software engineer" (shorthand for canonical)
 
 # Print full result to see all stages
 print(result)
@@ -152,7 +152,7 @@ for employee in employees:
         best_match = employee
 
 if best_match and best_score > 75:
-    print(f"Found: {best_match.name_str} (confidence: {best_score:.0f}%)")
+    print(f"Found: {best_match.name_standardized} (confidence: {best_score:.0f}%)")
 else:
     print("No match found")
 ```

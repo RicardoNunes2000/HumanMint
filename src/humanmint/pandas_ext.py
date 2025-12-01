@@ -9,11 +9,12 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Iterable, Optional, Callable, Union
+from typing import Callable, Iterable, Optional, Union
+
 import pandas as pd
 
-from .mint import mint, bulk
 from .column_guess import COLUMN_GUESSES, guess_column
+from .mint import bulk, mint
 
 
 @pd.api.extensions.register_dataframe_accessor("humanmint")
@@ -107,7 +108,7 @@ class HumanMintAccessor:
                     "hm_name_gender": (result.name or {}).get("gender") if result.name else None,
                     "hm_email": (result.email or {}).get("normalized") if result.email else None,
                     "hm_email_domain": (result.email or {}).get("domain") if result.email else None,
-                    "hm_email_is_generic": (result.email or {}).get("is_generic") if result.email else None,
+                    "hm_email_is_generic": (result.email or {}).get("is_generic_inbox") if result.email else None,
                     "hm_email_is_free_provider": (result.email or {}).get("is_free_provider") if result.email else None,
                     "hm_phone": (result.phone or {}).get("pretty") if result.phone else None,
                     "hm_address_canonical": (result.address or {}).get("canonical") if result.address else None,

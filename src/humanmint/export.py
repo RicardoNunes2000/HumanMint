@@ -11,32 +11,79 @@ Example:
     >>> export_json(results, "cleaned.json")
 """
 
-import json
 import csv
+import re
 from pathlib import Path
-from typing import List, Any, Dict
+from typing import Any, Dict, List
+
+import orjson
 
 from .mint import MintResult
 
 
-def export_json(results: List[MintResult], filepath: str) -> None:
+def _prepare_data(results: List[MintResult], flatten: bool = True) -> List[Dict[str, Any]]:
+    """
+    Prepare data for export by optionally flattening nested structures.
+
+    Args:
+        results: List of MintResult objects.
+        flatten: If True, flatten nested dicts. If False, keep as model_dump().
+
+    Returns:
+        List of dictionaries ready for export.
+    """
+    if not results:
+        return []
+
+    if flatten:
+        return [_flatten_result(result) for result in results]
+    return [result.model_dump() for result in results]
+
+
+def export_json(
+    results: List[MintResult],
+    filepath: str,
+    flatten: bool = False,
+) -> None:
     """
     Export normalized results to JSON file.
+
+    Uses orjson for fast serialization with native dataclass support.
+    Eliminates intermediate conversion step for maximum performance.
 
     Args:
         results: List of MintResult objects from mint() or bulk().
         filepath: Path to write JSON file to.
+        flatten: If True, flatten nested dicts (name_first, email_domain, etc.).
+                If False (default), keep nested structure as JSON objects.
 
     Example:
         >>> from humanmint import bulk, export_json
         >>> results = bulk([{"name": "Jane Doe", "email": "jane@example.com"}])
         >>> export_json(results, "cleaned.json")
+        >>> # Output has nested structure: {"name": {"first": "Jane", ...}, ...}
+        >>> export_json(results, "cleaned_flat.json", flatten=True)
+        >>> # Flattened output: {"name_first": "Jane", ...}
     """
     output_path = Path(filepath)
-    data = [result.model_dump() for result in results]
 
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    if flatten:
+        # Flatten nested structures for consistency with CSV/Parquet/SQL exports
+        rows = _prepare_data(results, flatten=True)
+        json_bytes = orjson.dumps(
+            rows,
+            option=orjson.OPT_INDENT_2
+        )
+    else:
+        # Keep nested structure using native dataclass serialization (default)
+        # 10-20x faster than standard json, especially for large datasets
+        json_bytes = orjson.dumps(
+            results,
+            option=orjson.OPT_INDENT_2 | orjson.OPT_SERIALIZE_DATACLASS
+        )
+
+    with output_path.open("wb") as f:
+        f.write(json_bytes)
 
 
 def export_csv(
@@ -61,19 +108,11 @@ def export_csv(
         >>> results = bulk([{"name": "Jane Doe", "email": "jane@example.com"}])
         >>> export_csv(results, "cleaned.csv")
     """
-    if not results:
-        return
-
-    output_path = Path(filepath)
-
-    if flatten:
-        rows = [_flatten_result(result) for result in results]
-    else:
-        rows = [result.model_dump() for result in results]
-
+    rows = _prepare_data(results, flatten)
     if not rows:
         return
 
+    output_path = Path(filepath)
     fieldnames = list(rows[0].keys())
 
     with output_path.open("w", newline="", encoding="utf-8") as f:
@@ -114,13 +153,9 @@ def export_parquet(
             "export_parquet requires pandas. Install with: pip install pandas pyarrow"
         )
 
-    if not results:
+    rows = _prepare_data(results, flatten)
+    if not rows:
         return
-
-    if flatten:
-        rows = [_flatten_result(result) for result in results]
-    else:
-        rows = [result.model_dump() for result in results]
 
     df = pd.DataFrame(rows)
     df.to_parquet(filepath, index=False)
@@ -149,6 +184,7 @@ def export_sql(
 
     Raises:
         ImportError: If pandas and sqlalchemy are not installed.
+        ValueError: If table_name or if_exists parameters are invalid.
 
     Example:
         >>> from humanmint import bulk, export_sql
@@ -157,6 +193,19 @@ def export_sql(
         >>> results = bulk([{"name": "Jane Doe", "email": "jane@example.com"}])
         >>> export_sql(results, engine, "cleaned_contacts")
     """
+    # Validate table_name: alphanumeric, underscores, dots only
+    if not re.match(r"^[a-zA-Z0-9_\.]+$", table_name):
+        raise ValueError(
+            f"Invalid table name '{table_name}'. Must contain only alphanumeric characters, underscores, and dots."
+        )
+
+    # Validate if_exists parameter
+    valid_if_exists = ("fail", "replace", "append")
+    if if_exists not in valid_if_exists:
+        raise ValueError(
+            f"Invalid if_exists value '{if_exists}'. Must be one of: {', '.join(valid_if_exists)}"
+        )
+
     try:
         import pandas as pd
     except ImportError:
@@ -164,13 +213,9 @@ def export_sql(
             "export_sql requires pandas. Install with: pip install pandas sqlalchemy"
         )
 
-    if not results:
+    rows = _prepare_data(results, flatten)
+    if not rows:
         return
-
-    if flatten:
-        rows = [_flatten_result(result) for result in results]
-    else:
-        rows = [result.model_dump() for result in results]
 
     df = pd.DataFrame(rows)
     df.to_sql(table_name, connection, if_exists=if_exists, index=False)

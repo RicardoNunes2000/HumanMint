@@ -4,7 +4,7 @@ Email pattern definitions for HumanMint.
 Defines the 13 supported email naming patterns with documentation and examples.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Pattern metadata: name, description, and examples
 PATTERNS: Dict[str, Dict[str, Any]] = {

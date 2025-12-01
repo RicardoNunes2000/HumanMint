@@ -18,12 +18,15 @@ TITLE_ABBREVIATIONS = {
     "dept": "Department",
     "maint": "Maintenance",
     "mgr": "Manager",
+    "mngr": "Manager",
     "mgmt": "Management",
     "asst": "Assistant",
+    "ast": "Assistant",
     "assoc": "Associate",
     "coord": "Coordinator",
     "spec": "Specialist",
     "sr": "Senior",
+    "snr": "Senior",
     "jr": "Junior",
     "vp": "Vice President",
     "avp": "Assistant Vice President",
@@ -50,6 +53,7 @@ TITLE_ABBREVIATIONS = {
     "admin": "Administrator",
     "supt": "Superintendent",
     "supv": "Supervisor",
+    "supr": "Supervisor",
     "sec": "Secretary",
     "gm": "General Manager",
     "pm": "Project Manager",
@@ -72,7 +76,10 @@ TITLE_ABBREVIATIONS = {
     "it": "Information Technology",
     "ux": "User Experience",
     "ui": "User Interface",
+    "rec": "Recreation",
+    "dir": "Director",
+    "dirs": "Director",
 }
 
 # Abbreviations that should be preserved and not expanded
-PRESERVE_ABBREVIATIONS = {"dir"}
+PRESERVE_ABBREVIATIONS = set()

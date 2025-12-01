@@ -11,7 +11,8 @@ from typing import Dict, Optional
 
 from nameparser import HumanName
 
-from humanmint.constants.names import PLACEHOLDER_NAMES, TITLE_PREFIXES, US_SUFFIXES
+from humanmint.constants.names import (PLACEHOLDER_NAMES, ROMAN_NUMERALS,
+                                       TITLE_PREFIXES, US_SUFFIXES)
 from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
 
 _EMPTY_NAME: Dict[str, Optional[str]] = {
@@ -201,6 +202,48 @@ def _empty() -> Dict[str, Optional[str]]:
     return _EMPTY_NAME.copy()
 
 
+def _validate_name_quality(
+    first: Optional[str], last: Optional[str], middle: Optional[str]
+) -> bool:
+    """
+    Validate name quality based on component presence and content.
+
+    A name is considered valid if:
+    - Has both first AND last names with at least 2 chars each and alphabetic content
+    - Has only first name with at least 2 chars and alphabetic content
+    - Has only last name (less common but acceptable)
+
+    A name is invalid if:
+    - Single character components
+    - No alphabetic characters
+    - Only first OR last is a single letter/number
+
+    Args:
+        first: First name component
+        last: Last name component
+        middle: Middle name component (not required)
+
+    Returns:
+        True if name passes validation, False otherwise
+    """
+    # Both first and last names present - strict validation
+    if first and last:
+        first_valid = len(first) >= 2 and any(c.isalpha() for c in first)
+        last_valid = len(last) >= 2 and any(c.isalpha() for c in last)
+        return first_valid and last_valid
+
+    # Only first name - must be substantial
+    if first and not last:
+        return len(first) >= 2 and any(c.isalpha() for c in first)
+
+    # Only last name - less common but acceptable if substantial
+    if last and not first:
+        return len(last) >= 2 and any(c.isalpha() for c in last)
+
+    # No first or last name
+    return False
+
+
 def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
     """
     Normalize a name into structured components.
@@ -291,8 +334,13 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
     if last:
         full_parts.append(last)
     if suffix:
-        full_parts.append(suffix.capitalize())
+        # Use uppercase for roman numerals, capitalize for others
+        suffix_display = ROMAN_NUMERALS.get(suffix, suffix.capitalize())
+        full_parts.append(suffix_display)
     full = " ".join(full_parts)
+
+    # Validate name quality
+    is_valid = _validate_name_quality(first, last, middle)
 
     return {
         "first": first,
@@ -301,5 +349,5 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
         "suffix": suffix,
         "full": full,
         "canonical": canonical,
-        "is_valid": True,
+        "is_valid": is_valid,
     }

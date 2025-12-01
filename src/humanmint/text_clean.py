@@ -15,6 +15,39 @@ _LEADING_CODE_PATTERN = re.compile(r"^[0-9]{3,}[\s\-]*")
 _TRAILING_CODE_PATTERN = re.compile(r"\s+[0-9]{3,}$")
 
 
+def extract_tokens(text: str, exclude: set[str] | None = None) -> set[str]:
+    """
+    Extract alphanumeric tokens from text.
+
+    Splits on whitespace, filters to alphanumeric-only tokens, and optionally
+    excludes a specific set of tokens. Much faster than regex-based extraction.
+
+    Args:
+        text: Text to extract tokens from.
+        exclude: Optional set of tokens to exclude (e.g., generic terms).
+
+    Returns:
+        Set of alphanumeric tokens.
+
+    Example:
+        >>> extract_tokens("Public Works Department")
+        {'public', 'works', 'department'}
+        >>> extract_tokens("IT Support", exclude={'it', 'support'})
+        set()
+    """
+    tokens = set()
+    for token in text.split():
+        # Extract only alphanumeric characters from each word
+        clean = ''.join(c for c in token if c.isalnum())
+        if clean:
+            tokens.add(clean)
+
+    if exclude:
+        tokens = {t for t in tokens if t not in exclude}
+
+    return tokens
+
+
 def strip_garbage(text: str) -> str:
     """Remove obvious non-field noise such as HTML, SQL comments, corruption markers, and semicolon tails."""
     text = re.sub(r"<[^>]+>", " ", text)

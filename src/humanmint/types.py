@@ -14,8 +14,10 @@ class NameResult(TypedDict, total=False):
     middle: Optional[str]
     last: str
     suffix: Optional[str]
+    suffix_type: Optional[str]
     full: str
     gender: str
+    nickname: Optional[str]
     canonical: str
 
 
@@ -24,9 +26,11 @@ class EmailResult(TypedDict, total=False):
     raw: str
     normalized: str
     is_valid: bool
-    is_generic: bool
+    is_generic_inbox: bool
     is_free_provider: bool
     domain: Optional[str]
+    local: Optional[str]
+    local_base: Optional[str]
 
 
 class PhoneResult(TypedDict, total=False):
@@ -37,6 +41,7 @@ class PhoneResult(TypedDict, total=False):
     extension: Optional[str]
     is_valid: bool
     type: Optional[str]
+    country: Optional[str]
 
 
 class DepartmentResult(TypedDict, total=False):
@@ -56,6 +61,7 @@ class TitleResult(TypedDict, total=False):
     canonical: Optional[str]
     is_valid: Optional[bool]
     confidence: float
+    seniority: Optional[str]
 
 
 class AddressResult(TypedDict, total=False):

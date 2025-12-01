@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "humanmint"
-version = "0.1.14"
+version = "2.0.0"
 authors = [
     { name="Ricardo Nunes" },
 ]
@@ -32,6 +32,7 @@ dependencies = [
     "nameparser>=1.1.0",
     "nicknames>=0.0.2",
     "rapidfuzz>=3.6",
+    "orjson>=3.10",
     "importlib_resources>=5.0; python_version < '3.9'",
 ]
 

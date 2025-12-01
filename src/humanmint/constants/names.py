@@ -33,6 +33,19 @@ US_SUFFIXES = {
     "pe",
 }
 
+# Roman numeral suffixes that should be uppercased in display
+ROMAN_NUMERALS = {
+    "ii": "II",
+    "iii": "III",
+    "iv": "IV",
+    "v": "V",
+    "vi": "VI",
+    "vii": "VII",
+    "viii": "VIII",
+    "ix": "IX",
+    "x": "X",
+}
+
 # Title prefixes to strip
 TITLE_PREFIXES = {
     "mr",

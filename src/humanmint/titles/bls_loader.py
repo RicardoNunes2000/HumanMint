@@ -8,7 +8,7 @@ canonical title matching.
 
 import json
 from functools import lru_cache
-from typing import Optional, Dict, Set
+from typing import Dict, Optional, Set
 
 
 @lru_cache(maxsize=1)
@@ -39,7 +39,7 @@ def _load_bls_titles() -> Dict[str, Dict]:
     try:
         from importlib.resources import files
     except ImportError:
-        from importlib_resources import files
+        from importlib_resources import files  # type: ignore
 
     try:
         # Load from gzipped JSON (90% compression ratio)

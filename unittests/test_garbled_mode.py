@@ -1,10 +1,12 @@
 """Test garbled name cleaning with aggressive_clean mode."""
 
 import sys
+
 sys.path.insert(0, "src")
 
 from humanmint import mint
-from humanmint.names.garbled import clean_garbled_name, should_use_garbled_cleaning
+from humanmint.names.garbled import (clean_garbled_name,
+                                     should_use_garbled_cleaning)
 
 print("=" * 100)
 print("GARBLED NAME CLEANING TEST SUITE")

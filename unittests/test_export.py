@@ -4,16 +4,18 @@ Tests for batch export functionality.
 Tests JSON, CSV, and Parquet export formats for normalized results.
 """
 
-import sys
-import json
 import csv
+import json
+import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, "src")
 
 import pytest
-from humanmint import mint, bulk, export_json, export_csv, export_parquet, export_sql
+
+from humanmint import (bulk, export_csv, export_json, export_parquet,
+                       export_sql, mint)
 
 
 def _has_pandas() -> bool:

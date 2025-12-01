@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Tuple, Union
 
 from rapidfuzz import fuzz
 
 from .mint import MintResult
 from .names.matching import compare_first_names, compare_last_names
+from .semantics import _extract_domains, check_semantic_conflict
 
 DEFAULT_COMPARE_WEIGHTS: dict[str, float] = {
     "name": 0.4,
@@ -144,7 +145,8 @@ def compare(
     result_a: MintResult,
     result_b: MintResult,
     weights: Optional[Mapping[str, float]] = None,
-) -> float:
+    explain: bool = False,
+) -> Union[float, Tuple[float, list[str]]]:
     """
     Compare two MintResult objects and return a similarity score (0-100).
 
@@ -157,14 +159,17 @@ def compare(
         weights: Optional mapping to override signal weights. Supported keys are
             "name", "email", "phone", "department", and "title". Any omitted keys
             fall back to the defaults used today.
+        explain: If True, returns (score, explanation_lines) with a breakdown of signals and penalties.
     """
     weight_config = {**DEFAULT_COMPARE_WEIGHTS, **(weights or {})}
     weight_pairs: list[tuple[float, float]] = []
+    explanations: list[str] = []
 
     # Names
     name_score = _name_score(result_a.name, result_b.name)
     if result_a.name and result_b.name:
         weight_pairs.append((name_score, weight_config["name"]))
+        explanations.append(f"name: {name_score:.1f} (weight {weight_config['name']})")
 
     # Email
     email_norm_a = result_a.email.get("normalized") if result_a.email else None
@@ -180,6 +185,7 @@ def compare(
             if domain_a == domain_b and base_a == base_b:
                 email_score = 95.0
         weight_pairs.append((email_score, weight_config["email"]))
+        explanations.append(f"email: {email_score:.1f} (weight {weight_config['email']})")
 
     # Phone (prefer E.164)
     phone_a = result_a.phone or {}
@@ -193,6 +199,7 @@ def compare(
         phone_score = _exact_match_score(phone_pretty_a, phone_pretty_b)
     if (phone_e164_a or phone_pretty_a) and (phone_e164_b or phone_pretty_b):
         weight_pairs.append((phone_score, weight_config["phone"]))
+        explanations.append(f"phone: {phone_score:.1f} (weight {weight_config['phone']})")
 
     # Department canonical fuzzy
     score_penalty = 0.0
@@ -211,19 +218,80 @@ def compare(
             and dept_can_a != dept_can_b
         ):
             score_penalty += 15.0
+            explanations.append("penalty: -15.0 (department mismatch)")
+        explanations.append(f"department: {dept_score:.1f} (weight {weight_config['department']})")
 
     # Title canonical fuzzy
     title_can_a = (result_a.title or {}).get("canonical")
     title_can_b = (result_b.title or {}).get("canonical")
-    title_clean_a = (result_a.title or {}).get("cleaned")
-    title_clean_b = (result_b.title or {}).get("cleaned")
+    title_clean_a = (result_a.title or {}).get("normalized")
+    title_clean_b = (result_b.title or {}).get("normalized")
     title_score = max(
         _fuzzy_score(title_can_a, title_can_b),
         _fuzzy_score(title_clean_a, title_clean_b),
     )
+
+    # Semantic safeguard: veto cross-domain title matches
+    # Check both canonical and cleaned versions for semantic conflicts
+    has_semantic_conflict = False
+    if title_can_a and title_can_b:
+        has_semantic_conflict = check_semantic_conflict(title_can_a, title_can_b)
+    if not has_semantic_conflict and title_clean_a and title_clean_b:
+        has_semantic_conflict = check_semantic_conflict(title_clean_a, title_clean_b)
+
+    # If semantic conflict detected, heavily penalize the score
+    if has_semantic_conflict:
+        title_score = min(title_score, 35.0)
+        explanations.append("penalty: semantic conflict cap on title (≤35)")
+
+    # Check if this is a seniority variation EARLY (before other penalties)
+    # This prevents legitimate variations like "manager" vs "senior manager" from being penalized
+    seniority_words = {"senior", "interim", "acting", "deputy", "assistant", "associate", "lead", "principal"}
+    is_seniority_variation = False
+
+    # Strategy 1: Check if one is a substring of the other (e.g., "director" in "interim director")
+    if title_can_a and title_can_b:
+        can_a_lower = (title_can_a or "").lower()
+        can_b_lower = (title_can_b or "").lower()
+        # Check if one contains the other
+        if (can_a_lower in can_b_lower or can_b_lower in can_a_lower):
+            # Check if the extra words are only seniority/temporal markers
+            if can_a_lower in can_b_lower:
+                extra_text = can_b_lower.replace(can_a_lower, "").strip()
+            else:
+                extra_text = can_a_lower.replace(can_b_lower, "").strip()
+
+            extra_words = {w for w in extra_text.split() if w}
+            if extra_words and extra_words.issubset(seniority_words):
+                is_seniority_variation = True
+
+    # Additional safeguard: if one title has clear semantic domains and the other
+    # doesn't (or is all NULL), penalize heavily to avoid false positives
+    # (e.g., "Network Engineer" vs "Environmental Engineer" where "environmental"→NULL)
+    # BUT: skip this check if it's a seniority variation
+    if not is_seniority_variation and title_can_a and title_can_b:
+        domains_a = _extract_domains(title_can_a)
+        domains_b = _extract_domains(title_can_b)
+        # One has domains, the other doesn't → likely cross-domain mismatch
+        if (domains_a and not domains_b) or (domains_b and not domains_a):
+            title_score = min(title_score, 35.0)
+        # Both have NO semantic domains: require meaningful token overlap
+        # Avoid false positives like "Cloud Administrator" vs "Zoning Administrator"
+        # which only share the generic "administrator" word
+        elif not domains_a and not domains_b and title_score > 50:
+            # Check if they share meaningful (non-generic) tokens
+            generic_admin_tokens = {"administrator", "manager", "director", "officer",
+                                   "coordinator", "specialist", "analyst", "consultant"}
+            tokens_a = {t.lower() for t in (title_can_a or "").split()}
+            tokens_b = {t.lower() for t in (title_can_b or "").split()}
+            meaningful_overlap = tokens_a.intersection(tokens_b) - generic_admin_tokens
+            # If no meaningful overlap, penalize (unless it's a seniority variation)
+            if not meaningful_overlap and not is_seniority_variation:
+                title_score = min(title_score, 35.0)
+
     # Penalize titles that only share generic tokens (chief/officer/manager) but differ otherwise
     generic_tokens = {"chief", "officer", "manager", "director"}
-    if title_score > 0:
+    if title_score > 0 and not is_seniority_variation:  # Skip if already detected as seniority variation
         tokens_a = {t for t in (title_can_a or "").split() if t}
         tokens_b = {t for t in (title_can_b or "").split() if t}
         clean_tokens_a = {t for t in (title_clean_a or "").lower().split() if t}
@@ -231,16 +299,36 @@ def compare(
         overlap = {t for t in tokens_a.intersection(tokens_b) if t not in generic_tokens}
         clean_overlap = {t for t in clean_tokens_a.intersection(clean_tokens_b) if t not in generic_tokens}
         strong_clean_match = _fuzzy_score(title_clean_a, title_clean_b) >= 85
-        if not overlap and not clean_overlap:
-            # If fuzzy score is very high (e.g., "Director" vs "Interim Director" = 100),
-            # accept it even if only generic tokens overlap (one is a seniority variation of the other)
+
+        # Strategy 2 for seniority variation detection: Check if clean tokens show it
+        if not is_seniority_variation:
+            if not overlap and clean_overlap:
+                # Clean overlap exists - possible seniority variation
+                is_seniority_variation = True
+            elif not overlap and not clean_overlap:
+                # Check if one title is the other with only seniority/temporal words added
+                tokens_only_in_a = clean_tokens_a - clean_tokens_b
+                tokens_only_in_b = clean_tokens_b - clean_tokens_a
+                # If one side has all generic/seniority tokens and the other side is a subset
+                if (clean_tokens_a and clean_tokens_b and
+                    (tokens_only_in_a.issubset(seniority_words) or tokens_only_in_b.issubset(seniority_words))):
+                    is_seniority_variation = True
+
+        if not overlap and not clean_overlap and not is_seniority_variation:
+            # ONLY penalize if:
+            # 1. No meaningful overlap (generic tokens excluded)
+            # 2. NOT a seniority variation (e.g., "manager" vs "senior manager")
+            # 3. Fuzzy score is not extremely high
             if strong_clean_match or title_score >= 90:
-                title_score = max(75.0, min(title_score, 100.0))
+                # Strong match - keep the score
+                title_score = max(75.0, title_score)
             else:
+                # Weak match with no meaningful content overlap
                 title_score = min(title_score, 35.0)
 
     if result_a.title and result_b.title:
         weight_pairs.append((title_score, weight_config["title"]))
+        explanations.append(f"title: {title_score:.1f} (weight {weight_config['title']})")
 
     score = _weighted_average(weight_pairs)
 
@@ -249,16 +337,23 @@ def compare(
     gender_b = _safe_lower((result_b.name or {}).get("gender"))
     if weight_config["name"] > 0 and gender_a and gender_b and gender_a != gender_b:
         score -= 3.0
+        explanations.append("penalty: -3.0 (gender mismatch)")
     score -= score_penalty
 
     # Strong name agreement should not collapse entirely from other disagreements
     if weight_config["name"] > 0 and name_score >= 95.0:
         score = max(score, 45.0)
+        explanations.append("floor: name agreement floor to 45.0")
 
     # If we have strong identifiers (email/phone) matching exactly, ensure a high floor
     if (
         weight_config["email"] > 0 and email_score == 100.0
     ) or (weight_config["phone"] > 0 and phone_score == 100.0):
         score = max(score, 90.0)
+        explanations.append("floor: exact email/phone match floor to 90.0")
 
-    return max(0.0, min(100.0, score))
+    final_score = max(0.0, min(100.0, score))
+    if explain:
+        explanations.append(f"Final Score: {final_score:.1f}")
+        return final_score, explanations
+    return final_score

@@ -8,7 +8,9 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.text_clean import normalize_unicode_ascii, strip_garbage, strip_codes_and_ids, remove_parentheticals
+from humanmint.text_clean import (normalize_unicode_ascii,
+                                  remove_parentheticals, strip_codes_and_ids,
+                                  strip_garbage)
 
 _PHONE_PATTERN = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
 _EXT_PATTERN = re.compile(r"\b(?:ext|x|extension)[\s.]*\d+\b", flags=re.IGNORECASE)
@@ -18,6 +20,8 @@ _SYMBOL_WRAPPER_PATTERN = re.compile(r"[#|]+")
 _SEPARATOR_PATTERN = re.compile(r"-+")
 _SLASH_PATTERN = re.compile(r"\s*/\s*")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
+_BRACKET_PATTERN = re.compile(r"[\[\{][^\]\}]*[\]\}]")
+_CODE_SEPARATOR_PATTERN = re.compile(r"\b\d{3}\s*[/\-]\s*\d{3}\b")
 _CONTACT_PATTERNS = (
     r"\breach\s+(?:me|us)\s+at\b",
     r"\bcontact\s+(?:me|us)\b",
@@ -27,7 +31,7 @@ _CONTACT_PATTERNS = (
     r"\btel\b",
     r"\bcell\b",
 )
-_APOSTROPHE_PATTERN = re.compile(r"[’‘]")
+_APOSTROPHE_PATTERN = re.compile(r"['']")
 _ACRONYMS = {"IT", "HR", "GIS", "OEM", "DPW", "PW"}
 _DEPT_META_PATTERN = re.compile(r"\s*\((?:ref#?|id|ticket)\s*[^)]*\)$", re.IGNORECASE)
 _ABBREVIATIONS = {
@@ -48,6 +52,7 @@ _ABBREVIATIONS = {
     "commn": "commission",
     "maint": "maintenance",
     "mnt": "maintenance",
+    "maintanence": "maintenance",
     "ops": "operations",
     "op": "operations",
     "svc": "service",
@@ -62,11 +67,17 @@ _ABBREVIATIONS = {
     "ast": "assistant",
     "env": "environmental",
     "envr": "environmental",
+    "envir": "environmental",
+    "enviro": "environmental",
+    "environ": "environmental",
     "pw": "public works",
+    "dpw": "public works",
     "pd": "police department",
     "fd": "fire department",
     "hr": "human resources",
     "it": "information technology",
+    "info": "information",
+    "tech": "technology",
     "trans": "transportation",
     "transp": "transportation",
     "trns": "transportation",
@@ -76,6 +87,7 @@ _ABBREVIATIONS = {
     "rec": "recreation",
     "parks": "parks",
     "prks": "parks",
+    "recration": "recreation",
     "commdev": "community development",
     "cdev": "community development",
     "econdev": "economic development",
@@ -86,8 +98,9 @@ _ABBREVIATIONS = {
     "swr": "sewer",
     "fin": "finance",
     "acct": "accounting",
-    "proc": "procurement",
-    "prc": "procurement",
+    "proc": "purchasing",
+    "prc": "purchasing",
+    "procurement": "purchasing",
     "bldg": "building",
     "bld": "building",
     "insp": "inspection",
@@ -103,6 +116,8 @@ _ABBREVIATIONS = {
     "health": "health",
     "hlth": "health",
     "ph": "public health",
+    "wrks": "works",
+    "resourcs": "resources",
 }
 
 
@@ -165,6 +180,42 @@ def _remove_parentheticals(text: str) -> str:
     return remove_parentheticals(text)
 
 
+def _remove_brackets(text: str) -> str:
+    """
+    Remove all bracketed and braced content from text.
+
+    Matches patterns like:
+    - [Something], [text here]
+    - {Something}, {text here}
+
+    Args:
+        text: Input string potentially containing brackets or braces.
+
+    Returns:
+        str: Text with bracketed/braced content removed.
+    """
+    return _BRACKET_PATTERN.sub(" ", text)
+
+
+def _remove_code_separators(text: str) -> str:
+    """
+    Remove patterns like codes separated by slashes or dashes (e.g., 005 / 006).
+
+    These patterns are internal reference codes that don't represent actual
+    department names. Matches patterns like:
+    - 005 / 006
+    - 001-002
+    - 100 - 200
+
+    Args:
+        text: Input string potentially containing code separators.
+
+    Returns:
+        str: Text with code separator patterns removed.
+    """
+    return _CODE_SEPARATOR_PATTERN.sub(" ", text)
+
+
 def _expand_abbreviations(text: str) -> str:
     """
     Expand common abbreviations in department names.
@@ -177,10 +228,10 @@ def _expand_abbreviations(text: str) -> str:
     for token in text.split():
         stripped = token.strip(",.;:")
         lower = stripped.lower()
-        if lower in _ABBREVIATIONS:
-            expanded = _ABBREVIATIONS[lower]
-            rebuilt = token.replace(stripped, expanded)
-            parts.append(rebuilt)
+        normalized_key = lower.replace(".", "")
+        expanded = _ABBREVIATIONS.get(lower) or _ABBREVIATIONS.get(normalized_key)
+        if expanded:
+            parts.append(expanded)
         else:
             parts.append(token)
     return " ".join(parts)
@@ -206,6 +257,7 @@ def _remove_codes_and_ids(text: str, strip_codes: str = "both") -> str:
 
     Uses the shared strip_codes_and_ids utility from text_clean module.
     Supports flexible control over which codes to strip.
+    Also handles patterns like "Department #042" or "Dept 123".
 
     Args:
         text: Input string potentially containing codes.
@@ -214,6 +266,8 @@ def _remove_codes_and_ids(text: str, strip_codes: str = "both") -> str:
     Returns:
         str: Text with codes removed based on strip_codes setting.
     """
+    # Pre-clean common department code prefixes
+    text = re.sub(r"\b(?:dept|department)\s*#?\s*\d+\b", "", text, flags=re.IGNORECASE)
     return strip_codes_and_ids(text, strip_codes=strip_codes)
 
 
@@ -270,7 +324,9 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
         ValueError: If the input is empty or not a string.
     """
     if not isinstance(raw_dept, str):
-        raise ValueError(f"Department name must be a string, got {type(raw_dept).__name__}")
+        raise ValueError(
+            f"Department name must be a string, got {type(raw_dept).__name__}"
+        )
 
     if not raw_dept:
         raise ValueError("Department name cannot be empty")
@@ -282,10 +338,12 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
     text = _remove_phone_numbers(text)
     text = _remove_emails(text)
     text = _strip_symbol_wrappers(text)
+    text = _remove_code_separators(text)
     text = _normalize_separators(text)
     text = _remove_contact_phrases(text)
-    text = _remove_codes_and_ids(text, strip_codes=strip_codes)
     text = _remove_parentheticals(text)
+    text = _remove_brackets(text)
+    text = _remove_codes_and_ids(text, strip_codes=strip_codes)
     text = _remove_extra_whitespace(text)
     text = _DEPT_META_PATTERN.sub("", text).strip()
     text = normalize_unicode_ascii(text)
@@ -302,6 +360,44 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
     text = text.title()
     # Fix common apostrophe casing artifacts after title()
     text = text.replace("'S", "'s")
+
+    # Deduplicate consecutive repeated tokens BEFORE acronym restoration
+    # This ensures "IT IT" becomes "Information Technology" (singular) after expansion
+    # Also handles multi-word duplicates like "Information Technology Information Technology"
+    tokens = text.split()
+    deduped = []
+    i = 0
+    while i < len(tokens):
+        # Check if current token sequence repeats
+        token_window = []
+        j = i
+        # Build a window of consecutive identical sequences
+        while j < len(tokens):
+            token_window.append(tokens[j])
+            # If we've built a reasonable window, check if it repeats
+            if len(token_window) > 0 and j + len(token_window) < len(tokens):
+                is_repeat = True
+                for k in range(len(token_window)):
+                    if (
+                        j + 1 + k >= len(tokens)
+                        or tokens[j + 1 + k].lower() != token_window[k].lower()
+                    ):
+                        is_repeat = False
+                        break
+                if is_repeat:
+                    # Found a repeat - add the window once and skip the repeat
+                    deduped.extend(token_window)
+                    i = j + 1 + len(token_window)
+                    break
+            j += 1
+        else:
+            # No repeat found - just add the token
+            if i < len(tokens):
+                deduped.append(tokens[i])
+            i += 1
+
+    text = " ".join(deduped)
+
     text = _restore_acronyms(text)
 
     return text

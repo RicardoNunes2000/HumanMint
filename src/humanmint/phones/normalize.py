@@ -14,6 +14,7 @@ Philosophy:
 import re
 from functools import lru_cache
 from typing import Dict, Optional
+
 import phonenumbers
 from phonenumbers import NumberParseException, PhoneNumberType
 
@@ -159,9 +160,14 @@ def _normalize_phone_cached(
 
     detected_country = phonenumbers.region_code_for_number(parsed)
 
+    # If region code is None but country code is 1, it's likely a US number (including fictional ranges like 555)
+    if detected_country is None and parsed.country_code == 1:
+        detected_country = "US"
+
     # Determine validity
     if detected_country == "US":
         # US numbers: accept if it has 10 digits and valid format structure
+        # This includes fictional numbers like 555-xxxx which are valid for testing
         is_valid = (
             phonenumbers.is_possible_number(parsed)
             and len(str(parsed.national_number)) == 10

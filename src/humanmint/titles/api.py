@@ -5,9 +5,10 @@ Provides the main normalize_title_full() function that returns a structured
 result dictionary with raw, cleaned, and canonical information.
 """
 
-from typing import Optional, TypedDict, Dict
-from .normalize import normalize_title
+from typing import Dict, Optional, TypedDict
+
 from .matching import find_best_match
+from .normalize import extract_seniority, normalize_title
 from .normalize import re as _re
 
 
@@ -167,7 +168,9 @@ def normalize_title_full(
     has_functional = any(t in functional_tokens for t in tokens)
     has_seniority = any(t in seniority_tokens for t in tokens)
 
-    is_valid = canonical is not None or has_functional or has_seniority
+    # Only mark as valid if we have an actual canonical match OR (has functional/seniority AND confidence > 0)
+    # Don't use heuristics to override explicit "no match" (confidence == 0.0 from hallucination detection)
+    is_valid = canonical is not None or (confidence > 0.0 and (has_functional or has_seniority))
 
     # Ignore Roman numerals for validity decisions; keep canonical None if not matched
     canonical_value = canonical if canonical else (cleaned if is_valid else None)
@@ -227,10 +230,14 @@ def normalize_title_full(
     if canonical_value and confidence == 0.0:
         confidence = 0.7
 
+    # Extract seniority level from the cleaned title
+    seniority = extract_seniority(cleaned)
+
     return {
         "raw": raw_title,
         "cleaned": cleaned,
         "canonical": canonical_value,
         "is_valid": is_valid,
         "confidence": float(confidence if canonical_value else 0.0),
+        "seniority": seniority,
     }

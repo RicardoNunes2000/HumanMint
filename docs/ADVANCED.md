@@ -102,7 +102,7 @@ result = mint(
     dept_overrides=dept_overrides
 )
 
-print(result.department_str)  # "Information Technology"
+print(result.department_canonical)  # "Information Technology"
 ```
 
 ### Title Overrides
@@ -120,7 +120,7 @@ result = mint(
     title_overrides=title_overrides
 )
 
-print(result.title_str)  # "chief executive officer"
+print(result.title_canonical)  # "chief executive officer"
 ```
 
 ### Batch Overrides

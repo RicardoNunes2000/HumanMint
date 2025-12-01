@@ -8,12 +8,11 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.constants.titles import (
-    PRESERVE_ABBREVIATIONS,
-    STOPWORDS,
-    TITLE_ABBREVIATIONS,
-)
-from humanmint.text_clean import normalize_unicode_ascii, strip_garbage, strip_codes_and_ids, remove_parentheticals
+from humanmint.constants.titles import (PRESERVE_ABBREVIATIONS, STOPWORDS,
+                                        TITLE_ABBREVIATIONS)
+from humanmint.text_clean import (normalize_unicode_ascii,
+                                  remove_parentheticals, strip_codes_and_ids,
+                                  strip_garbage)
 
 
 def _strip_garbage(text: str) -> str:
@@ -25,10 +24,10 @@ def _expand_abbreviations(text: str) -> str:
     """Expand common job title abbreviations."""
     parts = []
     for token in text.split():
-        # Strip trailing periods (e.g., "Dir." -> "dir")
-        clean_token = token.rstrip(".").lower()
+        # Strip trailing periods and commas (e.g., "Dir." -> "dir", "Dir.," -> "dir")
+        clean_token = token.rstrip(".,").lower()
         if clean_token in PRESERVE_ABBREVIATIONS:
-            parts.append(token.rstrip("."))
+            parts.append(token.rstrip(".,"))
         elif clean_token in TITLE_ABBREVIATIONS:
             expanded = TITLE_ABBREVIATIONS[clean_token]
             # Preserve common shorthand like "ops" alongside expansion
@@ -46,7 +45,7 @@ def _remove_name_prefixes(text: str) -> str:
     Remove common name prefixes, person names, and credentials from text.
 
     Matches patterns like:
-    - Dr., Mr., Mrs., Ms., Miss, Prof., Rev.
+    - Dr., Mr., Mrs., Ms., Miss, Rev.
     - "FirstName LastName," patterns (e.g., "John Smith,")
     - PhD, MD, Esq., etc.
 
@@ -57,15 +56,20 @@ def _remove_name_prefixes(text: str) -> str:
         str: Text with name prefixes and person names removed.
     """
     # Remove common salutations and credentials at the beginning
+    # NOTE: Removed 'Prof' and 'Professor' from this list because they are often
+    # valid job titles (e.g., "Professor of History") rather than just honorifics.
     text = re.sub(
-        r"\b(?:Dr|Mr|Mrs|Ms|Miss|Prof|Professor|Rev|Reverend|Sir|Madam|Esq)\.?\s+",
+        r"\b(?:Dr|Mr|Mrs|Ms|Miss|Rev|Reverend|Sir|Madam|Esq)\.?\s+",
         "",
         text,
         flags=re.IGNORECASE,
     )
     # Remove "FirstName LastName," pattern (e.g., "John Smith," or "Jane Doe,")
-    # Matches: word(s) followed by comma
-    text = re.sub(r"^[A-Z][a-z]*(?:\s+[A-Z][a-z]*)*\s*,\s*", "", text)
+    # CRITICAL FIX: To avoid matching job titles like "Finance Manager, CPA", only match
+    # this pattern if there are 3+ capital words (person names rarely have 3+, but job titles do).
+    # This prevents "Finance Manager," from being removed while still catching "Jane Mary Smith,".
+    # Only match 3+ word names to avoid false positives on 2-word job titles
+    text = re.sub(r"^[A-Z][a-z]*(?:\s+[A-Z][a-z]*){2,}\s*,\s*", "", text)
     # Remove trailing credentials like PhD, MD, etc.
     text = re.sub(
         r",?\s*(?:PhD|MD|DDS|DVM|Esq|MBA|MA|BS|BA|CISSP|PMP|RN|LPN|CPA)\.?$",
@@ -293,3 +297,135 @@ def normalize_title(raw_title: str, strip_codes: str = "both") -> str:
         ValueError: If the input is empty or not a string.
     """
     return _normalize_title_cached(raw_title, strip_codes)
+
+
+def extract_seniority(normalized_title: str) -> str:
+    """
+    Extract seniority level from a normalized job title.
+
+    Detects common seniority modifiers like Senior, Junior, Lead, Principal, etc.
+    Returns the detected seniority level or None if not found.
+
+    Args:
+        normalized_title: A normalized job title (typically output from normalize_title).
+
+    Returns:
+        str: The seniority level (e.g., "Senior", "Junior", "Lead", "Principal"),
+             or None if no seniority modifier is detected.
+
+    Example:
+        >>> extract_seniority("Senior Maintenance Technician")
+        "Senior"
+        >>> extract_seniority("Lead Software Engineer")
+        "Lead"
+        >>> extract_seniority("Maintenance Technician")
+        None
+    """
+    if not normalized_title or not isinstance(normalized_title, str):
+        return None
+
+    title_lower = normalized_title.lower()
+
+    # Seniority keywords (ordered by specificity - longest first to avoid partial matches)
+    seniority_keywords = [
+        # C-suite roles
+        "chief executive officer",
+        "chief operating officer",
+        "chief financial officer",
+        "chief information officer",
+        "chief technology officer",
+        "chief marketing officer",
+        "chief product officer",
+        "chief security officer",
+        "chief academic officer",
+        "chief risk officer",
+        "chief compliance officer",
+        "chief information security officer",
+        "chief data officer",
+        "chief human resources officer",
+        "chief legal officer",
+        "chief strategy officer",
+        "chief quality officer",
+        "chief medical officer",
+        "chief nursing officer",
+
+        # Executive/Director level
+        "executive director",
+        "executive vice president",
+        "senior vice president",
+        "vice president",
+        "associate vice president",
+        "assistant vice president",
+        "deputy director",
+        "assistant director",
+        "associate director",
+
+        # Principal/Lead roles (longer phrases first)
+        "principal engineer",
+        "principal architect",
+        "principal consultant",
+        "principal analyst",
+        "principal scientist",
+        "principal product manager",
+        "principal research scientist",
+        "principal investigator",
+        "principal counsel",
+        "principal manager",
+
+        # Senior roles (longer phrases first)
+        "senior engineer",
+        "senior architect",
+        "senior manager",
+        "senior director",
+        "senior analyst",
+        "senior consultant",
+        "senior advisor",
+        "senior specialist",
+        "senior scientist",
+        "senior developer",
+        "senior administrator",
+        "senior technician",
+        "senior associate",
+        "senior counsel",
+        "senior planner",
+        "senior researcher",
+        "senior investigator",
+        "senior officer",
+
+        # Lead roles (longer phrases first)
+        "lead engineer",
+        "lead architect",
+        "lead developer",
+        "lead analyst",
+        "lead manager",
+        "lead consultant",
+        "lead designer",
+        "lead scientist",
+        "lead investigator",
+        "lead researcher",
+
+        # Staff-level individual contributors
+        "staff engineer",
+        "staff architect",
+        "staff scientist",
+        "staff analyst",
+
+        # Single-word seniority modifiers (catch-all, in order of hierarchy)
+        "chief",
+        "executive",
+        "director",
+        "principal",
+        "senior",
+        "lead",
+        "junior",
+        "assistant",
+        "associate",
+        "entry-level",
+    ]
+
+    for keyword in seniority_keywords:
+        if title_lower.startswith(keyword):
+            # Return the properly capitalized version
+            return " ".join(word.capitalize() for word in keyword.split())
+
+    return None

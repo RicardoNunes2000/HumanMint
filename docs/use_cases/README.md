@@ -39,9 +39,9 @@ result = mint(
     title="Chief of Police"
 )
 
-print(result.name_str)          # "John Smith"
-print(result.title_str)         # "police chief"
-print(result.phone_str)         # "+1 202-555-0123"
+print(result.name_standardized)          # "John Smith"
+print(result.title_canonical)         # "police chief"
+print(result.phone_standardized)         # "+1 202-555-0123"
 ```
 
 ### Batch Processing
