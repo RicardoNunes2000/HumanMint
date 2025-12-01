@@ -23,9 +23,9 @@ class EmailResult(TypedDict, total=False):
     """Validated and normalized email with metadata."""
     raw: str
     normalized: str
-    is_valid: bool
-    is_generic: bool
-    is_free_provider: bool
+    email_is_valid_format: bool
+    email_is_generic_inbox: bool
+    email_is_free_provider: bool
     domain: Optional[str]
 
 
@@ -35,17 +35,17 @@ class PhoneResult(TypedDict, total=False):
     e164: Optional[str]
     pretty: Optional[str]
     extension: Optional[str]
-    is_valid: bool
-    type: Optional[str]
+    phone_is_valid_number: bool
+    phone_detected_type: Optional[str]
 
 
 class DepartmentResult(TypedDict, total=False):
     """Normalized department with canonicalization."""
     raw: str
     normalized: str
-    canonical: Optional[str]
+    department_mapped_to: Optional[str]
     category: Optional[str]
-    is_override: bool
+    department_was_overridden: bool
     confidence: float
 
 
@@ -53,8 +53,8 @@ class TitleResult(TypedDict, total=False):
     """Normalized and canonicalized job title."""
     raw: Optional[str]
     normalized: Optional[str]
-    canonical: Optional[str]
-    is_valid: Optional[bool]
+    title_mapped_to: Optional[str]
+    title_is_valid_match: Optional[bool]
     confidence: float
     seniority: Optional[str]
 
