@@ -5,6 +5,19 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-12-01
+
+### Highlights (stable)
+- New property names for clarity: `name_standardized`, `email_standardized`, `phone_standardized`, `title_canonical`, `department_canonical` (legacy aliases removed).
+- Explainable comparisons: `compare(..., explain=True)` returns score + breakdown.
+- Multi-person name splitting: `mint(..., split_multi=True)` splits names like "John and Jane Smith".
+- Name enrichment: `nickname`, `suffix_type` (generational), safer handling of quoted nicknames.
+- Optional GLiNER extraction from unstructured text (`use_gliner=True`) with configurable `GlinerConfig` (schema/threshold/GPU); multi-person GLiNER input raises a clear error.
+- GLiNER is optional/experimental; structured fields always win; GPU support when available.
+
+### Testing
+- 459 tests passing, 2 skipped.
+
 ## [2.0.0b8] - 2025-12-01
 
 ### Added

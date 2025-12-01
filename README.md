@@ -49,7 +49,7 @@ Names, emails, phones, addresses, departments, titles, organizations—one pipel
 Typical workloads run sub-millisecond per record with multithreading and built-in dedupe.
 
 ### AI extraction (optional)
-Install the ML extra (`pip install gliner2`) and pass `text=` with `use_gliner=True` to extract from unstructured text, then normalize. Structured fields you pass always win. You can also pass `gliner_schema` and `gliner_threshold` for custom schemas and confidence.
+Install the ML extra (`pip install gliner2`) and pass `text=` with `use_gliner=True` to extract from unstructured text, then normalize. Structured fields you pass always win. You can also pass a `GlinerConfig` (`gliner_cfg`) to control schema, threshold, and GPU usage.
 GLiNER extraction is experimental and may be inaccurate; prefer structured inputs when available.
 
 Example (signature block → canonicalized):
@@ -80,6 +80,28 @@ result = mint(text=text, use_gliner=True)
 # )
 ```
 You can also batch texts: `mint(texts=[...], use_gliner=True)` returns a list of `MintResult` objects.
+
+Advanced GLiNER configuration:
+```python
+from humanmint.gliner import GlinerConfig
+
+cfg = GlinerConfig(
+    threshold=0.85,    # optional confidence threshold
+    use_gpu=True,      # move model to GPU if available
+    schema=None,       # custom schema dict if desired
+    extractor=None,    # reuse a preloaded GLiNER2 instance
+)
+
+result = mint(text=text, use_gliner=True, gliner_cfg=cfg)
+```
+
+## What’s new in v2 (vs v1)
+- Clear, canonical property names: `name_standardized`, `email_standardized`, `phone_standardized`, `title_canonical`, `department_canonical` (legacy aliases removed).
+- Explainable comparisons: `compare(..., explain=True)` shows component scores/penalties.
+- Multi-person name splitting: `split_multi=True` handles “John and Jane Smith”.
+- Name enrichment: detects nicknames and generational suffixes without polluting the main name fields.
+- Optional GLiNER extraction for unstructured text via `use_gliner=True` and `GlinerConfig`; multi-person GLiNER input raises a clear error.
+- Structured-field pipeline remains deterministic and fast; GLiNER is opt-in and experimental.
 
 ## Installation
 ```bash
