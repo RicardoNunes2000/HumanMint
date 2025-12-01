@@ -5,42 +5,27 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0b6] - 2025-12-01
+## [2.0.0] - 2025-12-01
 
 ### Changed (Breaking)
+- Finalized v2 field/property names for clarity:
+  - `name_standardized` (was `name_str`)
+  - `email_standardized` (was `email_str`)
+  - `phone_standardized` (was `phone_str`)
+  - `title_canonical` (was `title_str`)
+  - `department_canonical` (was `department_str`)
+- Dicts use a single `canonical` key and `is_valid` flags; legacy aliases (`mapped_to`, `is_valid_number`, `is_valid_format`, `was_overridden`) removed.
+- Accessor properties updated to match the new naming.
 
-- **Refactored Result Field Names** - Two-phase naming refinement for clarity and consistency
+### Added
+- Optional multi-person name splitting: `mint(..., split_multi=True)` detects connectors like "and" / "&" / "+" and returns a list of `MintResult` objects (e.g., "John and Jane Smith" → John Smith, Jane Smith).
+- Name enrichment now includes `suffix_type` (e.g., generational) and safer nickname handling (nicknames detected but not injected into middle/full names).
 
-  **Phase 1: Added explicit prefixes to base field names**
-  - `EmailResult`: `is_valid` → `is_valid_format`, `is_generic` → `is_generic_inbox`, `is_free_provider` (unchanged)
-  - `PhoneResult`: `is_valid` → `is_valid_number`, `type` → `detected_type`
-  - `DepartmentResult`: `canonical` → `mapped_to`, `is_override` → `was_overridden`
-  - `TitleResult`: `canonical` → `mapped_to`, `is_valid` → `is_valid_match`
-
-  **Phase 2: Removed redundant prefixes from nested fields**
-  - Nested field names no longer duplicate parent object name context
-  - Example: `result.email['is_valid_format']` instead of `result.email['email_is_valid_format']`
-  - Parent context makes meaning clear: field is already inside `email`, `phone`, `department`, or `title` object
-
-  **User-facing properties remain unchanged**
-  - External API properties still have full names: `result.email_is_valid_format`, `result.phone_detected_type`, etc.
-  - Backward compatibility: `title_canonical` property still available (deprecated, use `title_mapped_to`)
-
-### Enhanced
-
-- **Result Clarity** - Nested field names now follow consistent, context-aware patterns:
-  - Boolean checks: `is_*` (e.g., `is_valid_format`, `is_valid_number`)
-  - Metadata flags: `was_*` (e.g., `was_overridden`)
-  - Mapped/canonical values: `mapped_to`
-  - Cleaner dictionary access without redundant prefixes
-  - Makes it obvious which fields are lookup results vs metadata flags
+### Stability commitment
+- v2 interface is now locked for the stable 2.0.0 release; no further breaking renames planned under semver.
 
 ### Testing
-
-- All existing tests updated and passing (no functional changes to logic)
-- All 440+ pytest tests passing
-- All 25 manual integration tests passing
-- No regressions from naming refactor
+- 449 tests passing (unit + manual examples), 2 skipped.
 
 ## [2.0.0b5] - 2025-12-01
 

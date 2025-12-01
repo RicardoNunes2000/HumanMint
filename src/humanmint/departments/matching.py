@@ -15,19 +15,16 @@ Strategy:
 import logging
 import re
 from functools import lru_cache
-from typing import Optional, Dict, Set, List
+from typing import Dict, List, Optional, Set
 
 from rapidfuzz import fuzz, process
 
 from humanmint.data.utils import load_package_json_gz
 from humanmint.text_clean import extract_tokens
-from .normalize import normalize_department
 
 # Import from your provided data_loader
-from .data_loader import (
-    CANONICAL_DEPARTMENTS_SET,
-    get_mapping_for_original,
-)
+from .data_loader import CANONICAL_DEPARTMENTS_SET, get_mapping_for_original
+from .normalize import normalize_department
 
 logger = logging.getLogger(__name__)
 

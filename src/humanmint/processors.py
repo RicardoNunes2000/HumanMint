@@ -21,6 +21,7 @@ from .departments import get_department_category, normalize_department
 from .departments.matching import is_likely_non_department
 from .emails import normalize_email
 from .names import enrich_name, normalize_name
+from .names.matching import detect_nickname
 from .organizations import normalize_organization
 from .phones import normalize_phone
 from .titles import normalize_title_full
@@ -49,6 +50,14 @@ def process_name(
     try:
         # Apply aggressive cleaning if requested
         cleaned_name = raw_name
+        nickname = None
+        # Capture quoted nickname if present in raw
+        if isinstance(raw_name, str):
+            import re
+
+            m = re.search(r"[\"']([^\"']{2,})[\"']", raw_name)
+            if m:
+                nickname = m.group(1).strip()
         if aggressive_clean:
             from .names.garbled import (clean_garbled_name,
                                         should_use_garbled_cleaning)
@@ -65,16 +74,34 @@ def process_name(
         if not (enriched.get("full") or enriched.get("is_valid")):
             return None
 
-        full_name = enriched.get("full", "").strip() if enriched.get("full") else ""
         first_name = enriched.get("first", "").strip() if enriched.get("first") else ""
-        middle_name = enriched.get("middle", "").strip() if enriched.get("middle") else None
+        middle_name = (
+            enriched.get("middle", "").strip() if enriched.get("middle") else None
+        )
         last_name = enriched.get("last", "").strip() if enriched.get("last") else ""
-        suffix_name = enriched.get("suffix", "").strip() if enriched.get("suffix") else None
+        suffix_name = (
+            enriched.get("suffix", "").strip() if enriched.get("suffix") else None
+        )
 
         # Normalize gender to lowercase
         gender = enriched.get("gender", "unknown")
         if gender and gender != "unknown":
             gender = gender.lower()
+
+        # Detect nickname in middle if it matches a nickname of the first name
+        if middle_name:
+            middle_norm = middle_name.strip().strip("'\"")
+            if middle_norm:
+                detected_canonical = detect_nickname(middle_norm)
+                if (
+                    detected_canonical
+                    and first_name
+                    and detected_canonical.lower() == first_name.lower()
+                ):
+                    nickname = nickname or middle_norm
+                    middle_name = None
+                elif nickname and nickname.lower() == middle_norm.lower():
+                    middle_name = None
 
         canonical_parts = [first_name.lower()]
         if middle_name:
@@ -85,14 +112,45 @@ def process_name(
             canonical_parts.append(suffix_name.lower())
         canonical_val = " ".join(canonical_parts)
 
+        # Detect nickname if not explicitly quoted
+        if not nickname and first_name:
+            detected_canonical = detect_nickname(first_name)
+            if detected_canonical:
+                nickname = first_name
+
+        # Classify suffix type (e.g., generational)
+        generational_suffixes = {
+            "jr",
+            "sr",
+            "ii",
+            "iii",
+            "iv",
+            "v",
+            "vi",
+            "vii",
+            "viii",
+            "ix",
+            "x",
+        }
+        suffix_type = (
+            "generational"
+            if suffix_name and suffix_name.lower() in generational_suffixes
+            else None
+        )
+
         return {
             "raw": raw_name,
             "first": first_name or "",
             "middle": middle_name,
             "last": last_name or "",
             "suffix": suffix_name,
-            "full": full_name or raw_name,
+            "suffix_type": suffix_type,
+            "full": " ".join(
+                p for p in [first_name, middle_name, last_name, suffix_name] if p
+            )
+            or raw_name,
             "gender": gender,
+            "nickname": nickname,
             "canonical": canonical_val,
             "is_valid": enriched.get("is_valid", False),
         }
@@ -116,19 +174,12 @@ def process_email(raw_email: Optional[str]) -> Optional[EmailResult]:
     try:
         result = normalize_email(raw_email)
         if isinstance(result, dict):
-            is_valid = result.get("is_valid", False)
-            is_generic = result.get("is_generic", False)
-            is_free_provider = result.get("is_free_provider", False)
-            normalized_email = result.get("email") or raw_email
             return {
                 "raw": raw_email,
-                "normalized": normalized_email,
-                # Backwards-compatible aliases
-                "is_valid_format": is_valid,
-                "is_valid": is_valid,
-                "is_generic_inbox": is_generic,
-                "is_generic": is_generic,
-                "is_free_provider": is_free_provider,
+                "normalized": result.get("email") or raw_email,
+                "is_valid": result.get("is_valid", False),
+                "is_generic_inbox": result.get("is_generic", False),
+                "is_free_provider": result.get("is_free_provider", False),
                 "domain": result.get("domain"),
                 "local": result.get("local"),
                 "local_base": result.get("local_base"),
@@ -154,20 +205,12 @@ def process_phone(raw_phone: Optional[str]) -> Optional[PhoneResult]:
     try:
         result = normalize_phone(raw_phone, country="US")
         if isinstance(result, dict):
-            # Normalize phone type to lowercase
-            phone_type = result.get("type")
-            if phone_type:
-                phone_type = phone_type.lower()
-
-            is_valid = result.get("is_valid", False)
             return {
                 "raw": raw_phone,
                 "e164": result.get("e164"),
                 "pretty": result.get("pretty"),
                 "extension": result.get("extension"),
-                "is_valid_number": is_valid,
-                "is_valid": is_valid,
-                "detected_type": phone_type,
+                "is_valid": result.get("is_valid", False),
                 "type": result.get("type"),
                 "country": result.get("country"),
             }
@@ -243,8 +286,6 @@ def process_department(
         category = get_department_category(final_dept) if final_dept else None
         if category:
             category = category.lower()
-        elif final_dept:
-            category = "other"
         # Calibrate confidence: highest for explicit overrides, medium for canonical matches,
         # lower when we fall back to just the normalized string, zero when we reject.
         if is_override:
@@ -259,10 +300,8 @@ def process_department(
         return {
             "raw": raw_dept,
             "normalized": normalized,
-            "mapped_to": final_dept,
-            "canonical": final_dept,  # Backwards-compatible alias
+            "canonical": final_dept,
             "category": category,
-            "was_overridden": is_override,
             "is_override": is_override,
             "confidence": confidence,
         }
@@ -306,10 +345,7 @@ def process_title(
         return {
             "raw": result.get("raw"),
             "normalized": result.get("cleaned"),
-            "cleaned": result.get("cleaned"),
-            "mapped_to": result.get("canonical"),
             "canonical": result.get("canonical"),
-            "is_valid_match": result.get("is_valid"),
             "is_valid": result.get("is_valid"),
             "confidence": result.get("confidence", 0.0),
             "seniority": result.get("seniority"),

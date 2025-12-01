@@ -1,6 +1,8 @@
 import json
 import sys
 
+sys.path.insert(0, "src")
+
 import pandas as pd
 
 # Ensure we can import the library
@@ -80,14 +82,14 @@ def test_real_world_scenarios():
             {
                 "Scenario": row["desc"],
                 "ORIGINAL Name": row.get("full_name"),
-                "MINTED Name": res.name_str,
+                "MINTED Name": res.name_standardized,
                 "Gender": res.name_gender,
                 "ORIGINAL Dept": row.get("dept"),
-                "MINTED Dept": res.department_str,  # Canonical
+                "MINTED Dept": res.department_canonical,  # Canonical
                 "Category": res.department_category,
                 "MINTED Title": res.title_raw,
                 "Is Generic Email?": res.email_is_generic_inbox,
-                "Phone Valid?": res.phone_is_valid_number,
+                "Phone Valid?": res.phone_is_valid,
             }
         )
 

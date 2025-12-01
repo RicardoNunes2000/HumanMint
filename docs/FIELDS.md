@@ -7,7 +7,7 @@ Complete guide to accessing all fields returned by `mint()` using properties.
 ```python
 result = mint(name="Dr. John Q. Smith, PhD")
 
-result.name_str         # "John Q Smith"
+result.name_standardized         # "John Q Smith"
 result.name_first       # "John"
 result.name_last        # "Smith"
 result.name_middle      # "Q"
@@ -20,7 +20,7 @@ result.name_gender      # "male"
 ```python
 result = mint(email="JOHN.SMITH@CITY.GOV")
 
-result.email_str        # "john.smith@city.gov"
+result.email_standardized        # "john.smith@city.gov"
 result.email_domain     # "city.gov"
 result.email_valid      # True
 result.email_generic    # False (not gmail, hotmail, etc.)
@@ -32,7 +32,7 @@ result.email_free       # False (not from free provider)
 ```python
 result = mint(phone="(202) 555-0173 x456")
 
-result.phone_str        # "+1 202-555-0173" (preferred format)
+result.phone_standardized        # "+1 202-555-0173" (preferred format)
 result.phone_e164       # "+12025550173" (E.164 international)
 result.phone_pretty     # "+1 202-555-0173" (human-readable)
 result.phone_extension  # "456"
@@ -45,7 +45,7 @@ result.phone_type       # "fixed_line" or "mobile"
 ```python
 result = mint(department="001 - Public Works Dept")
 
-result.department_str       # "Public Works"
+result.department_canonical       # "Public Works"
 result.department_normalized # "Public Works" (before canonical match)
 result.department_category   # "infrastructure"
 result.department_override   # False (not from custom overrides)
@@ -98,11 +98,11 @@ result.organization_confidence  # 0.85 (confidence score)
 
 | What You Want | Property |
 |---|---|
-| Full name | `result.name_str` |
-| Email (normalized) | `result.email_str` |
-| Phone (pretty) | `result.phone_str` |
+| Full name | `result.name_standardized` |
+| Email (normalized) | `result.email_standardized` |
+| Phone (pretty) | `result.phone_standardized` |
 | Phone (E.164) | `result.phone_e164` |
-| Department | `result.department_str` |
+| Department | `result.department_canonical` |
 | Title (canonical) | `result.title_canonical` |
 | Title (original) | `result.title_raw` |
 | Address | `result.address_canonical` |

@@ -496,6 +496,17 @@ def test_compare_email_same_domain_unrelated_names():
     assert score < 40, f"Expected <40 for unrelated emails same domain, got {score}"
 
 
+def test_compare_explain_breakdown():
+    """Explain mode should return score and explanation list."""
+    a = mint(name="Jane Doe", email="jane@example.com")
+    b = mint(name="Jane Doe", email="jane@example.com")
+    score, explanation = compare(a, b, explain=True)  # type: ignore
+    assert isinstance(score, float)
+    assert isinstance(explanation, list)
+    assert any("email" in line for line in explanation)
+    assert any("Final Score" in line for line in explanation)
+
+
 # -------------------------
 # WEIGHTED COMPARISON REAL SCENARIOS
 # -------------------------

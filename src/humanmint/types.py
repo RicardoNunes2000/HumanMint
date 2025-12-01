@@ -14,8 +14,10 @@ class NameResult(TypedDict, total=False):
     middle: Optional[str]
     last: str
     suffix: Optional[str]
+    suffix_type: Optional[str]
     full: str
     gender: str
+    nickname: Optional[str]
     canonical: str
 
 
@@ -24,8 +26,6 @@ class EmailResult(TypedDict, total=False):
     raw: str
     normalized: str
     is_valid: bool
-    is_valid_format: bool
-    is_generic: bool
     is_generic_inbox: bool
     is_free_provider: bool
     domain: Optional[str]
@@ -40,8 +40,6 @@ class PhoneResult(TypedDict, total=False):
     pretty: Optional[str]
     extension: Optional[str]
     is_valid: bool
-    is_valid_number: bool
-    detected_type: Optional[str]
     type: Optional[str]
     country: Optional[str]
 
@@ -50,10 +48,8 @@ class DepartmentResult(TypedDict, total=False):
     """Normalized department with canonicalization."""
     raw: str
     normalized: str
-    mapped_to: Optional[str]
     canonical: Optional[str]
     category: Optional[str]
-    was_overridden: bool
     is_override: bool
     confidence: float
 
@@ -62,10 +58,7 @@ class TitleResult(TypedDict, total=False):
     """Normalized and canonicalized job title."""
     raw: Optional[str]
     normalized: Optional[str]
-    cleaned: Optional[str]
-    mapped_to: Optional[str]
     canonical: Optional[str]
-    is_valid_match: Optional[bool]
     is_valid: Optional[bool]
     confidence: float
     seniority: Optional[str]

@@ -57,3 +57,14 @@ def test_normalize_name_drops_credentials_from_suffix():
 
     assert result["suffix"] is None
     assert result["full"] == "Brian J Lopez"
+
+
+def test_normalize_name_handles_quoted_nickname():
+    from humanmint import mint
+
+    res = mint(name="OFC. JAMES 'JIMMY' O'CONNOR III")
+    assert res.name_first == "James"
+    assert res.name_middle is None  # nickname should not become middle
+    assert res.name_suffix == "iii"
+    assert res.name_nickname.lower() == "jimmy"
+    assert res.name_standardized.lower() == "james o'connor iii"

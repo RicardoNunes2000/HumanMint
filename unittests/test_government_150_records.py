@@ -29,7 +29,7 @@ class TestNameValidation:
         for name in valid_names:
             result = mint(name=name)
             assert result.name.get("is_valid") is True, f"Expected {name} to be valid"
-            assert result.name_str is not None, f"Expected {name} to be parsed"
+            assert result.name_standardized is not None, f"Expected {name} to be parsed"
 
     def test_invalid_names_are_marked_invalid(self):
         """Invalid names (single char, garbage) should have is_valid=False."""
@@ -54,7 +54,7 @@ class TestNameValidation:
         """Hyphenated names should validate as valid."""
         result = mint(name="Maria Garcia-Lopez")
         assert result.name.get("is_valid") is True
-        assert "Garcia" in result.name_str or "Lopez" in result.name_str
+        assert "Garcia" in result.name_standardized or "Lopez" in result.name_standardized
 
 
 class TestTitleMatching:
@@ -63,31 +63,31 @@ class TestTitleMatching:
     def test_receptionist_matches(self):
         """Receptionist should now match (expanded heuristic)."""
         result = mint(title="Receptionist")
-        assert result.title_str is not None, "Receptionist should match"
+        assert result.title_canonical is not None, "Receptionist should match"
         assert result.title.get("confidence", 0) >= 0.7
 
     def test_electrician_matches(self):
         """Electrician should match (expanded heuristic - trades)."""
         result = mint(title="Electrician")
-        assert result.title_str is not None, "Electrician should match"
+        assert result.title_canonical is not None, "Electrician should match"
         assert result.title.get("confidence", 0) >= 0.7
 
     def test_principal_planner_matches(self):
         """Principal Planner should match (expanded heuristic - govt roles)."""
         result = mint(title="Principal Planner")
-        assert result.title_str is not None, "Principal Planner should match"
+        assert result.title_canonical is not None, "Principal Planner should match"
         assert result.title.get("confidence", 0) >= 0.7
 
     def test_paramedic_matches(self):
         """Paramedic should match (expanded heuristic - emergency roles)."""
         result = mint(title="Paramedic")
-        assert result.title_str is not None, "Paramedic should match"
+        assert result.title_canonical is not None, "Paramedic should match"
         assert result.title.get("confidence", 0) >= 0.7
 
     def test_sanitarian_matches(self):
         """Sanitarian should match (expanded heuristic - health roles)."""
         result = mint(title="Sanitarian")
-        assert result.title_str is not None, "Sanitarian should match"
+        assert result.title_canonical is not None, "Sanitarian should match"
 
     def test_common_roles_match(self):
         """Common government roles should match."""
@@ -101,7 +101,7 @@ class TestTitleMatching:
         ]
         for title in test_titles:
             result = mint(title=title)
-            assert result.title_str is not None, f"{title} should match"
+            assert result.title_canonical is not None, f"{title} should match"
             assert result.title.get("confidence", 0) > 0
 
     def test_abbreviated_titles_expand(self):
@@ -174,7 +174,7 @@ class TestTitleConfidenceScoring:
         ]
         for title in high_confidence_titles:
             result = mint(title=title)
-            if result.title_str:
+            if result.title_canonical:
                 confidence = result.title.get("confidence", 0)
                 assert confidence >= 0.8, \
                     f"{title} should have high confidence (got {confidence})"
@@ -189,7 +189,7 @@ class TestTitleConfidenceScoring:
         fuzzy_conf = fuzzy_result.title.get("confidence", 0)
 
         # Exact match should have equal or higher confidence than typo
-        if exact_result.title_str and fuzzy_result.title_str:
+        if exact_result.title_canonical and fuzzy_result.title_canonical:
             assert exact_conf >= fuzzy_conf, \
                 "Exact match should have higher or equal confidence to fuzzy match"
 
@@ -208,21 +208,21 @@ class TestAbbreviationExpansion:
     def test_director_abbreviation(self):
         """Dir. should expand to Director."""
         result = mint(title="Dir., Planning")
-        if result.title_str:
-            assert "director" in result.title_str.lower()
+        if result.title_canonical:
+            assert "director" in result.title_canonical.lower()
 
     def test_assistant_abbreviations(self):
         """Asst. and Ast. should expand to Assistant."""
         for abbrev in ["Asst. Manager", "Ast Manager"]:
             result = mint(title=abbrev)
-            if result.title_str:
-                assert "assistant" in result.title_str.lower()
+            if result.title_canonical:
+                assert "assistant" in result.title_canonical.lower()
 
     def test_senior_abbreviation(self):
         """Sr. should expand to Senior."""
         result = mint(title="Sr. Water Engineer")
-        if result.title_str:
-            assert "senior" in result.title_str.lower()
+        if result.title_canonical:
+            assert "senior" in result.title_canonical.lower()
 
 
 class TestDepartmentDeduplication:
@@ -232,7 +232,7 @@ class TestDepartmentDeduplication:
         """Repeated department name should be deduplicated."""
         result = mint(department="Police Police Department")
         # Should not contain duplicate "Police"
-        normalized = result.department_str
+        normalized = result.department_canonical
         if normalized:
             # Count occurrences - should appear at most once
             police_count = normalized.lower().count("police")
@@ -241,7 +241,7 @@ class TestDepartmentDeduplication:
     def test_it_deduplication(self):
         """IT IT Department should deduplicate."""
         result = mint(department="IT IT Department")
-        normalized = result.department_str
+        normalized = result.department_canonical
         if normalized:
             # IT might be expanded to "Information Technology"
             # But the pattern should not repeat
@@ -284,7 +284,7 @@ class TestBulkProcessing:
         """Bulk processing should match titles."""
         results = bulk(government_records, workers=2, progress=False)
 
-        matched_count = sum(1 for r in results if r.title_str is not None)
+        matched_count = sum(1 for r in results if r.title_canonical is not None)
 
         # Most titles should match
         assert matched_count > len(government_records) * 0.7, \
@@ -311,25 +311,25 @@ class TestRegressionCases:
     def test_hyphenated_department_normalization(self):
         """Departments with hyphens should normalize."""
         result = mint(department="Public Works - Engineering")
-        assert result.department_str is not None
-        assert len(result.department_str) > 0
+        assert result.department_canonical is not None
+        assert len(result.department_canonical) > 0
 
     def test_email_with_subdomain(self):
         """Emails with subdomains should parse."""
         result = mint(email="user@fire.city.gov")
-        assert result.email_str == "user@fire.city.gov"
+        assert result.email_standardized == "user@fire.city.gov"
         assert result.email.get("is_valid") is True
 
     def test_phone_with_extension(self):
         """Phone numbers with extensions should parse."""
         result = mint(phone="(202) 555-0173 ext 456")
-        assert result.phone_str is not None
+        assert result.phone_standardized is not None
         assert result.phone_extension == "456"
 
     def test_title_with_slash(self):
         """Titles with slashes should normalize."""
         result = mint(title="Lieutenant/Chief")
-        assert result.title_str is not None
+        assert result.title_canonical is not None
 
 
 class TestIntegration:
@@ -348,11 +348,11 @@ class TestIntegration:
         result = mint(**record)
 
         # All fields should be present
-        assert result.name_str is not None
-        assert result.email_str is not None
-        assert result.phone_str is not None
-        assert result.title_str is not None
-        assert result.department_str is not None
+        assert result.name_standardized is not None
+        assert result.email_standardized is not None
+        assert result.phone_standardized is not None
+        assert result.title_canonical is not None
+        assert result.department_canonical is not None
         assert result.address is not None
 
     def test_messy_record_handling(self):
@@ -369,8 +369,8 @@ class TestIntegration:
         # Should normalize despite messiness
         assert result.name_first.lower() == "robert"
         assert result.name_last.lower() == "brown"
-        assert result.email_str == "rbrown@city.gov"
-        assert "director" in result.title_str.lower() or "planning" in result.title_str.lower()
+        assert result.email_standardized == "rbrown@city.gov"
+        assert "director" in result.title_canonical.lower() or "planning" in result.title_canonical.lower()
 
 
 if __name__ == "__main__":

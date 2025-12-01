@@ -24,10 +24,10 @@ result = mint(
     title="Chief of Police"
 )
 
-print(result.name_str)          # "Robert Patterson" (rank stripped)
-print(result.department_str)    # "Police" (code removed)
-print(result.title_str)         # "police chief"
-print(result.phone_str)         # "+1 202-555-0178"
+print(result.name_standardized)          # "Robert Patterson" (rank stripped)
+print(result.department_canonical)    # "Police" (code removed)
+print(result.title_canonical)         # "police chief"
+print(result.phone_standardized)         # "+1 202-555-0178"
 ```
 
 ## Batch Processing with Deduplication
@@ -61,7 +61,7 @@ for i, r1 in enumerate(results):
     for r2 in results[i+1:]:
         score = compare(r1, r2)
         if score > 80:  # >80 = high similarity, likely duplicate
-            print(f"Potential duplicate: {r1.name_str} vs {r2.name_str} (score: {score:.0f})")
+            print(f"Potential duplicate: {r1.name_standardized} vs {r2.name_standardized} (score: {score:.0f})")
 ```
 
 ## Export to Database
@@ -110,5 +110,5 @@ result = mint(
     dept_overrides={"public works": "Infrastructure Services"}
 )
 
-print(result.department_str)  # "Infrastructure Services"
+print(result.department_canonical)  # "Infrastructure Services"
 ```

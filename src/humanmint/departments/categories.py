@@ -5,8 +5,8 @@ Classifies canonical departments into logical categories by loading from
 department_categories.json.gz (generated from semantic tokens).
 """
 
-import json
 import gzip
+import json
 from pathlib import Path
 from typing import Optional
 

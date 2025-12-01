@@ -1,8 +1,6 @@
-# HumanMint
+# HumanMint v2
 
-**Clean, normalized contact data in one line of code.**
-
-Standardize names, emails, phones, addresses, departments, job titles, and organizations with intelligent parsing and fuzzy matching.
+HumanMint cleans and normalizes messy contact data with one line of code. It standardizes names, emails, phones, addresses, departments, titles, and organizations using curated public-sector mappings you won’t find anywhere else.
 
 ```python
 from humanmint import mint
@@ -12,209 +10,127 @@ result = mint(
     email="JOHN.SMITH@CITY.GOV",
     phone="(202) 555-0173 ext 456",
     department="001 - Public Works Dept",
-    title="Chief of Police"
+    title="Chief of Police",
+    address="123 N. Main St Apt 4B, Madison, WI 53703",
+    organization="City of Madison Police Department",
 )
 
-print(result.name_str)          # "John Q Smith"
-print(result.email_str)         # "john.smith@city.gov"
-print(result.phone_str)         # "+1 202-555-0173"
-print(result.department_str)    # "Public Works"
-print(result.title_str)         # "police chief"
+result.name_standardized          # "John Q Smith"
+result.email_standardized         # "john.smith@city.gov"
+result.phone_pretty               # "+1 202-555-0173"
+result.department_canonical       # "Public Works"
+result.title_canonical            # "police chief"
+result.address_canonical          # "123 N. Main St Apt 4B Madison WI 53703 US"
+
+# Split multi-person names when needed
+results = mint(name="John and Jane Smith", split_multi=True)
+# returns [MintResult(John Smith), MintResult(Jane Smith)]
 ```
 
-## Why HumanMint?
+## Why HumanMint
+- Real-world chaos: titles inside names, departments with numbers/phone extensions, strange-casing emails, smashed-together addresses.
+- Unique data: 23K+ department variants → 64 categories; 73K+ titles with curated canonicals + BLS; context-aware (dept-informed) title mapping not available off-the-shelf.
+- Safe defaults: length guards, optional aggressive cleaning, semantic conflict checks, bulk dedupe, and optional multi-person name splitting.
 
-Real-world contact data is **messy**:
-- Names with titles: `"Dr. Jane Smith, PhD"`
-- Inconsistent formatting: `"JOHN@EXAMPLE.COM"` vs `"john.smith@example.com"`
-- Phone number variations: `"(202) 555-0101 x101"` vs `"202.555.0101"`
-- Departments with noise: `"000171 - Public Works 202-555-0150 ext 200"`
-- Abbreviated titles: `"Sr. Water Engr."`
+### Department & Title mapping you can’t get elsewhere
+Curated public-sector mappings that solve the “impossible to Google” parts of contact normalization.
+```
+"City Administration"    -> "Administration"       [administration]
+"Finance Department"     -> "Finance"              [finance]
+"Public Works"           -> "Public Works"         [infrastructure]
+"Police Department"      -> "Police"               [public safety]
+```
+Titles get similar treatment across 73K standardized forms with optional department context to boost accuracy.
 
-**HumanMint handles all of this** with zero configuration.
+### All fields in one library
+Names, emails, phones, addresses, departments, titles, organizations—one pipeline. Most libraries cover one field; HumanMint returns the whole record with canonicalization, categorization, and confidence.
+
+### Fast
+Typical workloads run sub-millisecond per record with multithreading and built-in dedupe.
 
 ## Installation
-
 ```bash
 pip install humanmint
 ```
 
-## Key Features
-
-- **Names:** Parse, normalize, infer gender, detect nicknames, strip titles
-- **Emails:** Validate, normalize, detect free providers (Gmail, Yahoo, etc.)
-- **Phones:** Format (E.164), extract extensions, validate, detect type (mobile/landline)
-- **Departments:** Canonicalize, categorize, fuzzy match (23K+ dept names → 64 categories)
-- **Titles:** Three-tier matching system (73K+ job titles + 133 canonicals + 4.8K BLS), confidence scores
-- **Addresses:** Parse US postal addresses (street, city, state, ZIP)
-- **Organizations:** Normalize agency/org names
-- **Comparison:** `compare(result_a, result_b)` for deduplication with 0-100 similarity scores
-- **Batch:** Parallel processing with `bulk(records, workers=4)` for high throughput
-- **Export:** JSON, CSV, Parquet, SQL with flatten option for direct database import
-
-## Quick Examples
-
-### Field Accessor Reference
-
-All fields provide three access patterns:
-
-| Pattern | Example | Description |
-|---------|---------|-------------|
-| Dict access | `result.title["canonical"]` | Access specific processing stages |
-| Property | `result.title_str` | Shorthand for canonical/standardized form |
-| Full dict | `result.title` | All stages: raw, normalized, canonical, is_valid |
-
-#### Available Properties by Field
-
-**Names:**
-- `name_str` - Full name
-- `name_first` - First name
-- `name_last` - Last name
-- `name_middle` - Middle name
-- `name_suffix` - Suffix (Jr., Sr., etc.)
-- `name_gender` - Inferred gender
-
-**Emails:**
-- `email_str` - Normalized email
-- `email_domain` - Domain part
-- `email_valid` - Is valid email
-- `email_generic` - Is generic inbox (info@, admin@)
-- `email_free` - Is free provider (Gmail, Yahoo)
-
-**Phones:**
-- `phone_str` - Formatted phone (pretty or E.164)
-- `phone_e164` - E.164 format (+12025550123)
-- `phone_pretty` - Pretty format (+1 202-555-0123)
-- `phone_extension` - Extension number
-- `phone_valid` - Is valid phone
-- `phone_type` - Type (MOBILE, FIXED_LINE, etc.)
-
-**Departments:**
-- `department_str` - Canonical department name
-- `department_category` - Department category
-- `department_normalized` - Normalized (pre-canonical)
-- `department_override` - Was override applied
-
-**Titles:**
-- `title_str` - Canonical title
-- `title_raw` - Original input
-- `title_normalized` - Normalized (intermediate)
-- `title_canonical` - Standardized form
-- `title_valid` - Is valid title
-- `title_confidence` - Confidence score (0.0-1.0)
-
-**Addresses:**
-- `address_str` / `address_canonical` - Full formatted address
-- `address_raw` - Original input
-- `address_street` - Street address
-- `address_unit` - Unit/apartment number
-- `address_city` - City
-- `address_state` - State
-- `address_zip` - ZIP code
-- `address_country` - Country
-
-**Organizations:**
-- `organization_raw` - Original input
-- `organization_normalized` - Normalized form
-- `organization_canonical` - Canonical form
-- `organization_confidence` - Confidence score (0.0-1.0)
-
-### Accessing title fields
-
+## Quickstart
 ```python
-result = mint(title="Chief of Police")
+from humanmint import mint, compare, bulk
 
-# Dict access - different processing stages
-result.title["raw"]         # "Chief of Police" (original input)
-result.title["normalized"]  # "Chief of Police" (cleaned)
-result.title["canonical"]   # "police chief" (standardized form)
-result.title["is_valid"]    # True
-result.title["confidence"]  # 0.98 (confidence score)
+r1 = mint(name="Jane Doe", email="jane.doe@city.gov", department="Public Works", title="Engineer")
+r2 = mint(name="J. Doe",  email="JANE.DOE@CITY.GOV", department="PW Dept",       title="Public Works Engineer")
 
-# Shorthand properties
-result.title_str            # "police chief" (same as canonical)
-result.title_normalized     # "Chief of Police"
-result.title_confidence     # 0.98
-```
-
-### Title Matching Strategy: Three-Tier System
-
-HumanMint uses an intelligent three-tier matching system to handle 73K+ real-world job titles:
-
-**Tier 1: Job Titles Database (73,380 titles)**
-- Exact matching against real government job titles
-- Fuzzy matching for spelling variations and abbreviations
-- Examples: "Driver" → "driver", "Dvr" → "driver" (0.92 confidence)
-- High confidence: 0.98 for exact matches, 0.75+ for fuzzy matches
-
-**Tier 2: Canonical Titles (133 curated standardized forms)**
-- Fallback when Tier 1 doesn't match
-- Includes BLS official titles (4,800+)
-- Examples: "Chief of Police" → "police chief" (standardized form)
-- Confidence: 0.75-0.95 based on match quality
-
-**Tier 3: Enrichment**
-- Department context for disambiguation
-- BLS official categorization
-- Confidence scoring based on match strength
-
-**Results:**
-- 100% success rate on complex government titles
-- Example: "Deputy Chief Financial Officer" → "deputy chief financial officer" (0.93)
-- Example: "Environmental Health Specialist" → "environmental health specialist" (0.98)
-
-### Comparing records
-
-```python
-from humanmint import compare
-
-r1 = mint(name="John Smith", email="john@example.com")
-r2 = mint(name="Jon Smith", email="john.smith@example.com")
-
-score = compare(r1, r2)  # Returns 0-100 similarity score
-# Typically: >85 = likely duplicate, >70 = similar, <50 = different
-```
-
-### Batch processing
-
-```python
-from humanmint import bulk
+score = compare(r1, r2)  # similarity 0–100
+# Or with explanation:
+score, why = compare(r1, r2, explain=True)
+print("\n".join(why))
 
 records = [
     {"name": "Alice", "email": "alice@example.com"},
-    {"name": "Bob", "email": "bob@example.com"},
+    {"name": "Bob",   "email": "bob@example.com"},
 ]
+results = bulk(records, workers=4)
+```
+
+## Access Patterns
+- Dict access: `result.title["canonical"]`, `result.department["canonical"]`, `result.department["category"]`
+- Properties (preferred): `name_standardized`, `title_canonical`, `department_canonical`, `email_standardized`, `phone_standardized`, `address_canonical`, `organization_canonical`
+- Full dicts: `result.title`, `result.department`, `result.email`, etc.
+
+## Recommended Properties
+
+**Names**
+- `name_standardized`, `name_first`, `name_last`, `name_middle`, `name_suffix`, `name_suffix_type`, `name_gender`, `name_nickname`
+
+**Emails**
+- `email_standardized`, `email_domain`, `email_is_valid`, `email_is_generic_inbox`, `email_is_free_provider`
+
+**Phones**
+- `phone_standardized`, `phone_e164`, `phone_pretty`, `phone_extension`, `phone_is_valid`, `phone_type`
+
+**Departments**
+- `department_canonical`, `department_category`, `department_normalized`, `department_override`
+
+**Titles**
+- `title_canonical`, `title_raw`, `title_normalized`, `title_is_valid`, `title_confidence`, `title_seniority`
+
+**Addresses**
+- `address_canonical`, `address_raw`, `address_street`, `address_unit`, `address_city`, `address_state`, `address_zip`, `address_country`
+
+**Organizations**
+- `organization_raw`, `organization_normalized`, `organization_canonical`, `organization_confidence`
+
+Use `result.get("email.is_valid")` or other dot paths to fetch nested dict values.
+
+## Comparing Records
+```python
+from humanmint import compare
+score = compare(r1, r2)  # 0–100
+# >85 likely duplicate, >70 similar, <50 different
+```
+
+## Batch & Export
+```python
+from humanmint import bulk, export_json, export_csv, export_parquet, export_sql
 
 results = bulk(records, workers=4, progress=True)
+export_json(results, "out.json")
+export_csv(results, "out.csv", flatten=True)
 ```
-
-## Performance
-
-| Dataset | Time | Per Record | Throughput |
-|---------|------|-----------|-----------|
-| 1,000 | 561 ms | 0.56 ms | 1,783 rec/sec |
-| 10,000 | 3.1 s | 0.31 ms | 3,178 rec/sec |
-| 50,000 | 14.0 s | 0.28 ms | 3,576 rec/sec |
-
-## Documentation
-
-- **[API Reference](https://github.com/RicardoNunes2000/HumanMint#api-reference)** — Full function documentation
-- **[Use Cases](https://github.com/RicardoNunes2000/HumanMint/tree/main/docs/use_cases)** — Real-world examples (Government contacts, HR, Salesforce, etc.)
-- **[Fields Guide](https://github.com/RicardoNunes2000/HumanMint/blob/main/docs/FIELDS.md)** — Access all returned fields
-- **[Advanced](https://github.com/RicardoNunes2000/HumanMint/blob/main/docs/ADVANCED.md)** — Custom weights, overrides, batch export
 
 ## CLI
-
 ```bash
-humanmint clean input.csv output.csv --name-col name --email-col email
+humanmint clean input.csv output.csv --name-col name --email-col email --phone-col phone --dept-col department --title-col title
 ```
 
-## Testing
+## Performance (benchmark)
+| Dataset | Time | Per Record | Throughput |
+|---------|------|-----------|------------|
+| 1,000   | 561 ms | 0.56 ms | 1,783 rec/sec |
+| 10,000  | 3.1 s  | 0.31 ms | 3,178 rec/sec |
+| 50,000  | 14.0 s | 0.28 ms | 3,576 rec/sec |
 
-```bash
-pytest -q unittests
-```
-
-## License
-
-MIT
+## Notes
+- US-focused address parsing; `usaddress` is used when available, otherwise heuristics.
+- Optional deps (pandas, pyarrow, sqlalchemy, rich, tqdm) enhance exports and progress bars.
+- Department and title datasets are curated and updated regularly for best accuracy.

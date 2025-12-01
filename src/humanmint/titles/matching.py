@@ -16,30 +16,18 @@ from typing import Optional
 
 from rapidfuzz import fuzz, process
 
-from humanmint.semantics import (
-    check_semantic_conflict,
-    _extract_domains,
-    _extract_meaningful_tokens,
-    _has_hallucinations,
-    has_semantic_token_overlap,
-)
+from humanmint.semantics import (_extract_domains, _extract_meaningful_tokens,
+                                 _has_hallucinations, check_semantic_conflict,
+                                 has_semantic_token_overlap)
 
 from .bls_loader import lookup_bls_title
-from .data_loader import (
-    find_exact_job_title,
-    find_similar_job_titles,
-    get_canonical_titles,
-    get_mapping_for_variant,
-    is_canonical,
-    map_to_canonical,
-)
+from .data_loader import (find_exact_job_title, find_similar_job_titles,
+                          get_canonical_titles, get_mapping_for_variant,
+                          is_canonical, map_to_canonical)
+from .enhancements import (check_acronym_protection, check_rank_degradation,
+                           check_semantic_cluster_conflict,
+                           get_match_quality_score)
 from .normalize import normalize_title
-from .enhancements import (
-    get_match_quality_score,
-    check_rank_degradation,
-    check_acronym_protection,
-    check_semantic_cluster_conflict,
-)
 
 # Cache canonical titles and lowercase versions for matching
 _canonical_lowers: Optional[list[tuple[str, str]]] = None

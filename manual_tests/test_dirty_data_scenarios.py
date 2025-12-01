@@ -66,18 +66,10 @@ print("-" * 100)
 for s in scenarios:
     res = mint(**s["data"], aggressive_clean=True)
 
-    # Format HumanMint output for display
-    hm_out = f"Name: {res.name['full']}\n"
-    if res.department:
-        hm_out += f"    Dept: {res.department['canonical']}\n"
-    if res.email:
-        hm_out += f"    Email: {res.email['normalized']}\n"
-    if res.phone:
-        hm_out += f"    Phone: {res.phone['pretty']}"
+    print(res)
 
     print(f"SCENARIO {s['id']}: {s['type']}")
     print(f"INPUT: {s['data']}")
     print("-" * 40)
-    print(f"HUMANMINT:\n{hm_out}")
     print("-" * 40)
     print("\n")

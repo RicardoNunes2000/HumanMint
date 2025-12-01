@@ -17,12 +17,12 @@ from humanmint import mint
 class TestAllNameProperties:
     """Test all name-related properties."""
 
-    def test_name_str(self):
-        """Test name_str property."""
+    def test_name_standardized(self):
+        """Test name_standardized property."""
         result = mint(name="John Alexander Smith Jr.")
-        assert result.name_str is not None
-        assert "John" in result.name_str
-        assert "Smith" in result.name_str
+        assert result.name_standardized is not None
+        assert "John" in result.name_standardized
+        assert "Smith" in result.name_standardized
 
     def test_name_first(self):
         """Test name_first property."""
@@ -52,7 +52,7 @@ class TestAllNameProperties:
     def test_name_properties_when_no_name(self):
         """Test all name properties return None when no name provided."""
         result = mint(email="test@example.com")
-        assert result.name_str is None
+        assert result.name_standardized is None
         assert result.name_first is None
         assert result.name_last is None
         assert result.name_middle is None
@@ -63,49 +63,49 @@ class TestAllNameProperties:
 class TestAllEmailProperties:
     """Test all email-related properties."""
 
-    def test_email_str(self):
-        """Test email_str property."""
+    def test_email_standardized(self):
+        """Test email_standardized property."""
         result = mint(email="JOHN.DOE@EXAMPLE.COM")
-        assert result.email_str == "john.doe@example.com"
+        assert result.email_standardized == "john.doe@example.com"
 
     def test_email_domain(self):
         """Test email_domain property."""
         result = mint(email="john@example.com")
         assert result.email_domain == "example.com"
 
-    def test_email_valid(self):
-        """Test email_valid property."""
+    def test_email_is_valid(self):
+        """Test email_is_valid property."""
         result = mint(email="john@example.com")
-        assert result.email_valid is True
+        assert result.email_is_valid is True
 
-    def test_email_generic(self):
-        """Test email_generic property."""
+    def test_email_is_generic_inbox(self):
+        """Test email_is_generic_inbox property."""
         result = mint(email="info@example.com")
-        assert isinstance(result.email_generic, bool)
+        assert isinstance(result.email_is_generic_inbox, bool)
 
-    def test_email_free(self):
-        """Test email_free property."""
+    def test_email_is_free_provider(self):
+        """Test email_is_free_provider property."""
         result = mint(email="john@gmail.com")
-        assert result.email_free is True
+        assert result.email_is_free_provider is True
 
     def test_email_properties_when_no_email(self):
         """Test all email properties return None when no email provided."""
         result = mint(name="John Smith")
-        assert result.email_str is None
+        assert result.email_standardized is None
         assert result.email_domain is None
-        assert result.email_valid is None
-        assert result.email_generic is None
-        assert result.email_free is None
+        assert result.email_is_valid is None
+        assert result.email_is_generic_inbox is None
+        assert result.email_is_free_provider is None
 
 
 class TestAllPhoneProperties:
     """Test all phone-related properties."""
 
-    def test_phone_str(self):
-        """Test phone_str property."""
+    def test_phone_standardized(self):
+        """Test phone_standardized property."""
         result = mint(phone="(202) 555-0123")
-        assert result.phone_str is not None
-        assert "202" in result.phone_str or "555" in result.phone_str
+        assert result.phone_standardized is not None
+        assert "202" in result.phone_standardized or "555" in result.phone_standardized
 
     def test_phone_e164(self):
         """Test phone_e164 property."""
@@ -123,10 +123,10 @@ class TestAllPhoneProperties:
         result = mint(phone="(202) 555-0123 x456")
         assert result.phone_extension == "456"
 
-    def test_phone_valid(self):
-        """Test phone_valid property."""
+    def test_phone_is_valid(self):
+        """Test phone_is_valid property."""
         result = mint(phone="(202) 555-0123")
-        assert isinstance(result.phone_valid, bool)
+        assert isinstance(result.phone_is_valid, bool)
 
     def test_phone_type(self):
         """Test phone_type property."""
@@ -138,21 +138,21 @@ class TestAllPhoneProperties:
     def test_phone_properties_when_no_phone(self):
         """Test all phone properties return None when no phone provided."""
         result = mint(name="John Smith")
-        assert result.phone_str is None
+        assert result.phone_standardized is None
         assert result.phone_e164 is None
         assert result.phone_pretty is None
         assert result.phone_extension is None
-        assert result.phone_valid is None
+        assert result.phone_is_valid is None
         assert result.phone_type is None
 
 
 class TestAllDepartmentProperties:
     """Test all department-related properties."""
 
-    def test_department_str(self):
-        """Test department_str property."""
+    def test_department_canonical(self):
+        """Test department_canonical property."""
         result = mint(department="Public Works Dept")
-        assert result.department_str == "Public Works"
+        assert result.department_canonical == "Public Works"
 
     def test_department_category(self):
         """Test department_category property."""
@@ -174,7 +174,7 @@ class TestAllDepartmentProperties:
     def test_department_properties_when_no_department(self):
         """Test all department properties return None when no department provided."""
         result = mint(name="John Smith")
-        assert result.department_str is None
+        assert result.department_canonical is None
         assert result.department_category is None
         assert result.department_normalized is None
         assert result.department_override is None
@@ -183,10 +183,10 @@ class TestAllDepartmentProperties:
 class TestAllTitleProperties:
     """Test all title-related properties."""
 
-    def test_title_str(self):
-        """Test title_str property."""
+    def test_title_canonical(self):
+        """Test title_canonical property."""
         result = mint(title="Chief of Police")
-        assert result.title_str == "police chief"
+        assert result.title_canonical == "police chief"
 
     def test_title_raw(self):
         """Test title_raw property."""
@@ -204,10 +204,10 @@ class TestAllTitleProperties:
         result = mint(title="Police Chief")
         assert result.title_canonical == "police chief"
 
-    def test_title_valid(self):
-        """Test title_valid property."""
+    def test_title_is_valid(self):
+        """Test title_is_valid property."""
         result = mint(title="Police Chief")
-        assert isinstance(result.title_valid, bool)
+        assert isinstance(result.title_is_valid, bool)
 
     def test_title_confidence(self):
         """Test title_confidence property."""
@@ -218,11 +218,11 @@ class TestAllTitleProperties:
     def test_title_properties_when_no_title(self):
         """Test all title properties return appropriate defaults when no title provided."""
         result = mint(name="John Smith")
-        assert result.title_str is None
+        assert result.title_canonical is None
         assert result.title_raw is None
         assert result.title_normalized is None
         assert result.title_canonical is None
-        assert result.title_valid is None
+        assert result.title_is_valid is None
         assert result.title_confidence == 0.0
 
 
@@ -340,7 +340,7 @@ class TestAllPropertiesCombined:
         )
 
         # Name properties
-        assert result.name_str is not None
+        assert result.name_standardized is not None
         assert result.name_first == "Jane"
         assert result.name_last == "Doe"
         assert result.name_middle == "Elizabeth"
@@ -348,31 +348,30 @@ class TestAllPropertiesCombined:
         assert result.name_gender in ["male", "female", "unknown", None]
 
         # Email properties
-        assert result.email_str == "jane.doe@citypolice.gov"
+        assert result.email_standardized == "jane.doe@citypolice.gov"
         assert result.email_domain == "citypolice.gov"
-        assert result.email_valid is True
-        assert isinstance(result.email_generic, bool)
-        assert isinstance(result.email_free, bool)
+        assert result.email_is_valid is True
+        assert isinstance(result.email_is_generic_inbox, bool)
+        assert isinstance(result.email_is_free_provider, bool)
 
         # Phone properties
-        assert result.phone_str is not None
+        assert result.phone_standardized is not None
         assert result.phone_e164 == "+12025550123"
         assert result.phone_pretty is not None
         assert result.phone_extension == "456"
-        assert isinstance(result.phone_valid, bool)
+        assert isinstance(result.phone_is_valid, bool)
 
         # Department properties
-        assert result.department_str == "Police"
+        assert result.department_canonical == "Police"
         assert result.department_category is not None
         assert result.department_normalized is not None
         assert isinstance(result.department_override, bool)
 
         # Title properties
-        assert result.title_str == "police chief"
+        assert result.title_canonical == "police chief"
         assert result.title_raw == "Chief of Police"
         assert result.title_normalized is not None
-        assert result.title_canonical == "police chief"
-        assert isinstance(result.title_valid, bool)
+        assert result.title_is_valid is True
         assert 0.0 <= result.title_confidence <= 1.0
 
         # Address properties
@@ -390,7 +389,7 @@ class TestAllPropertiesCombined:
         result = mint()
 
         # Name properties
-        assert result.name_str is None
+        assert result.name_standardized is None
         assert result.name_first is None
         assert result.name_last is None
         assert result.name_middle is None
@@ -398,32 +397,31 @@ class TestAllPropertiesCombined:
         assert result.name_gender is None
 
         # Email properties
-        assert result.email_str is None
+        assert result.email_standardized is None
         assert result.email_domain is None
-        assert result.email_valid is None
-        assert result.email_generic is None
-        assert result.email_free is None
+        assert result.email_is_valid is None
+        assert result.email_is_generic_inbox is None
+        assert result.email_is_free_provider is None
 
         # Phone properties
-        assert result.phone_str is None
+        assert result.phone_standardized is None
         assert result.phone_e164 is None
         assert result.phone_pretty is None
         assert result.phone_extension is None
-        assert result.phone_valid is None
+        assert result.phone_is_valid is None
         assert result.phone_type is None
 
         # Department properties
-        assert result.department_str is None
+        assert result.department_canonical is None
         assert result.department_category is None
         assert result.department_normalized is None
         assert result.department_override is None
 
         # Title properties
-        assert result.title_str is None
+        assert result.title_canonical is None
         assert result.title_raw is None
         assert result.title_normalized is None
-        assert result.title_canonical is None
-        assert result.title_valid is None
+        assert result.title_is_valid is None
         assert result.title_confidence == 0.0
 
         # Address properties
@@ -457,26 +455,27 @@ class TestPropertyTypeSafety:
         )
 
         string_props = [
-            result.name_str,
+            result.name_standardized,
             result.name_first,
             result.name_last,
             result.name_middle,
             result.name_suffix,
+            result.name_suffix_type,
             result.name_gender,
-            result.email_str,
+            result.name_nickname,
+            result.email_standardized,
             result.email_domain,
-            result.phone_str,
+            result.phone_standardized,
             result.phone_e164,
             result.phone_pretty,
             result.phone_extension,
             result.phone_type,
-            result.department_str,
+            result.department_canonical,
             result.department_category,
             result.department_normalized,
-            result.title_str,
+            result.title_canonical,
             result.title_raw,
             result.title_normalized,
-            result.title_canonical,
             result.address_raw,
             result.address_street,
             result.address_unit,
@@ -505,12 +504,12 @@ class TestPropertyTypeSafety:
         )
 
         bool_props = [
-            result.email_valid,
-            result.email_generic,
-            result.email_free,
-            result.phone_valid,
+            result.email_is_valid,
+            result.email_is_generic_inbox,
+            result.email_is_free_provider,
+            result.phone_is_valid,
             result.department_override,
-            result.title_valid,
+            result.title_is_valid,
         ]
 
         for prop in bool_props:

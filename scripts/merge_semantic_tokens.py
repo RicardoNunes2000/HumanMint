@@ -2,8 +2,8 @@
 Merge expanded semantic tokens from agents into semantic_tokens.json.gz.
 """
 
-import json
 import gzip
+import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent

@@ -16,10 +16,10 @@ REAL_US_CASES = [
             "title": "Sr Maint Tech",
         },
         "expected": {
-            "name_str": "Thomas A Green",
-            "email_str": "tgreen@cityofraleigh.nc.gov",
-            "department_str": "Public Works",
-            "title_str": "maintenance technician",
+            "name_standardized": "Thomas A Green",
+            "email_standardized": "tgreen@cityofraleigh.nc.gov",
+            "department_canonical": "Public Works",
+            "title_canonical": "maintenance technician",
         },
     },
     {
@@ -32,9 +32,9 @@ REAL_US_CASES = [
             "title": "Deputy Dir",
         },
         "expected": {
-            "name_str": "Jennifer G Watkins",
-            "department_str": "Emergency Management",
-            "title_str": "deputy director",
+            "name_standardized": "Jennifer G Watkins",
+            "department_canonical": "Emergency Management",
+            "title_canonical": "deputy director",
         },
     },
     {
@@ -47,9 +47,9 @@ REAL_US_CASES = [
             "title": "Curriculum Coordinator",
         },
         "expected": {
-            "name_str": "Angela S Pierce",
-            "department_str": "Administration",
-            "title_str": "curriculum coordinator",
+            "name_standardized": "Angela S Pierce",
+            "department_canonical": "Administration",
+            "title_canonical": "curriculum coordinator",
         },
     },
     {
@@ -62,9 +62,9 @@ REAL_US_CASES = [
             "title": "Police Officer II",
         },
         "expected": {
-            "name_str": "Joe Bobby McCarthy",
-            "department_str": "Police",
-            "title_str": "police officer",
+            "name_standardized": "Joe Bobby McCarthy",
+            "department_canonical": "Police",
+            "title_canonical": "police officer",
         },
     },
     {
@@ -77,8 +77,8 @@ REAL_US_CASES = [
             "title": "Rec Supervisor",
         },
         "expected": {
-            "department_str": "Parks & Recreation",
-            "title_str": "recreation supervisor",
+            "department_canonical": "Parks & Recreation",
+            "title_canonical": "recreation supervisor",
         },
     },
 ]
@@ -97,11 +97,11 @@ def test_real_us():
 
         r = mint(**case["input"])
         out = {
-            "name_str": r.name_str,
-            "email_str": r.email_str,
-            "phone_str": r.phone_str,
-            "department_str": r.department_str,
-            "title_str": r.title_str,
+            "name_standardized": r.name_standardized,
+            "email_standardized": r.email_standardized,
+            "phone_standardized": r.phone_standardized,
+            "department_canonical": r.department_canonical,
+            "title_canonical": r.title_canonical,
         }
 
         for field, expected in case["expected"].items():

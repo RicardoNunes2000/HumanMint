@@ -8,8 +8,8 @@ This script generates category mappings for all canonical departments by:
 4. Saving as department_categories.json.gz
 """
 
-import json
 import gzip
+import json
 from pathlib import Path
 
 # Assume we're running from repo root

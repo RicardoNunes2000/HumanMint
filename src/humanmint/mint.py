@@ -21,33 +21,21 @@ Example:
       department: Public Works
       title: public works director
     )
-    >>> result.email_str
+    >>> result.email_standardized
     'alex.mercer@city.gov'
     >>> result.department_category
     'Infrastructure'
 """
 
+import re
 from dataclasses import dataclass
 from typing import Callable, Iterable, Optional, Union
 
-from .processors import (
-    process_address,
-    process_department,
-    process_email,
-    process_name,
-    process_organization,
-    process_phone,
-    process_title,
-)
-from .types import (
-    AddressResult,
-    DepartmentResult,
-    EmailResult,
-    NameResult,
-    OrganizationResult,
-    PhoneResult,
-    TitleResult,
-)
+from .processors import (process_address, process_department, process_email,
+                         process_name, process_organization, process_phone,
+                         process_title)
+from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
+                    OrganizationResult, PhoneResult, TitleResult)
 
 # Input length limits to prevent DoS and data validation
 MAX_NAME_LENGTH = 1000
@@ -103,7 +91,7 @@ class MintResult:
             lines.append("  phone: None")
 
         if self.department:
-            lines.append(f"  department: {self.department['mapped_to']}")
+            lines.append(f"  department: {self.department.get('canonical')}")
         else:
             lines.append("  department: None")
 
@@ -111,7 +99,7 @@ class MintResult:
             lines.append("  title:")
             lines.append(f"    raw: {self.title.get('raw')}")
             lines.append(f"    normalized: {self.title.get('normalized')}")
-            lines.append(f"    mapped_to: {self.title.get('mapped_to')}")
+            lines.append(f"    canonical: {self.title.get('canonical')}")
         else:
             lines.append("  title: None")
 
@@ -136,9 +124,19 @@ class MintResult:
 
     # Convenience properties for simple access
     @property
-    def name_str(self) -> Optional[str]:
-        """Get full name as string, or None."""
+    def name_standardized(self) -> Optional[str]:
+        """Get standardized full name, or None."""
         return self.name["full"] if self.name else None
+
+    @property
+    def name_nickname(self) -> Optional[str]:
+        """Get detected nickname, or None."""
+        return self.name.get("nickname") if self.name else None
+
+    @property
+    def name_suffix_type(self) -> Optional[str]:
+        """Get suffix classification (e.g., generational), or None."""
+        return self.name.get("suffix_type") if self.name else None
 
     @property
     def name_first(self) -> Optional[str]:
@@ -166,7 +164,7 @@ class MintResult:
         return self.name["gender"] if self.name else None
 
     @property
-    def email_str(self) -> Optional[str]:
+    def email_standardized(self) -> Optional[str]:
         """Get normalized email, or None."""
         return self.email["normalized"] if self.email else None
 
@@ -176,37 +174,22 @@ class MintResult:
         return self.email["domain"] if self.email else None
 
     @property
-    def email_valid(self) -> Optional[bool]:
-        """Backward-compatible alias for email validity."""
+    def email_is_valid(self) -> Optional[bool]:
+        """Check if email is valid, or None."""
         return self.email.get("is_valid") if self.email else None
-
-    @property
-    def email_generic(self) -> Optional[bool]:
-        """Backward-compatible alias for generic inbox detection."""
-        return self.email.get("is_generic") if self.email else None
-
-    @property
-    def email_free(self) -> Optional[bool]:
-        """Backward-compatible alias for free provider detection."""
-        return self.email.get("is_free_provider") if self.email else None
-
-    @property
-    def email_is_valid_format(self) -> Optional[bool]:
-        """Check if email is valid format, or None."""
-        return self.email["is_valid_format"] if self.email else None
 
     @property
     def email_is_generic_inbox(self) -> Optional[bool]:
         """Check if email is generic inbox, or None."""
-        return self.email["is_generic_inbox"] if self.email else None
+        return self.email.get("is_generic_inbox") if self.email else None
 
     @property
     def email_is_free_provider(self) -> Optional[bool]:
         """Check if email is from free provider, or None."""
-        return self.email["is_free_provider"] if self.email else None
+        return self.email.get("is_free_provider") if self.email else None
 
     @property
-    def phone_str(self) -> Optional[str]:
+    def phone_standardized(self) -> Optional[str]:
         """Get formatted phone (pretty or e164), or None."""
         if self.phone:
             return self.phone["pretty"] or self.phone["e164"]
@@ -228,36 +211,19 @@ class MintResult:
         return self.phone["extension"] if self.phone else None
 
     @property
-    def phone_is_valid_number(self) -> Optional[bool]:
+    def phone_is_valid(self) -> Optional[bool]:
         """Check if phone is valid number, or None."""
-        return self.phone["is_valid_number"] if self.phone else None
-
-    @property
-    def phone_detected_type(self) -> Optional[str]:
-        """Get phone type (MOBILE, FIXED_LINE, etc), or None."""
-        return self.phone["detected_type"] if self.phone else None
-
-    @property
-    def phone_valid(self) -> Optional[bool]:
-        """Backward-compatible alias for phone validity."""
         return self.phone.get("is_valid") if self.phone else None
 
     @property
     def phone_type(self) -> Optional[str]:
-        """Backward-compatible alias for phone type."""
-        if not self.phone:
-            return None
-        return self.phone.get("detected_type") or self.phone.get("type")
+        """Get phone type (MOBILE, FIXED_LINE, etc), or None."""
+        return self.phone.get("type") if self.phone else None
 
     @property
-    def department_mapped_to(self) -> Optional[str]:
-        """Get canonical (mapped) department name, or None."""
-        return self.department["mapped_to"] if self.department else None
-
-    @property
-    def department_str(self) -> Optional[str]:
-        """Backward-compatible alias for canonical department string."""
-        return self.department.get("mapped_to") if self.department else None
+    def department_canonical(self) -> Optional[str]:
+        """Get canonical department name, or None."""
+        return self.department.get("canonical") if self.department else None
 
     @property
     def department_category(self) -> Optional[str]:
@@ -270,26 +236,14 @@ class MintResult:
         return self.department["normalized"] if self.department else None
 
     @property
-    def department_was_overridden(self) -> Optional[bool]:
-        """Check if department came from override, or None."""
-        return self.department["was_overridden"] if self.department else None
-
-    @property
     def department_override(self) -> Optional[bool]:
-        """Backward-compatible alias for override indicator."""
-        return self.department.get("was_overridden") if self.department else None
+        """Check if department came from override, or None."""
+        return self.department.get("is_override") if self.department else None
 
     @property
-    def title_mapped_to(self) -> Optional[str]:
-        """Get canonical (mapped) title (standardized form), or None."""
-        return self.title["mapped_to"] if self.title else None
-
-    @property
-    def title_str(self) -> Optional[str]:
-        """Backward-compatible alias for canonical title."""
-        if not self.title:
-            return None
-        return self.title.get("mapped_to") or self.title.get("canonical")
+    def title_canonical(self) -> Optional[str]:
+        """Get canonical title."""
+        return self.title.get("canonical") if self.title else None
 
     @property
     def title_raw(self) -> Optional[str]:
@@ -302,19 +256,9 @@ class MintResult:
         return self.title["normalized"] if self.title else None
 
     @property
-    def title_canonical(self) -> Optional[str]:
-        """Get canonical (mapped) title, or None (deprecated: use title_mapped_to)."""
-        return self.title["mapped_to"] if self.title else None
-
-    @property
-    def title_is_valid_match(self) -> Optional[bool]:
+    def title_is_valid(self) -> Optional[bool]:
         """Check if title is valid match, or None."""
-        return self.title["is_valid_match"] if self.title else None
-
-    @property
-    def title_valid(self) -> Optional[bool]:
-        """Backward-compatible alias for title validity."""
-        return self.title.get("is_valid_match") if self.title else None
+        return self.title.get("is_valid") if self.title else None
 
     @property
     def title_confidence(self) -> float:
@@ -458,7 +402,8 @@ def mint(
     title_overrides: Optional[dict[str, str]] = None,
     dept_overrides: Optional[dict[str, str]] = None,
     aggressive_clean: bool = False,
-) -> MintResult:
+    split_multi: bool = False,
+) -> Union[MintResult, list[MintResult]]:
     """
     Clean and normalize human-centric data in one call.
 
@@ -577,8 +522,50 @@ def mint(
             f"Organization exceeds maximum length of {MAX_ORG_LENGTH} characters"
         )
 
+    # Detect multi-person names and split if requested
+    def _split_multi_person_names(raw: str) -> Optional[list[str]]:
+        connectors = re.compile(r"\s+(?:and|&|/|\+)\s+", re.IGNORECASE)
+        parts = [p.strip(" ,") for p in connectors.split(raw) if p.strip(" ,")]
+        if len(parts) < 2:
+            return None
+
+        # If the last part has a last name, share it with earlier single-token parts
+        last_tokens = parts[-1].split()
+        shared_last = last_tokens[-1] if len(last_tokens) >= 2 else None
+        rebuilt: list[str] = []
+        for idx, part in enumerate(parts):
+            tokens = part.split()
+            if len(tokens) == 1 and shared_last and idx < len(parts) - 1:
+                rebuilt.append(f"{tokens[0]} {shared_last}")
+            else:
+                rebuilt.append(part)
+        return rebuilt
+
+    if split_multi and isinstance(name, str):
+        split_names = _split_multi_person_names(name)
+        if split_names:
+            # Process each name separately; reuse other fields; avoid recursive splitting
+            results_split: list[MintResult] = []
+            for nm in split_names:
+                results_split.append(
+                    mint(
+                        name=nm,
+                        email=email,
+                        phone=phone,
+                        address=address,
+                        department=department,
+                        title=title,
+                        organization=organization,
+                        title_overrides=title_overrides,
+                        dept_overrides=dept_overrides,
+                        aggressive_clean=aggressive_clean,
+                        split_multi=False,
+                    )
+                )  # type: ignore[arg-type]
+            return results_split
+
     department_result = process_department(department, dept_overrides)
-    dept_canonical = department_result["mapped_to"] if department_result else None
+    dept_canonical = department_result["canonical"] if department_result else None
 
     return MintResult(
         name=process_name(name, aggressive_clean=aggressive_clean),
@@ -637,15 +624,11 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (  # type: ignore
-                    BarColumn,
-                    MofNCompleteColumn,
-                    Progress,
-                    SpinnerColumn,
-                    TextColumn,
-                    TimeElapsedColumn,
-                    TimeRemainingColumn,
-                )
+                from rich.progress import (BarColumn,  # type: ignore
+                                           MofNCompleteColumn, Progress,
+                                           SpinnerColumn, TextColumn,
+                                           TimeElapsedColumn,
+                                           TimeRemainingColumn)
 
                 rp = Progress(
                     SpinnerColumn(),

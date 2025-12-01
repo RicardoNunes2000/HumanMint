@@ -7,11 +7,8 @@ accepting semantically incompatible matches.
 
 import pytest
 
-from humanmint.semantics import (
-    _extract_domains,
-    _tokenize,
-    check_semantic_conflict,
-)
+from humanmint.semantics import (_extract_domains, _tokenize,
+                                 check_semantic_conflict)
 
 
 class TestTokenization:

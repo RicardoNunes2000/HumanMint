@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Tuple, Union
 
 from rapidfuzz import fuzz
 
 from .mint import MintResult
 from .names.matching import compare_first_names, compare_last_names
-from .semantics import check_semantic_conflict, _extract_domains
+from .semantics import _extract_domains, check_semantic_conflict
 
 DEFAULT_COMPARE_WEIGHTS: dict[str, float] = {
     "name": 0.4,
@@ -145,7 +145,8 @@ def compare(
     result_a: MintResult,
     result_b: MintResult,
     weights: Optional[Mapping[str, float]] = None,
-) -> float:
+    explain: bool = False,
+) -> Union[float, Tuple[float, list[str]]]:
     """
     Compare two MintResult objects and return a similarity score (0-100).
 
@@ -158,14 +159,17 @@ def compare(
         weights: Optional mapping to override signal weights. Supported keys are
             "name", "email", "phone", "department", and "title". Any omitted keys
             fall back to the defaults used today.
+        explain: If True, returns (score, explanation_lines) with a breakdown of signals and penalties.
     """
     weight_config = {**DEFAULT_COMPARE_WEIGHTS, **(weights or {})}
     weight_pairs: list[tuple[float, float]] = []
+    explanations: list[str] = []
 
     # Names
     name_score = _name_score(result_a.name, result_b.name)
     if result_a.name and result_b.name:
         weight_pairs.append((name_score, weight_config["name"]))
+        explanations.append(f"name: {name_score:.1f} (weight {weight_config['name']})")
 
     # Email
     email_norm_a = result_a.email.get("normalized") if result_a.email else None
@@ -181,6 +185,7 @@ def compare(
             if domain_a == domain_b and base_a == base_b:
                 email_score = 95.0
         weight_pairs.append((email_score, weight_config["email"]))
+        explanations.append(f"email: {email_score:.1f} (weight {weight_config['email']})")
 
     # Phone (prefer E.164)
     phone_a = result_a.phone or {}
@@ -194,6 +199,7 @@ def compare(
         phone_score = _exact_match_score(phone_pretty_a, phone_pretty_b)
     if (phone_e164_a or phone_pretty_a) and (phone_e164_b or phone_pretty_b):
         weight_pairs.append((phone_score, weight_config["phone"]))
+        explanations.append(f"phone: {phone_score:.1f} (weight {weight_config['phone']})")
 
     # Department canonical fuzzy
     score_penalty = 0.0
@@ -212,12 +218,14 @@ def compare(
             and dept_can_a != dept_can_b
         ):
             score_penalty += 15.0
+            explanations.append("penalty: -15.0 (department mismatch)")
+        explanations.append(f"department: {dept_score:.1f} (weight {weight_config['department']})")
 
     # Title canonical fuzzy
     title_can_a = (result_a.title or {}).get("canonical")
     title_can_b = (result_b.title or {}).get("canonical")
-    title_clean_a = (result_a.title or {}).get("cleaned")
-    title_clean_b = (result_b.title or {}).get("cleaned")
+    title_clean_a = (result_a.title or {}).get("normalized")
+    title_clean_b = (result_b.title or {}).get("normalized")
     title_score = max(
         _fuzzy_score(title_can_a, title_can_b),
         _fuzzy_score(title_clean_a, title_clean_b),
@@ -234,6 +242,7 @@ def compare(
     # If semantic conflict detected, heavily penalize the score
     if has_semantic_conflict:
         title_score = min(title_score, 35.0)
+        explanations.append("penalty: semantic conflict cap on title (≤35)")
 
     # Check if this is a seniority variation EARLY (before other penalties)
     # This prevents legitimate variations like "manager" vs "senior manager" from being penalized
@@ -319,6 +328,7 @@ def compare(
 
     if result_a.title and result_b.title:
         weight_pairs.append((title_score, weight_config["title"]))
+        explanations.append(f"title: {title_score:.1f} (weight {weight_config['title']})")
 
     score = _weighted_average(weight_pairs)
 
@@ -327,16 +337,23 @@ def compare(
     gender_b = _safe_lower((result_b.name or {}).get("gender"))
     if weight_config["name"] > 0 and gender_a and gender_b and gender_a != gender_b:
         score -= 3.0
+        explanations.append("penalty: -3.0 (gender mismatch)")
     score -= score_penalty
 
     # Strong name agreement should not collapse entirely from other disagreements
     if weight_config["name"] > 0 and name_score >= 95.0:
         score = max(score, 45.0)
+        explanations.append("floor: name agreement floor to 45.0")
 
     # If we have strong identifiers (email/phone) matching exactly, ensure a high floor
     if (
         weight_config["email"] > 0 and email_score == 100.0
     ) or (weight_config["phone"] > 0 and phone_score == 100.0):
         score = max(score, 90.0)
+        explanations.append("floor: exact email/phone match floor to 90.0")
 
-    return max(0.0, min(100.0, score))
+    final_score = max(0.0, min(100.0, score))
+    if explain:
+        explanations.append(f"Final Score: {final_score:.1f}")
+        return final_score, explanations
+    return final_score

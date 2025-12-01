@@ -1,7 +1,10 @@
 """Test that all examples in documentation actually work."""
 
 import os
+import sys
 import tempfile
+
+sys.path.insert(0, "src")
 
 from humanmint import bulk, compare, export_csv, mint
 
@@ -16,11 +19,11 @@ def test_readme_basic_example():
         title="Chief of Police"
     )
 
-    assert result.name_str == "John Q Smith"  # PhD suffix is stripped
-    assert result.email_str == "john.smith@city.gov"
-    assert result.phone_str == "+1 202-555-0173"
-    assert result.department_str == "Public Works"
-    assert result.title_str == "police chief"
+    assert result.name_standardized == "John Q Smith"  # PhD suffix is stripped
+    assert result.email_standardized == "john.smith@city.gov"
+    assert result.phone_standardized == "+1 202-555-0173"
+    assert result.department_canonical == "Public Works"
+    assert result.title_canonical == "police chief"
 
 
 def test_title_field_access():
@@ -34,7 +37,7 @@ def test_title_field_access():
     assert result.title["is_valid"] is True
 
     # Shorthand properties
-    assert result.title_str == "police chief"
+    assert result.title_canonical == "police chief"
     assert result.title_normalized == "Chief of Police"
 
 
@@ -57,8 +60,8 @@ def test_bulk_example():
 
     results = bulk(records, workers=4, progress=False)
     assert len(results) == 2
-    assert results[0].name_str == "Alice"
-    assert results[1].name_str == "Bob"
+    assert results[0].name_standardized == "Alice"
+    assert results[1].name_standardized == "Bob"
 
 
 def test_government_contacts_example():
@@ -71,10 +74,10 @@ def test_government_contacts_example():
         title="Chief of Police"
     )
 
-    assert result.name_str == "Robert Patterson"
-    assert result.department_str == "Police"
-    assert result.title_str == "police chief"
-    assert result.phone_str == "+1 202-555-0178"
+    assert result.name_standardized == "Robert Patterson"
+    assert result.department_canonical == "Police"
+    assert result.title_canonical == "police chief"
+    assert result.phone_standardized == "+1 202-555-0178"
 
 
 def test_hr_salesforce_example():
@@ -93,17 +96,17 @@ def test_hr_salesforce_example():
     assert result.name_gender == "female"  # Returns lowercase
 
     # Email
-    assert result.email_str == "sarah@company.com"
+    assert result.email_standardized == "sarah@company.com"
     assert result.email_domain == "company.com"
 
     # Phone
-    assert result.phone_str == "+1 415-555-0123"
+    assert result.phone_standardized == "+1 415-555-0123"
     assert result.phone_extension == "456"
 
     # Title transformation stages
     assert result.title["raw"] == "Senior Software Engineer"
     assert result.title["canonical"] == "senior software engineer"
-    assert result.title_str == "senior software engineer"
+    assert result.title_canonical == "senior software engineer"
 
 
 def test_department_override():
@@ -114,7 +117,7 @@ def test_department_override():
     )
 
     # Override should match after normalization
-    assert result.department_str in ["Infrastructure Services", "Public Works"]
+    assert result.department_canonical in ["Infrastructure Services", "Public Works"]
 
 
 def test_export_csv():

@@ -10,7 +10,6 @@ This module adds sophisticated logic to improve title matching by:
 
 from typing import Optional, Set
 
-
 # RANK HIERARCHY: Higher rank should never degrade to lower rank
 RANK_HIERARCHY = {
     # Chief/Director level
