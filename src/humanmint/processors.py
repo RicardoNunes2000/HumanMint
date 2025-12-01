@@ -119,9 +119,9 @@ def process_email(raw_email: Optional[str]) -> Optional[EmailResult]:
             return {
                 "raw": raw_email,
                 "normalized": result.get("email") or raw_email,
-                "email_is_valid_format": result.get("is_valid", False),
-                "email_is_generic_inbox": result.get("is_generic", False),
-                "email_is_free_provider": result.get("is_free_provider", False),
+                "is_valid_format": result.get("is_valid", False),
+                "is_generic_inbox": result.get("is_generic", False),
+                "is_free_provider": result.get("is_free_provider", False),
                 "domain": result.get("domain"),
             }
         return None
@@ -155,8 +155,8 @@ def process_phone(raw_phone: Optional[str]) -> Optional[PhoneResult]:
                 "e164": result.get("e164"),
                 "pretty": result.get("pretty"),
                 "extension": result.get("extension"),
-                "phone_is_valid_number": result.get("is_valid", False),
-                "phone_detected_type": phone_type,
+                "is_valid_number": result.get("is_valid", False),
+                "detected_type": phone_type,
             }
         return None
     except (ValueError, TypeError, FileNotFoundError):
@@ -246,9 +246,9 @@ def process_department(
         return {
             "raw": raw_dept,
             "normalized": normalized,
-            "department_mapped_to": final_dept,
+            "mapped_to": final_dept,
             "category": category,
-            "department_was_overridden": is_override,
+            "was_overridden": is_override,
             "confidence": confidence,
         }
     except (ValueError, FileNotFoundError):
@@ -291,8 +291,8 @@ def process_title(
         return {
             "raw": result.get("raw"),
             "normalized": result.get("cleaned"),
-            "title_mapped_to": result.get("canonical"),
-            "title_is_valid_match": result.get("is_valid"),
+            "mapped_to": result.get("canonical"),
+            "is_valid_match": result.get("is_valid"),
             "confidence": result.get("confidence", 0.0),
             "seniority": result.get("seniority"),
         }

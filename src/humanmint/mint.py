@@ -103,7 +103,7 @@ class MintResult:
             lines.append("  phone: None")
 
         if self.department:
-            lines.append(f"  department: {self.department['department_mapped_to']}")
+            lines.append(f"  department: {self.department['mapped_to']}")
         else:
             lines.append("  department: None")
 
@@ -111,7 +111,7 @@ class MintResult:
             lines.append("  title:")
             lines.append(f"    raw: {self.title.get('raw')}")
             lines.append(f"    normalized: {self.title.get('normalized')}")
-            lines.append(f"    mapped_to: {self.title.get('title_mapped_to')}")
+            lines.append(f"    mapped_to: {self.title.get('mapped_to')}")
         else:
             lines.append("  title: None")
 
@@ -178,17 +178,17 @@ class MintResult:
     @property
     def email_is_valid_format(self) -> Optional[bool]:
         """Check if email is valid format, or None."""
-        return self.email["email_is_valid_format"] if self.email else None
+        return self.email["is_valid_format"] if self.email else None
 
     @property
     def email_is_generic_inbox(self) -> Optional[bool]:
         """Check if email is generic inbox, or None."""
-        return self.email["email_is_generic_inbox"] if self.email else None
+        return self.email["is_generic_inbox"] if self.email else None
 
     @property
     def email_is_free_provider(self) -> Optional[bool]:
         """Check if email is from free provider, or None."""
-        return self.email["email_is_free_provider"] if self.email else None
+        return self.email["is_free_provider"] if self.email else None
 
     @property
     def phone_str(self) -> Optional[str]:
@@ -215,17 +215,17 @@ class MintResult:
     @property
     def phone_is_valid_number(self) -> Optional[bool]:
         """Check if phone is valid number, or None."""
-        return self.phone["phone_is_valid_number"] if self.phone else None
+        return self.phone["is_valid_number"] if self.phone else None
 
     @property
     def phone_detected_type(self) -> Optional[str]:
         """Get phone type (MOBILE, FIXED_LINE, etc), or None."""
-        return self.phone["phone_detected_type"] if self.phone else None
+        return self.phone["detected_type"] if self.phone else None
 
     @property
     def department_mapped_to(self) -> Optional[str]:
         """Get canonical (mapped) department name, or None."""
-        return self.department["department_mapped_to"] if self.department else None
+        return self.department["mapped_to"] if self.department else None
 
     @property
     def department_category(self) -> Optional[str]:
@@ -240,12 +240,12 @@ class MintResult:
     @property
     def department_was_overridden(self) -> Optional[bool]:
         """Check if department came from override, or None."""
-        return self.department["department_was_overridden"] if self.department else None
+        return self.department["was_overridden"] if self.department else None
 
     @property
     def title_mapped_to(self) -> Optional[str]:
         """Get canonical (mapped) title (standardized form), or None."""
-        return self.title["title_mapped_to"] if self.title else None
+        return self.title["mapped_to"] if self.title else None
 
     @property
     def title_raw(self) -> Optional[str]:
@@ -260,12 +260,12 @@ class MintResult:
     @property
     def title_canonical(self) -> Optional[str]:
         """Get canonical (mapped) title, or None (deprecated: use title_mapped_to)."""
-        return self.title["title_mapped_to"] if self.title else None
+        return self.title["mapped_to"] if self.title else None
 
     @property
     def title_is_valid_match(self) -> Optional[bool]:
         """Check if title is valid match, or None."""
-        return self.title["title_is_valid_match"] if self.title else None
+        return self.title["is_valid_match"] if self.title else None
 
     @property
     def title_confidence(self) -> float:
@@ -529,7 +529,7 @@ def mint(
         )
 
     department_result = process_department(department, dept_overrides)
-    dept_canonical = department_result["department_mapped_to"] if department_result else None
+    dept_canonical = department_result["mapped_to"] if department_result else None
 
     return MintResult(
         name=process_name(name, aggressive_clean=aggressive_clean),

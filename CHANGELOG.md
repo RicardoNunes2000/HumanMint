@@ -9,20 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed (Breaking)
 
-- **Refactored Result Field Names** - Renamed properties for clarity and consistency
-  - `EmailResult`: `is_valid` → `email_is_valid_format`, `is_generic` → `email_is_generic_inbox`, `is_free_provider` → `email_is_free_provider`
-  - `PhoneResult`: `is_valid` → `phone_is_valid_number`, `type` → `phone_detected_type`
-  - `DepartmentResult`: `canonical` → `department_mapped_to`, `is_override` → `department_was_overridden`
-  - `TitleResult`: `canonical` → `title_mapped_to`, `is_valid` → `title_is_valid_match`
-  - Updated all `MintResult` properties to match new field names
-  - Backward compatibility: `title_canonical` property still available (deprecated)
+- **Refactored Result Field Names** - Two-phase naming refinement for clarity and consistency
+
+  **Phase 1: Added explicit prefixes to base field names**
+  - `EmailResult`: `is_valid` → `is_valid_format`, `is_generic` → `is_generic_inbox`, `is_free_provider` (unchanged)
+  - `PhoneResult`: `is_valid` → `is_valid_number`, `type` → `detected_type`
+  - `DepartmentResult`: `canonical` → `mapped_to`, `is_override` → `was_overridden`
+  - `TitleResult`: `canonical` → `mapped_to`, `is_valid` → `is_valid_match`
+
+  **Phase 2: Removed redundant prefixes from nested fields**
+  - Nested field names no longer duplicate parent object name context
+  - Example: `result.email['is_valid_format']` instead of `result.email['email_is_valid_format']`
+  - Parent context makes meaning clear: field is already inside `email`, `phone`, `department`, or `title` object
+
+  **User-facing properties remain unchanged**
+  - External API properties still have full names: `result.email_is_valid_format`, `result.phone_detected_type`, etc.
+  - Backward compatibility: `title_canonical` property still available (deprecated, use `title_mapped_to`)
 
 ### Enhanced
 
-- **Result Clarity** - Field names now self-document their purpose:
-  - Boolean checks follow `*_is_*` pattern (e.g., `email_is_valid_format`, `phone_is_valid_number`)
-  - Override/source flags use `*_was_*` pattern (e.g., `department_was_overridden`)
-  - Mapped/canonical values use `*_mapped_to` (e.g., `department_mapped_to`, `title_mapped_to`)
+- **Result Clarity** - Nested field names now follow consistent, context-aware patterns:
+  - Boolean checks: `is_*` (e.g., `is_valid_format`, `is_valid_number`)
+  - Metadata flags: `was_*` (e.g., `was_overridden`)
+  - Mapped/canonical values: `mapped_to`
+  - Cleaner dictionary access without redundant prefixes
   - Makes it obvious which fields are lookup results vs metadata flags
 
 ### Testing
