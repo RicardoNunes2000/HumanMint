@@ -176,6 +176,21 @@ class MintResult:
         return self.email["domain"] if self.email else None
 
     @property
+    def email_valid(self) -> Optional[bool]:
+        """Backward-compatible alias for email validity."""
+        return self.email.get("is_valid") if self.email else None
+
+    @property
+    def email_generic(self) -> Optional[bool]:
+        """Backward-compatible alias for generic inbox detection."""
+        return self.email.get("is_generic") if self.email else None
+
+    @property
+    def email_free(self) -> Optional[bool]:
+        """Backward-compatible alias for free provider detection."""
+        return self.email.get("is_free_provider") if self.email else None
+
+    @property
     def email_is_valid_format(self) -> Optional[bool]:
         """Check if email is valid format, or None."""
         return self.email["is_valid_format"] if self.email else None
@@ -223,9 +238,26 @@ class MintResult:
         return self.phone["detected_type"] if self.phone else None
 
     @property
+    def phone_valid(self) -> Optional[bool]:
+        """Backward-compatible alias for phone validity."""
+        return self.phone.get("is_valid") if self.phone else None
+
+    @property
+    def phone_type(self) -> Optional[str]:
+        """Backward-compatible alias for phone type."""
+        if not self.phone:
+            return None
+        return self.phone.get("detected_type") or self.phone.get("type")
+
+    @property
     def department_mapped_to(self) -> Optional[str]:
         """Get canonical (mapped) department name, or None."""
         return self.department["mapped_to"] if self.department else None
+
+    @property
+    def department_str(self) -> Optional[str]:
+        """Backward-compatible alias for canonical department string."""
+        return self.department.get("mapped_to") if self.department else None
 
     @property
     def department_category(self) -> Optional[str]:
@@ -243,9 +275,21 @@ class MintResult:
         return self.department["was_overridden"] if self.department else None
 
     @property
+    def department_override(self) -> Optional[bool]:
+        """Backward-compatible alias for override indicator."""
+        return self.department.get("was_overridden") if self.department else None
+
+    @property
     def title_mapped_to(self) -> Optional[str]:
         """Get canonical (mapped) title (standardized form), or None."""
         return self.title["mapped_to"] if self.title else None
+
+    @property
+    def title_str(self) -> Optional[str]:
+        """Backward-compatible alias for canonical title."""
+        if not self.title:
+            return None
+        return self.title.get("mapped_to") or self.title.get("canonical")
 
     @property
     def title_raw(self) -> Optional[str]:
@@ -266,6 +310,11 @@ class MintResult:
     def title_is_valid_match(self) -> Optional[bool]:
         """Check if title is valid match, or None."""
         return self.title["is_valid_match"] if self.title else None
+
+    @property
+    def title_valid(self) -> Optional[bool]:
+        """Backward-compatible alias for title validity."""
+        return self.title.get("is_valid_match") if self.title else None
 
     @property
     def title_confidence(self) -> float:

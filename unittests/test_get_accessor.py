@@ -183,4 +183,5 @@ class TestGetAccessor:
         result = mint(phone="(202) 555-0123")
         phone_type = result.get("phone.type")
         assert phone_type is not None
-        assert phone_type in ["FIXED_LINE", "MOBILE", "UNKNOWN", "fixed_line_or_mobile"]
+        normalized = str(phone_type).upper()
+        assert normalized in {"FIXED_LINE", "MOBILE", "UNKNOWN", "FIXED_LINE_OR_MOBILE"}

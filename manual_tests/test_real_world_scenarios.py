@@ -86,8 +86,8 @@ def test_real_world_scenarios():
                 "MINTED Dept": res.department_str,  # Canonical
                 "Category": res.department_category,
                 "MINTED Title": res.title_raw,
-                "Is Generic Email?": res.email_generic,
-                "Phone Valid?": res.phone_valid,
+                "Is Generic Email?": res.email_is_generic_inbox,
+                "Phone Valid?": res.phone_is_valid_number,
             }
         )
 

@@ -116,13 +116,22 @@ def process_email(raw_email: Optional[str]) -> Optional[EmailResult]:
     try:
         result = normalize_email(raw_email)
         if isinstance(result, dict):
+            is_valid = result.get("is_valid", False)
+            is_generic = result.get("is_generic", False)
+            is_free_provider = result.get("is_free_provider", False)
+            normalized_email = result.get("email") or raw_email
             return {
                 "raw": raw_email,
-                "normalized": result.get("email") or raw_email,
-                "is_valid_format": result.get("is_valid", False),
-                "is_generic_inbox": result.get("is_generic", False),
-                "is_free_provider": result.get("is_free_provider", False),
+                "normalized": normalized_email,
+                # Backwards-compatible aliases
+                "is_valid_format": is_valid,
+                "is_valid": is_valid,
+                "is_generic_inbox": is_generic,
+                "is_generic": is_generic,
+                "is_free_provider": is_free_provider,
                 "domain": result.get("domain"),
+                "local": result.get("local"),
+                "local_base": result.get("local_base"),
             }
         return None
     except (ValueError, TypeError, FileNotFoundError):
@@ -150,13 +159,17 @@ def process_phone(raw_phone: Optional[str]) -> Optional[PhoneResult]:
             if phone_type:
                 phone_type = phone_type.lower()
 
+            is_valid = result.get("is_valid", False)
             return {
                 "raw": raw_phone,
                 "e164": result.get("e164"),
                 "pretty": result.get("pretty"),
                 "extension": result.get("extension"),
-                "is_valid_number": result.get("is_valid", False),
+                "is_valid_number": is_valid,
+                "is_valid": is_valid,
                 "detected_type": phone_type,
+                "type": result.get("type"),
+                "country": result.get("country"),
             }
         return None
     except (ValueError, TypeError, FileNotFoundError):
@@ -247,8 +260,10 @@ def process_department(
             "raw": raw_dept,
             "normalized": normalized,
             "mapped_to": final_dept,
+            "canonical": final_dept,  # Backwards-compatible alias
             "category": category,
             "was_overridden": is_override,
+            "is_override": is_override,
             "confidence": confidence,
         }
     except (ValueError, FileNotFoundError):
@@ -291,8 +306,11 @@ def process_title(
         return {
             "raw": result.get("raw"),
             "normalized": result.get("cleaned"),
+            "cleaned": result.get("cleaned"),
             "mapped_to": result.get("canonical"),
+            "canonical": result.get("canonical"),
             "is_valid_match": result.get("is_valid"),
+            "is_valid": result.get("is_valid"),
             "confidence": result.get("confidence", 0.0),
             "seniority": result.get("seniority"),
         }
