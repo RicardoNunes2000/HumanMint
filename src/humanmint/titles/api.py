@@ -168,7 +168,9 @@ def normalize_title_full(
     has_functional = any(t in functional_tokens for t in tokens)
     has_seniority = any(t in seniority_tokens for t in tokens)
 
-    is_valid = canonical is not None or has_functional or has_seniority
+    # Only mark as valid if we have an actual canonical match OR (has functional/seniority AND confidence > 0)
+    # Don't use heuristics to override explicit "no match" (confidence == 0.0 from hallucination detection)
+    is_valid = canonical is not None or (confidence > 0.0 and (has_functional or has_seniority))
 
     # Ignore Roman numerals for validity decisions; keep canonical None if not matched
     canonical_value = canonical if canonical else (cleaned if is_valid else None)

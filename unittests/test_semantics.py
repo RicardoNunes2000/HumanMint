@@ -70,18 +70,20 @@ class TestDomainExtraction:
     def test_extract_domains_multi_domain(self) -> None:
         """Test extraction of multiple domains from text."""
         result = _extract_domains("Software Infrastructure Manager")
-        # "software" → IT, "infrastructure" → INFRA, "manager" → NULL (evaporates)
-        assert result == {"IT", "INFRA"}
+        # "software" → IT, "infrastructure" → INFRA, "manager" → ADMIN
+        assert result == {"IT", "INFRA", "ADMIN"}
 
     def test_extract_domains_null_evaporation(self) -> None:
         """Test that NULL tokens are completely ignored."""
         result = _extract_domains("Manager")
-        assert result == set()
+        # "manager" → ADMIN (not NULL)
+        assert result == {"ADMIN"}
 
     def test_extract_domains_null_with_real_domain(self) -> None:
         """Test that NULL tokens are filtered out when mixed with real domains."""
         result = _extract_domains("Software Manager")
-        assert result == {"IT"}
+        # "software" → IT, "manager" → ADMIN (both are valid domains)
+        assert result == {"IT", "ADMIN"}
 
     def test_extract_domains_health(self) -> None:
         """Test extraction of HEALTH domain."""
@@ -143,17 +145,20 @@ class TestSemanticConflictDetection:
     def test_fail_open_both_empty(self) -> None:
         """Test fail-open rule when both have no domains (NULL tokens only)."""
         result = check_semantic_conflict("Manager", "Director")
+        # Both "manager" and "director" → ADMIN (same domain, no conflict)
         assert result is False
 
     def test_fail_open_first_empty(self) -> None:
-        """Test fail-open rule when first text has no domains."""
+        """Test that different domains conflict even with generic terms."""
         result = check_semantic_conflict("Manager", "Software Engineer")
-        assert result is False
+        # "manager" → ADMIN, "software"/"engineer" → IT (conflict)
+        assert result is True
 
     def test_fail_open_second_empty(self) -> None:
-        """Test fail-open rule when second text has no domains."""
+        """Test that different domains conflict even with generic terms."""
         result = check_semantic_conflict("Software Engineer", "Manager")
-        assert result is False
+        # "software"/"engineer" → IT, "manager" → ADMIN (conflict)
+        assert result is True
 
     def test_fail_open_unknown_tokens(self) -> None:
         """Test fail-open rule with unknown tokens."""

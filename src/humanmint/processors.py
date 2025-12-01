@@ -215,15 +215,17 @@ def process_department(
                     matched_canonical = True
 
         if not is_override:
-            # Find best canonical match if no override matched
-            canonical = find_best_department_match(raw_dept, threshold=0.6)
-            if canonical:
-                final_dept = canonical
-                matched_canonical = True
-            elif is_non_dept:
+            # If it's a non-department (location-like), don't try to match
+            if is_non_dept:
                 final_dept = None
             else:
-                final_dept = normalized
+                # Find best canonical match if no override matched
+                canonical = find_best_department_match(raw_dept, threshold=0.6)
+                if canonical:
+                    final_dept = canonical
+                    matched_canonical = True
+                else:
+                    final_dept = None
 
         category = get_department_category(final_dept) if final_dept else None
         if category:

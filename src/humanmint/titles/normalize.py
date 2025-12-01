@@ -8,11 +8,17 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.constants.titles import (PRESERVE_ABBREVIATIONS, STOPWORDS,
-                                        TITLE_ABBREVIATIONS)
-from humanmint.text_clean import (normalize_unicode_ascii,
-                                  remove_parentheticals, strip_codes_and_ids,
-                                  strip_garbage)
+from humanmint.constants.titles import (
+    PRESERVE_ABBREVIATIONS,
+    STOPWORDS,
+    TITLE_ABBREVIATIONS,
+)
+from humanmint.text_clean import (
+    normalize_unicode_ascii,
+    remove_parentheticals,
+    strip_codes_and_ids,
+    strip_garbage,
+)
 
 
 def _strip_garbage(text: str) -> str:
@@ -45,7 +51,7 @@ def _remove_name_prefixes(text: str) -> str:
     Remove common name prefixes, person names, and credentials from text.
 
     Matches patterns like:
-    - Dr., Mr., Mrs., Ms., Miss, Prof., Rev.
+    - Dr., Mr., Mrs., Ms., Miss, Rev.
     - "FirstName LastName," patterns (e.g., "John Smith,")
     - PhD, MD, Esq., etc.
 
@@ -56,15 +62,20 @@ def _remove_name_prefixes(text: str) -> str:
         str: Text with name prefixes and person names removed.
     """
     # Remove common salutations and credentials at the beginning
+    # NOTE: Removed 'Prof' and 'Professor' from this list because they are often
+    # valid job titles (e.g., "Professor of History") rather than just honorifics.
     text = re.sub(
-        r"\b(?:Dr|Mr|Mrs|Ms|Miss|Prof|Professor|Rev|Reverend|Sir|Madam|Esq)\.?\s+",
+        r"\b(?:Dr|Mr|Mrs|Ms|Miss|Rev|Reverend|Sir|Madam|Esq)\.?\s+",
         "",
         text,
         flags=re.IGNORECASE,
     )
     # Remove "FirstName LastName," pattern (e.g., "John Smith," or "Jane Doe,")
-    # Matches: word(s) followed by comma
-    text = re.sub(r"^[A-Z][a-z]*(?:\s+[A-Z][a-z]*)*\s*,\s*", "", text)
+    # CRITICAL FIX: To avoid matching job titles like "Finance Manager, CPA", only match
+    # this pattern if there are 3+ capital words (person names rarely have 3+, but job titles do).
+    # This prevents "Finance Manager," from being removed while still catching "Jane Mary Smith,".
+    # Only match 3+ word names to avoid false positives on 2-word job titles
+    text = re.sub(r"^[A-Z][a-z]*(?:\s+[A-Z][a-z]*){2,}\s*,\s*", "", text)
     # Remove trailing credentials like PhD, MD, etc.
     text = re.sub(
         r",?\s*(?:PhD|MD|DDS|DVM|Esq|MBA|MA|BS|BA|CISSP|PMP|RN|LPN|CPA)\.?$",

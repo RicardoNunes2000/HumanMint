@@ -30,11 +30,24 @@ Example:
 from dataclasses import dataclass
 from typing import Callable, Iterable, Optional, Union
 
-from .processors import (process_address, process_department, process_email,
-                         process_name, process_organization, process_phone,
-                         process_title)
-from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
-                    OrganizationResult, PhoneResult, TitleResult)
+from .processors import (
+    process_address,
+    process_department,
+    process_email,
+    process_name,
+    process_organization,
+    process_phone,
+    process_title,
+)
+from .types import (
+    AddressResult,
+    DepartmentResult,
+    EmailResult,
+    NameResult,
+    OrganizationResult,
+    PhoneResult,
+    TitleResult,
+)
 
 # Input length limits to prevent DoS and data validation
 MAX_NAME_LENGTH = 1000
@@ -486,17 +499,29 @@ def mint(
     if isinstance(name, str) and len(name) > MAX_NAME_LENGTH:
         raise ValueError(f"Name exceeds maximum length of {MAX_NAME_LENGTH} characters")
     if isinstance(email, str) and len(email) > MAX_EMAIL_LENGTH:
-        raise ValueError(f"Email exceeds maximum length of {MAX_EMAIL_LENGTH} characters")
+        raise ValueError(
+            f"Email exceeds maximum length of {MAX_EMAIL_LENGTH} characters"
+        )
     if isinstance(phone, str) and len(phone) > MAX_PHONE_LENGTH:
-        raise ValueError(f"Phone exceeds maximum length of {MAX_PHONE_LENGTH} characters")
+        raise ValueError(
+            f"Phone exceeds maximum length of {MAX_PHONE_LENGTH} characters"
+        )
     if isinstance(department, str) and len(department) > MAX_DEPT_LENGTH:
-        raise ValueError(f"Department exceeds maximum length of {MAX_DEPT_LENGTH} characters")
+        raise ValueError(
+            f"Department exceeds maximum length of {MAX_DEPT_LENGTH} characters"
+        )
     if isinstance(title, str) and len(title) > MAX_TITLE_LENGTH:
-        raise ValueError(f"Title exceeds maximum length of {MAX_TITLE_LENGTH} characters")
+        raise ValueError(
+            f"Title exceeds maximum length of {MAX_TITLE_LENGTH} characters"
+        )
     if isinstance(address, str) and len(address) > MAX_ADDRESS_LENGTH:
-        raise ValueError(f"Address exceeds maximum length of {MAX_ADDRESS_LENGTH} characters")
+        raise ValueError(
+            f"Address exceeds maximum length of {MAX_ADDRESS_LENGTH} characters"
+        )
     if isinstance(organization, str) and len(organization) > MAX_ORG_LENGTH:
-        raise ValueError(f"Organization exceeds maximum length of {MAX_ORG_LENGTH} characters")
+        raise ValueError(
+            f"Organization exceeds maximum length of {MAX_ORG_LENGTH} characters"
+        )
 
     department_result = process_department(department, dept_overrides)
     dept_canonical = department_result["canonical"] if department_result else None
@@ -558,10 +583,15 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (BarColumn, MofNCompleteColumn,
-                                           Progress, SpinnerColumn, TextColumn,
-                                           TimeElapsedColumn,
-                                           TimeRemainingColumn)
+                from rich.progress import (  # type: ignore
+                    BarColumn,
+                    MofNCompleteColumn,
+                    Progress,
+                    SpinnerColumn,
+                    TextColumn,
+                    TimeElapsedColumn,
+                    TimeRemainingColumn,
+                )
 
                 rp = Progress(
                     SpinnerColumn(),
@@ -633,7 +663,15 @@ def bulk(
         for rec in materialized:
             # Create canonical key from all field values (lowercased, stripped)
             key_parts = []
-            for field in ["name", "email", "phone", "department", "title", "address", "organization"]:
+            for field in [
+                "name",
+                "email",
+                "phone",
+                "department",
+                "title",
+                "address",
+                "organization",
+            ]:
                 val = rec.get(field)
                 if val:
                     key_parts.append(str(val).lower().strip())
@@ -649,8 +687,11 @@ def bulk(
         if unique_count < len(materialized):
             reduction_pct = 100 * (1 - unique_count / len(materialized))
             import logging
+
             logger = logging.getLogger(__name__)
-            logger.info(f"Deduplicating {len(materialized)} → {unique_count} records ({reduction_pct:.1f}% reduction)")
+            logger.info(
+                f"Deduplicating {len(materialized)} → {unique_count} records ({reduction_pct:.1f}% reduction)"
+            )
 
         # Process only unique records
         unique_list = list(unique_records.values())

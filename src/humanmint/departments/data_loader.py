@@ -39,6 +39,7 @@ CANONICAL_DEPARTMENTS = [
     "Emergency Communications",
     "Emergency Management",
     "Engineering",
+    "Environmental Services",
     "Facilities Management",
     "Finance",
     "Fire",
@@ -51,6 +52,7 @@ CANONICAL_DEPARTMENTS = [
     "Information Technology",
     "Juvenile Court",
     "Library",
+    "Maintenance",
     "Mayor's Office",
     "Middle School",
     "Municipal Court",
@@ -62,6 +64,7 @@ CANONICAL_DEPARTMENTS = [
     "Public Safety",
     "Public Works",
     "Purchasing",
+    "Recorder",
     "Risk Management",
     "Senior Services",
     "Solid Waste",
@@ -140,7 +143,7 @@ def _build_caches() -> None:
     else:
         if not _missing_cache_warned:
             warnings.warn(
-                f"Department cache not found at {MAPPINGS_CACHE}. "
+                "Department cache not found. "
                 "Run scripts/build_caches.py to generate it.",
                 RuntimeWarning,
             )

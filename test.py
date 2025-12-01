@@ -1,0 +1,188 @@
+import time
+
+from sys import path
+
+path.insert(0, "src")
+from humanmint import mint
+
+# ============================================================
+# DATASET A — 150 messy titles & departments
+# ============================================================
+
+TEST_DATA = [
+    # ---- Titles (75) ----
+    ("Assistant Dir. – Parks & Rec / Comm Svcs", "Parks & Rec"),
+    ("Chief Info Sec Ofcr (Acting)", "IT / Information Security"),
+    ("Deputy Fire Marshal – Inspections", "Fire Prevention"),
+    ("Sr PW Tech (Roads/Stormwater)", "Public Works - Roads"),
+    ("Admin Asst – Police + Code Enf.", "Police / Code Enforcement"),
+    ("Director, IT Ops & Digital Strategy", "IT & Digital Services"),
+    ("Chief of Staff – Mayor’s Office", "Mayor's Office"),
+    ("Fiscal Analyst II – Budget", "Budget Dept"),
+    ("Principal Planner / Zoning & LU", "Planning & Zoning"),
+    ("Sr Engineer – Water Reclamation", "Utilities - Water"),
+    ("Elections & Voter Outreach Coord.", "Elections Office"),
+    ("HR Specialist – Benefits/Leaves", "Human Resources"),
+    ("PSCOM Supervisor", "Public Safety Communications"),
+    ("Lead Sys Analyst – Infra", "Information Technology"),
+    ("Sr GIS Tech (Planning Div.)", "Planning"),
+    ("Traffic Signals Engineer II", "Transportation"),
+    ("Youth Services Librarian III", "Library Services"),
+    ("Building Official / Code Compliance", "Building Department"),
+    ("Assist Finance Dir", "Finance"),
+    ("Asst City Mgr (Interim)", "City Manager’s Office"),
+    ("Dir – Economic Dev", "Economic Development"),
+    ("Volunteer Firefighter", "Fire Dept"),
+    ("Sr Accountant – Grants", "Finance - Grants"),
+    ("Water Plant Operator II", "Water Utilities"),
+    ("Comm Policing Ofcr", "Police Department"),
+    ("Senior DevOps Eng", "IT Infrastructure"),
+    ("Clerk Typist – Records", "Clerk's Office"),
+    ("GIS & Mapping Coordinator", "GIS / IT"),
+    ("Wastewater Collections Supervisor", "Wastewater"),
+    ("Traffic Mgmt Ctr Supervisor", "Transportation"),
+    ("Dispatch Operator – 911", "Emergency Communications"),
+    ("IT Helpdesk Tech I", "IT Support"),
+    ("Director – Youth Outreach", "Community Services"),
+    ("Park Ranger I", "Parks & Recreation"),
+    ("Senior Civil Engineer", "Engineering"),
+    ("Accountant III – Payroll", "Finance / Payroll"),
+    ("Property Records Specialist", "Assessor's Office"),
+    ("Communications Officer (P/T)", "Public Information"),
+    ("Public Safety Planning Analyst", "Public Safety"),
+    ("Stormwater Compliance Inspector", "Public Works"),
+    ("Deputy Treasurer – Collections", "Treasurer’s Office"),
+    ("Electric Utility Technician", "Electric Utility"),
+    ("Forensic Lab Scientist", "Crime Lab"),
+    ("Public Health Nurse II", "Public Health"),
+    ("Econ Dev Specialist", "Economic Development"),
+    ("Building Plans Examiner", "Building / Permits"),
+    ("Court Services Officer", "Municipal Court"),
+    ("Assistant HR Director", "Human Resources"),
+    ("Senior Planner – Transit", "Transit Planning"),
+    ("Network Operations Analyst", "IT – Network"),
+    ("Lifeguard (Seasonal)", "Parks & Recreation"),
+    ("Community Policing Sgt", "Police"),
+    ("Fleet Mechanic II", "Fleet Services"),
+    ("Records Clerk – Evidence", "Police Records"),
+    ("ADA Compliance Coordinator", "Human Rights Office"),
+    ("Emergency Mgmt Coordinator", "Emergency Management"),
+    ("Director – Procurement", "Procurement"),
+    ("Contracts Analyst II", "Procurement"),
+    ("Water Meter Technician", "Water Department"),
+    ("Street Maintenance Worker I", "Public Works - Streets"),
+    ("City Attorney (Interim)", "City Attorney’s Office"),
+    ("Assistant City Clerk", "City Clerk"),
+    ("Parks Maint. Crew Lead", "Parks"),
+    ("Traffic Court Clerk", "Municipal Court"),
+    ("Senior Recreation Specialist", "Recreation"),
+    ("Planning Technician I", "Planning"),
+    ("Assistant Prosecutor", "Municipal Attorney"),
+    ("Chief Building Inspector", "Building & Safety"),
+    ("Senior Fire Inspector", "Fire Marshal"),
+    ("Communications Dispatcher", "Public Safety"),
+    ("Stormwater Modeling Engineer", "Public Works"),
+    ("Assistant Transit Supervisor", "Transit"),
+    ("Public Defender I", "Public Defender’s Office"),
+    ("Jail Operations Sergeant", "Corrections"),
+    ("HR Trainer – Onboarding", "Human Resources"),
+    ("Senior Epidemiologist", "Public Health"),
+    # ---- Departments (75 messy) ----
+    ("", "PW – Roads & Bridges"),
+    ("", "IT Services / InfoSec"),
+    ("", "Police & Fire Dispatch Center"),
+    ("", "Dept. of Water / Wastewater"),
+    ("", "Planning-Zoning"),
+    ("", "Human Services + Public Health"),
+    ("", "Transportation & Traffic Ops"),
+    ("", "Parks/Rec/Trails"),
+    ("", "Community Dev. & Housing"),
+    ("", "Finance – Accounts Payable"),
+    ("", "Finance – Grants & Audit"),
+    ("", "Building & Permitting"),
+    ("", "Emergency Mgmt / Preparedness"),
+    ("", "Economic Dev + Tourism"),
+    ("", "Public Safety – EMS"),
+    ("", "Municipal Court – Records"),
+    ("", "Utilities – Solid Waste"),
+    ("", "Water Utilities – Treatment"),
+    ("", "Records & Archives"),
+    ("", "Transit & Mobility"),
+    ("", "Clerk / Elections Office"),
+    ("", "Fire Prevention Bureau"),
+    ("", "Procurement / Contracts"),
+    ("", "Environmental Svcs – Recycling"),
+    ("", "Code Enf / Neighborhood Svcs"),
+    ("", "Public Works – Admin"),
+    ("", "Finance & Budget Office"),
+    ("", "IT – GIS Division"),
+    ("", "Legal Services – Civil"),
+    ("", "City Manager's Office"),
+    ("", "Mayor’s Office"),
+    ("", "Public Information Office"),
+    ("", "Library – Youth Programs"),
+    ("", "Health – Clinical Services"),
+    ("", "Police – Investigations"),
+    ("", "Wastewater Collections"),
+    ("", "Transportation Engineering"),
+    ("", "Electric Utility – Ops"),
+    ("", "Fleet Services"),
+    ("", "Housing Authority"),
+    ("", "Community Programs"),
+    ("", "Stormwater Division"),
+    ("", "Fire – Suppression"),
+    ("", "Admin Services"),
+    ("", "Finance – Treasury"),
+    ("", "Customer Service Ctr"),
+    ("", "Animal Services"),
+    ("", "Elections Dept"),
+    ("", "IT Security / SOC"),
+    ("", "Parks Maintenance"),
+    ("", "Recreation Department"),
+    ("", "Transit Ops – Scheduling"),
+    ("", "Court Admin"),
+    ("", "Emergency Services – 911"),
+    ("", "Economic Development"),
+    ("", "Public Safety Communications"),
+    ("", "Sustainability Office"),
+    ("", "Budget Office"),
+    ("", "Licensing & Permits"),
+    ("", "Community Planning"),
+    ("", "Public Works – Engineering"),
+    ("", "Risk Mgmt Office"),
+    ("", "Water Resources Division"),
+    ("", "Human Resources"),
+    ("", "IT – Network Ops Center"),
+    ("", "Solid Waste & Recycling"),
+    ("", "Health – Environmental"),
+    ("", "Building Safety"),
+    ("", "Land Use Administration"),
+    ("", "Youth Services"),
+    ("", "Public Housing Authority"),
+    ("", "General Services"),
+    ("", "Records – Evidence"),
+    ("", "Engineering – Capital Projects"),
+]
+
+# ============================================================
+# RUN TESTS
+# ============================================================
+
+results = []
+
+for title, department in TEST_DATA:
+    result = mint(title=title, department=department)
+    results.append(
+        {
+            "input": {"title": title, "department": department},
+            "output": result.model_dump(),
+        }
+    )
+
+# ============================================================
+# PRINT RESULTS
+# ============================================================
+
+import json
+
+print(json.dumps(results, indent=2))

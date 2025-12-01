@@ -16,37 +16,33 @@ from typing import Optional
 
 from rapidfuzz import fuzz, process
 
-from humanmint.semantics import check_semantic_conflict, _extract_domains
+from humanmint.semantics import (
+    check_semantic_conflict,
+    _extract_domains,
+    _extract_meaningful_tokens,
+    _has_hallucinations,
+    has_semantic_token_overlap,
+)
 
 from .bls_loader import lookup_bls_title
-from .data_loader import (find_exact_job_title, find_similar_job_titles,
-                          get_canonical_titles, get_mapping_for_variant,
-                          is_canonical, map_to_canonical)
+from .data_loader import (
+    find_exact_job_title,
+    find_similar_job_titles,
+    get_canonical_titles,
+    get_mapping_for_variant,
+    is_canonical,
+    map_to_canonical,
+)
 from .normalize import normalize_title
-from .enhancements import (get_match_quality_score, check_rank_degradation,
-                           check_acronym_protection, check_semantic_cluster_conflict)
+from .enhancements import (
+    get_match_quality_score,
+    check_rank_degradation,
+    check_acronym_protection,
+    check_semantic_cluster_conflict,
+)
 
 # Cache canonical titles and lowercase versions for matching
 _canonical_lowers: Optional[list[tuple[str, str]]] = None
-_GENERIC_TITLE_TOKENS = {
-    "manager",
-    "director",
-    "administrator",
-    "admin",
-    "analyst",
-    "specialist",
-    "technician",
-    "tech",
-    "coordinator",
-    "officer",
-    "supervisor",
-    "consultant",
-    "advisor",
-    "assistant",
-    "associate",
-    "lead",
-    "program",
-}
 
 
 def _get_canonical_lowers() -> list[tuple[str, str]]:
@@ -58,7 +54,9 @@ def _get_canonical_lowers() -> list[tuple[str, str]]:
     return _canonical_lowers
 
 
-def _should_skip_generic_expansion(search_title: str, candidate: str, dept_canonical: Optional[str]) -> bool:
+def _should_skip_generic_expansion(
+    search_title: str, candidate: str, dept_canonical: Optional[str]
+) -> bool:
     """
     Check if a generic term should be expanded based on department context.
 
@@ -143,30 +141,50 @@ def _find_best_match_normalized_cached(
         canonical_form = map_to_canonical(exact_job_title)
         if canonical_form:
             # Found a standardized canonical form (e.g., "chief of police" → "police chief")
-            return canonical_form, 0.98
+            # TIER 1A VALIDATION: Check if canonical mapping introduces hallucinations
+            # (e.g., "seo specialist" → "gis specialist" is a domain change and should be rejected)
+            search_tokens = _extract_meaningful_tokens(search_title)
+            canonical_tokens = _extract_meaningful_tokens(canonical_form)
+            search_domains = _extract_domains(search_title)
+
+            if _has_hallucinations(search_tokens, canonical_tokens, search_domains):
+                # Canonical form introduces hallucinations → REJECT completely
+                return None, 0.0  # Reject the entire match
+            else:
+                return canonical_form, 0.98
         else:
             # No canonical mapping exists; use the matched title as-is
             return exact_job_title, 0.98  # Still high confidence for exact match
 
     # Strategy 1b: Fuzzy match in job-titles.txt (O(n) but fast with 73k)
     # Returns list of (title, score) tuples
+    # IMPORTANT: Job-titles database is very broad (73k+ titles), so we use a HIGH threshold (0.90)
+    # to prevent false matches and hallucinations. Lower thresholds lead to noisy matches.
     similar_matches = find_similar_job_titles(search_title, top_n=1, min_length=0)
     if similar_matches:
         candidate, score = similar_matches[0]
-        # Only accept fuzzy job-title matches with score >= 0.75
-        # (lower threshold allows for slight spelling variations)
-        if score >= 0.75:
+        # Only accept fuzzy job-title matches with score >= 0.90 (very strict)
+        # This prevents the broad 73k job-titles database from creating hallucinations
+        if score >= 0.90:
             # Semantic safeguard: reject cross-domain matches
             if check_semantic_conflict(search_title, candidate):
                 # Cross-domain conflict detected - skip this match
                 pass  # Fall through to next strategy
             else:
+                # TIER 1B VALIDATION: Check for hallucinations (NEW)
+                search_tokens = _extract_meaningful_tokens(search_title)
+                candidate_tokens = _extract_meaningful_tokens(candidate)
+                search_domains = _extract_domains(search_title)
+
+                if _has_hallucinations(search_tokens, candidate_tokens, search_domains):
+                    # Candidate has hallucinated tokens → skip
+                    pass  # Fall through to next strategy
                 # Additional safety: if candidate has no semantic domain but search_title does,
                 # require higher confidence to avoid false positives on generic matches
                 # (e.g., "Water Developer" vs "Pattern Developer" where "pattern" is generic)
-                search_domains = _extract_domains(search_title)
-                candidate_domains = _extract_domains(candidate)
-                if search_domains and not candidate_domains and score < 0.90:
+                elif (
+                    search_domains and not _extract_domains(candidate) and score < 0.90
+                ):
                     # Skip this match - specific domain should not match generic term
                     pass  # Fall through to next strategy
                 else:
@@ -174,7 +192,16 @@ def _find_best_match_normalized_cached(
                     canonical_form = map_to_canonical(candidate)
                     if canonical_form:
                         # Found a standardized canonical form
-                        return canonical_form, score
+                        # TIER 1B VALIDATION: Check if canonical mapping introduces hallucinations
+                        # (e.g., "seo specialist" → "gis specialist" is a specialization change)
+                        canonical_tokens = _extract_meaningful_tokens(canonical_form)
+                        if _has_hallucinations(
+                            search_tokens, canonical_tokens, search_domains
+                        ):
+                            # Canonical form introduces hallucinations → REJECT completely
+                            return None, 0.0  # Reject the entire match
+                        else:
+                            return canonical_form, score
                     else:
                         # No canonical mapping; use the matched title (lower confidence since it's not standardized)
                         return candidate, max(score, 0.70)
@@ -220,7 +247,10 @@ def _find_best_match_normalized_cached(
     is_single_word = len(search_tokens) == 1
 
     for canonical, canonical_lower in canonical_lowers:
-        if canonical_lower in search_title_lower or search_title_lower in canonical_lower:
+        if (
+            canonical_lower in search_title_lower
+            or search_title_lower in canonical_lower
+        ):
             # Guard: single-word searches should only match single-word canonicals
             # This prevents "Manager" from matching "Deputy City Manager" or
             # "Director" from matching "Information Technology Director"
@@ -234,7 +264,10 @@ def _find_best_match_normalized_cached(
             # Score: how early in the search string does this appear?
             # Prefer early matches and longer canonical names for specificity
             position = search_title_lower.find(canonical_lower)
-            score = (-position, len(canonical))  # Negative position = earlier = higher score
+            score = (
+                -position,
+                len(canonical),
+            )  # Negative position = earlier = higher score
 
             # Early exit on perfect match at start of string
             if position == 0 and len(canonical) >= len(search_title_lower) * 0.8:
@@ -249,10 +282,22 @@ def _find_best_match_normalized_cached(
     if best_match:
         # Semantic safeguard: check for cross-domain conflicts
         if not check_semantic_conflict(search_title, best_match):
-            # Quality checks (NEW ENHANCEMENT)
-            if (check_rank_degradation(search_title, best_match) or
-                check_acronym_protection(search_title, best_match) or
-                check_semantic_cluster_conflict(search_title, best_match)):
+            # TIER 2 VALIDATION: Check for hallucinations (NEW)
+            # Extract meaningful tokens and domains for validation
+            search_tokens = _extract_meaningful_tokens(search_title)
+            candidate_tokens = _extract_meaningful_tokens(best_match)
+            search_domains = _extract_domains(search_title)
+
+            # Reject if candidate has hallucinated tokens
+            if _has_hallucinations(search_tokens, candidate_tokens, search_domains):
+                # Candidate introduced tokens from different semantic domains → skip
+                pass
+            # Quality checks (EXISTING ENHANCEMENT)
+            elif (
+                check_rank_degradation(search_title, best_match)
+                or check_acronym_protection(search_title, best_match)
+                or check_semantic_cluster_conflict(search_title, best_match)
+            ):
                 # Match fails quality checks - skip to next strategy
                 pass
             else:
@@ -262,14 +307,14 @@ def _find_best_match_normalized_cached(
                 position = -position_penalty  # Convert back to positive
 
                 # Confidence calculation:
-                # - Perfect substring match at start: 0.90
+                # - Perfect substring match at start: 0.95
                 # - Perfect substring match later: 0.85
                 # - Partial match: 0.80
-                base_confidence = 0.85
+                base_confidence = 0.95
                 if position == 0:
-                    base_confidence = 0.90  # Early appearance bonus
+                    base_confidence = 0.92  # Early appearance bonus
                 elif position > canonical_length:
-                    base_confidence = 0.80  # Late appearance penalty
+                    base_confidence = 0.85  # Late appearance penalty
 
                 return best_match, base_confidence
 
@@ -289,45 +334,49 @@ def _find_best_match_normalized_cached(
     candidate = result[0]
     fuzzy_score = result[1] / 100.0 if len(result) > 1 else 0.0
 
-    # Guard: if fuzzy score is weak (<0.75), consider it too risky
-    if fuzzy_score < 0.75:
+    # TIER 3 VALIDATION: Much stricter fuzzy matching (NEW APPROACH)
+    # Require high fuzzy score AND semantic token overlap to prevent hallucinations
+
+    # Guard 1: Fuzzy score must be very high (>= 0.92)
+    # This prevents weak matches from proceeding
+    if fuzzy_score < 0.92:
         return None, fuzzy_score
 
     # Semantic safeguard: veto cross-domain matches (applies to ALL confidence levels)
     if check_semantic_conflict(search_title, candidate):
         return None, fuzzy_score
 
-    # Quality checks: rank, acronyms, semantic clusters (NEW ENHANCEMENT)
+    # Quality checks: rank, acronyms, semantic clusters (EXISTING)
     quality_score = get_match_quality_score(search_title, candidate, fuzzy_score)
     if quality_score == 0.0:
         # Match fails quality checks (rank degradation, acronym corruption, cluster conflict)
         return None, fuzzy_score
 
-    # High-confidence fuzzy match - return immediately
-    # (Semantic safeguard already filtered out cross-domain matches)
+    # Guard 2: At least one matching semantic domain (NEW - Tier 3 requirement)
+    # This ensures input and candidate share semantic context
+    if not has_semantic_token_overlap(search_title, candidate):
+        return None, fuzzy_score
+
+    # Guard 3: No hallucinated tokens (NEW - Tier 3 requirement)
+    # Extract meaningful tokens and check for hallucinations
+    search_tokens = _extract_meaningful_tokens(search_title)
+    cand_tokens = _extract_meaningful_tokens(candidate)
+    search_domains = _extract_domains(search_title)
+
+    if _has_hallucinations(search_tokens, cand_tokens, search_domains):
+        # Candidate introduced tokens from different semantic domains → reject
+        return None, fuzzy_score
+
+    # All Tier 3 guards passed - return with confidence based on fuzzy score
+    # For Tier 3 (fuzzy), keep confidence strictly lower than Tier 2
     if fuzzy_score >= 0.95:
-        # Excellent fuzzy match - use dynamic confidence mapping
-        confidence = 0.92  # Very high but not absolute (it's still fuzzy)
-        return candidate, confidence
-
-    search_tokens = {t for t in search_title_lower.split() if t}
-    cand_tokens = {t for t in candidate.lower().split() if t}
-
-    # Require overlap on at least one non-generic token to avoid cross-domain matches
-    meaningful_overlap = {
-        t for t in search_tokens.intersection(cand_tokens) if t not in _GENERIC_TITLE_TOKENS
-    }
-
-    if meaningful_overlap:
-        # Has meaningful overlap - map fuzzy score to confidence range [0.75, 0.90]
-        confidence = 0.75 + (fuzzy_score * 0.15)  # Scales 0.75-0.90
-        return candidate, confidence
-    elif fuzzy_score >= 0.90:
-        # High fuzzy score even without meaningful overlap - acceptable
+        # Very high fuzzy score
         confidence = 0.88
-        return candidate, confidence
+    else:
+        # High but not extremely high fuzzy score (0.92-0.94)
+        confidence = 0.80
 
-    return None, fuzzy_score
+    return candidate, confidence
 
 
 def _find_best_match_normalized(

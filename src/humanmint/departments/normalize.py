@@ -8,9 +8,12 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.text_clean import (normalize_unicode_ascii,
-                                  remove_parentheticals, strip_codes_and_ids,
-                                  strip_garbage)
+from humanmint.text_clean import (
+    normalize_unicode_ascii,
+    remove_parentheticals,
+    strip_codes_and_ids,
+    strip_garbage,
+)
 
 _PHONE_PATTERN = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
 _EXT_PATTERN = re.compile(r"\b(?:ext|x|extension)[\s.]*\d+\b", flags=re.IGNORECASE)
@@ -50,6 +53,7 @@ _ABBREVIATIONS = {
     "commn": "commission",
     "maint": "maintenance",
     "mnt": "maintenance",
+    "maintanence": "maintenance",
     "ops": "operations",
     "op": "operations",
     "svc": "service",
@@ -64,11 +68,17 @@ _ABBREVIATIONS = {
     "ast": "assistant",
     "env": "environmental",
     "envr": "environmental",
+    "envir": "environmental",
+    "enviro": "environmental",
+    "environ": "environmental",
     "pw": "public works",
+    "dpw": "public works",
     "pd": "police department",
     "fd": "fire department",
     "hr": "human resources",
     "it": "information technology",
+    "info": "information",
+    "tech": "technology",
     "trans": "transportation",
     "transp": "transportation",
     "trns": "transportation",
@@ -78,6 +88,7 @@ _ABBREVIATIONS = {
     "rec": "recreation",
     "parks": "parks",
     "prks": "parks",
+    "recration": "recreation",
     "commdev": "community development",
     "cdev": "community development",
     "econdev": "economic development",
@@ -88,8 +99,9 @@ _ABBREVIATIONS = {
     "swr": "sewer",
     "fin": "finance",
     "acct": "accounting",
-    "proc": "procurement",
-    "prc": "procurement",
+    "proc": "purchasing",
+    "prc": "purchasing",
+    "procurement": "purchasing",
     "bldg": "building",
     "bld": "building",
     "insp": "inspection",
@@ -105,6 +117,8 @@ _ABBREVIATIONS = {
     "health": "health",
     "hlth": "health",
     "ph": "public health",
+    "wrks": "works",
+    "resourcs": "resources",
 }
 
 
@@ -179,10 +193,10 @@ def _expand_abbreviations(text: str) -> str:
     for token in text.split():
         stripped = token.strip(",.;:")
         lower = stripped.lower()
-        if lower in _ABBREVIATIONS:
-            expanded = _ABBREVIATIONS[lower]
-            rebuilt = token.replace(stripped, expanded)
-            parts.append(rebuilt)
+        normalized_key = lower.replace(".", "")
+        expanded = _ABBREVIATIONS.get(lower) or _ABBREVIATIONS.get(normalized_key)
+        if expanded:
+            parts.append(expanded)
         else:
             parts.append(token)
     return " ".join(parts)
@@ -208,6 +222,7 @@ def _remove_codes_and_ids(text: str, strip_codes: str = "both") -> str:
 
     Uses the shared strip_codes_and_ids utility from text_clean module.
     Supports flexible control over which codes to strip.
+    Also handles patterns like "Department #042" or "Dept 123".
 
     Args:
         text: Input string potentially containing codes.
@@ -216,6 +231,8 @@ def _remove_codes_and_ids(text: str, strip_codes: str = "both") -> str:
     Returns:
         str: Text with codes removed based on strip_codes setting.
     """
+    # Pre-clean common department code prefixes
+    text = re.sub(r"\b(?:dept|department)\s*#?\s*\d+\b", "", text, flags=re.IGNORECASE)
     return strip_codes_and_ids(text, strip_codes=strip_codes)
 
 
@@ -272,7 +289,9 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
         ValueError: If the input is empty or not a string.
     """
     if not isinstance(raw_dept, str):
-        raise ValueError(f"Department name must be a string, got {type(raw_dept).__name__}")
+        raise ValueError(
+            f"Department name must be a string, got {type(raw_dept).__name__}"
+        )
 
     if not raw_dept:
         raise ValueError("Department name cannot be empty")
@@ -322,7 +341,10 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
             if len(token_window) > 0 and j + len(token_window) < len(tokens):
                 is_repeat = True
                 for k in range(len(token_window)):
-                    if j + 1 + k >= len(tokens) or tokens[j + 1 + k].lower() != token_window[k].lower():
+                    if (
+                        j + 1 + k >= len(tokens)
+                        or tokens[j + 1 + k].lower() != token_window[k].lower()
+                    ):
                         is_repeat = False
                         break
                 if is_repeat:
@@ -337,7 +359,7 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
                 deduped.append(tokens[i])
             i += 1
 
-    text = ' '.join(deduped)
+    text = " ".join(deduped)
 
     text = _restore_acronyms(text)
 

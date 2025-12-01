@@ -1,102 +1,56 @@
 """
 Department category classification for HumanMint.
 
-Classifies canonical departments into logical categories like Public Safety,
-Finance, Administration, Education, etc.
+Classifies canonical departments into logical categories by loading from
+department_categories.json.gz (generated from semantic tokens).
 """
 
+import json
+import gzip
+from pathlib import Path
 from typing import Optional
 
-# Department-to-category mapping
-DEPARTMENT_CATEGORIES = {
-    # Public Safety & Law Enforcement
-    "Police": "Public Safety",
-    "Fire": "Public Safety",
-    "Emergency Management": "Public Safety",
-    "Emergency Communications": "Public Safety",
-    "Coroner": "Public Safety",
-    "Public Safety": "Public Safety",
-    "Sheriff": "Public Safety",
-    # Courts & Legal
-    "City Attorney": "Courts & Legal",
-    "District Attorney": "Courts & Legal",
-    "Public Defender": "Courts & Legal",
-    "Municipal Court": "Courts & Legal",
-    "District Court": "Courts & Legal",
-    "Juvenile Court": "Courts & Legal",
-    "Clerk of Courts": "Courts & Legal",
-    "Probation": "Courts & Legal",
-    # Administration & Management
-    "Administration": "Administration",
-    "City Manager": "Administration",
-    "Mayor's Office": "Administration",
-    "City Clerk": "Administration",
-    "Human Resources": "Administration",
-    "Superintendent": "Administration",
-    "City Council": "Administration",
-    # Finance & Budget
-    "Finance": "Finance",
-    "Budget": "Finance",
-    "Treasurer": "Finance",
-    "Auditor": "Finance",
-    "Risk Management": "Finance",
-    "Purchasing": "Finance",
-    # Public Works & Infrastructure
-    "Public Works": "Infrastructure",
-    "Streets & Roads": "Infrastructure",
-    "Water": "Infrastructure",
-    "Wastewater": "Infrastructure",
-    "Utilities": "Infrastructure",
-    "Stormwater": "Infrastructure",
-    "Solid Waste": "Infrastructure",
-    "Engineering": "Infrastructure",
-    "Facilities Management": "Infrastructure",
-    "Fleet Management": "Infrastructure",
-    # Planning & Development
-    "Planning": "Planning & Development",
-    "Community Development": "Planning & Development",
-    "Building & Inspections": "Planning & Development",
-    "Zoning": "Planning & Development",
-    "Code Enforcement": "Planning & Development",
-    # Education
-    "Board of Education": "Education",
-    "Elementary School": "Education",
-    "Middle School": "Education",
-    "High School": "Education",
-    "Curriculum & Instruction": "Education",
-    "Special Education": "Education",
-    "Student Services": "Education",
-    "Food Service": "Education",
-    # Parks & Recreation
-    "Parks & Recreation": "Parks & Recreation",
-    "Athletics": "Parks & Recreation",
-    "Library": "Education",
-    # Health & Human Services
-    "Health": "Health & Human Services",
-    "Human Services": "Health & Human Services",
-    "Senior Services": "Health & Human Services",
-    "Veterans Services": "Health & Human Services",
-    # Other Services
-    "Assessor": "Other",
-    "Elections": "Administration",
-    "Communications": "Other",
-    "Information Technology": "Information Technology",
-    "Airport": "Other",
-    "Animal Control": "Other",
-    "Cemetery": "Other",
-    "Transportation Services": "Transportation",
-}
+# Load categories from generated file
+_CATEGORIES_CACHE = None
+
+
+def _load_categories():
+    """Load department categories from JSON file."""
+    global _CATEGORIES_CACHE
+    if _CATEGORIES_CACHE is not None:
+        return _CATEGORIES_CACHE
+
+    try:
+        # Find the data directory
+        data_dir = Path(__file__).parent.parent / "data"
+        categories_file = data_dir / "department_categories.json.gz"
+
+        if not categories_file.exists():
+            return {}
+
+        with gzip.open(categories_file, "rt", encoding="utf-8") as f:
+            _CATEGORIES_CACHE = json.load(f)
+            return _CATEGORIES_CACHE
+    except Exception:
+        return {}
+
+
+# Load on module import
+_CATEGORIES_CACHE = _load_categories()
 
 
 def get_department_category(dept: str) -> Optional[str]:
     """
     Get the category for a canonical department name.
 
+    Categories are loaded from department_categories.json.gz, which is
+    generated from semantic tokens and keyword fallbacks.
+
     Example:
         >>> get_department_category("Police")
-        "Public Safety"
+        "public safety"
         >>> get_department_category("Water")
-        "Infrastructure"
+        "infrastructure"
         >>> get_department_category("Unknown Department")
         None
 
@@ -104,10 +58,15 @@ def get_department_category(dept: str) -> Optional[str]:
         dept: Canonical department name.
 
     Returns:
-        Optional[str]: Category name, or None if the department is not
-                      recognized.
+        Optional[str]: Category name (lowercase), or None if not recognized.
     """
-    return DEPARTMENT_CATEGORIES.get(dept)
+    if not _CATEGORIES_CACHE:
+        return None
+
+    category = _CATEGORIES_CACHE.get(dept)
+    if category:
+        return category.lower()
+    return None
 
 
 def get_all_categories() -> set[str]:
@@ -115,9 +74,11 @@ def get_all_categories() -> set[str]:
     Get all unique department categories.
 
     Returns:
-        set[str]: Set of all category names.
+        set[str]: Set of all category names (lowercase).
     """
-    return set(DEPARTMENT_CATEGORIES.values())
+    if not _CATEGORIES_CACHE:
+        return set()
+    return {cat.lower() for cat in _CATEGORIES_CACHE.values()}
 
 
 def get_departments_by_category(category: str) -> list[str]:
@@ -125,18 +86,24 @@ def get_departments_by_category(category: str) -> list[str]:
     Get all departments belonging to a specific category.
 
     Example:
-        >>> get_departments_by_category("Public Safety")
+        >>> get_departments_by_category("public safety")
         ["Police", "Fire", "Emergency Management", ...]
 
     Args:
-        category: Category name.
+        category: Category name (case-insensitive).
 
     Returns:
         list[str]: List of canonical departments in that category, sorted
                   alphabetically.
     """
+    if not _CATEGORIES_CACHE:
+        return []
+
+    category_lower = category.lower()
     departments = [
-        dept for dept, cat in DEPARTMENT_CATEGORIES.items() if cat == category
+        dept
+        for dept, cat in _CATEGORIES_CACHE.items()
+        if cat.lower() == category_lower
     ]
     return sorted(departments)
 
@@ -151,8 +118,8 @@ def categorize_departments(dept_names: list[str]) -> dict[str, Optional[str]]:
     Example:
         >>> categorize_departments(["Police", "Water", "Unknown"])
         {
-            "Police": "Public Safety",
-            "Water": "Infrastructure",
+            "Police": "public safety",
+            "Water": "infrastructure",
             "Unknown": None
         }
 
