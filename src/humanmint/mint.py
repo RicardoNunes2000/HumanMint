@@ -6,36 +6,56 @@ names, emails, phone numbers, departments, and job titles.
 
 Example:
     >>> from humanmint import mint
-    >>> result = mint(
-    ...     name="Dr. Alex J. Mercer, PhD",
-    ...     email="ALEX.MERCER@CITY.GOV",
-    ...     phone="(201) 555-0123 x 101",
-    ...     department="005 - Public Works Dept",
-    ...     title="Dir. of Public Works"
-    ... )
-    >>> print(result)
-    MintResult(
-      name: Alex J Mercer Phd
-      email: alex.mercer@city.gov
-      phone: +1 201-555-0123
-      department: Public Works
-      title: public works director
-    )
-    >>> result.email_standardized
-    'alex.mercer@city.gov'
-    >>> result.department_category
-    'Infrastructure'
+    Examples:
+        Structured input (deterministic):
+            >>> result = mint(
+            ...     name="Dr. Alex J. Mercer, PhD",
+            ...     email="ALEX.MERCER@CITY.GOV",
+            ...     phone="(201) 555-0123 x 101",
+            ...     department="005 - Public Works Dept",
+            ...     title="Dir. of Public Works"
+            ... )
+            >>> result.name_standardized
+            'Alex J Mercer Phd'
+            >>> result.title_canonical
+            'public works director'
+
+        Unstructured text + GLiNER (optional, requires gliner2 installed):
+            >>> text = \"\"\"John A. Miller
+            ... Deputy Director of Public Works
+            ... City of Springfield, Missouri
+            ... Phone: (417) 864-1234
+            ... Email: jmiller@springfieldmo.gov\"\"\"
+            >>> result = mint(text=text, use_gliner=True)
+            >>> result.name_standardized
+            'John A Miller'
+            >>> result.title_canonical
+            'deputy director'
 """
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Iterable, Optional, Union
+from typing import Any, Callable, Iterable, Optional, Union
 
-from .processors import (process_address, process_department, process_email,
-                         process_name, process_organization, process_phone,
-                         process_title)
-from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
-                    OrganizationResult, PhoneResult, TitleResult)
+from . import gliner
+from .processors import (
+    process_address,
+    process_department,
+    process_email,
+    process_name,
+    process_organization,
+    process_phone,
+    process_title,
+)
+from .types import (
+    AddressResult,
+    DepartmentResult,
+    EmailResult,
+    NameResult,
+    OrganizationResult,
+    PhoneResult,
+    TitleResult,
+)
 
 # Input length limits to prevent DoS and data validation
 MAX_NAME_LENGTH = 1000
@@ -403,6 +423,10 @@ def mint(
     dept_overrides: Optional[dict[str, str]] = None,
     aggressive_clean: bool = False,
     split_multi: bool = False,
+    text: Optional[str] = None,
+    texts: Optional[list[str]] = None,
+    use_gliner: bool = False,
+    gliner_cfg: Optional["gliner.GlinerConfig"] = None,
 ) -> Union[MintResult, list[MintResult]]:
     """
     Clean and normalize human-centric data in one call.
@@ -419,6 +443,7 @@ def mint(
         department: Department name (with or without noise).
         title: Job title (with or without noise, name prefixes, codes).
         organization: Organization/agency name.
+        title_overrides: Custom title mappings applied before canonical matching.
         dept_overrides: Custom department mappings (e.g., {"Revenue Operations": "Sales"}).
             Overrides are applied after normalization, before canonical matching.
             If a normalized department matches a key in overrides, the override value is used.
@@ -427,12 +452,24 @@ def mint(
             Only use if data comes from genuinely untrusted sources (e.g., raw database
             exports, CRM dumps with injection artifacts). Default False to preserve
             legitimate names. WARNING: May remove legitimate content in edge cases.
+        split_multi: If True, splits multi-person name strings (e.g., "John and Jane Smith")
+            into separate MintResult objects.
+        text: Unstructured text to extract from using GLiNER2 (optional; requires gliner2).
+        texts: List of unstructured texts to extract from using GLiNER2 (optional; requires gliner2, returns list).
+        use_gliner: If True, run GLiNER2 extraction on provided text(s) and fill only missing fields.
+            Structured fields you pass are never overridden. Raises if multiple people are detected.
+        gliner_cfg: Optional GLiNER configuration object (schema/threshold/extractor/use_gpu). If omitted,
+            defaults are used and the model runs on CPU when loaded.
 
     Raises:
-        ValueError: If any input field exceeds maximum length limits.
+        ValueError: If any input field exceeds maximum length limits, or if use_gliner=True
+            is set without text(s), or if multiple people are detected in GLiNER output.
+        ImportError: If use_gliner=True but gliner2 is not installed.
 
-    Returns:
-        MintResult: Structured result with cleaned fields.
+        Returns:
+            MintResult or list[MintResult]: Structured result(s) with cleaned fields. Returns a list
+                when split_multi is triggered or when texts (list) are provided, or when GLiNER
+                processes multiple texts.
 
     Example:
         >>> result = mint(
@@ -493,6 +530,10 @@ def mint(
             'is_override': True
         }
     """
+    # Validate GLiNER usage
+    if use_gliner and not (text or texts):
+        raise ValueError("use_gliner=True requires text=... or texts=[...] input")
+
     # Validate input field lengths to prevent DoS attacks
     # Note: Check isinstance(x, str) to handle NaN from pandas DataFrames
     if isinstance(name, str) and len(name) > MAX_NAME_LENGTH:
@@ -524,8 +565,10 @@ def mint(
 
     # Detect multi-person names and split if requested
     def _split_multi_person_names(raw: str) -> Optional[list[str]]:
+        # Normalize common connectors (commas, ampersand, slash, plus) to "and"
+        cleaned = re.sub(r"[,&/+]", " and ", raw)
         connectors = re.compile(r"\s+(?:and|&|/|\+)\s+", re.IGNORECASE)
-        parts = [p.strip(" ,") for p in connectors.split(raw) if p.strip(" ,")]
+        parts = [p.strip(" ,") for p in connectors.split(cleaned) if p.strip(" ,")]
         if len(parts) < 2:
             return None
 
@@ -563,6 +606,58 @@ def mint(
                     )
                 )  # type: ignore[arg-type]
             return results_split
+
+    # If GLiNER is requested, extract missing fields from unstructured text
+    if use_gliner and (text or texts):
+        texts_to_use = texts if texts else [text]  # type: ignore[list-item]
+        results_gliner: list[MintResult] = []
+        for t in texts_to_use:
+            extracted_fields = gliner.extract_fields_from_text(
+                t or "",
+                config=gliner_cfg,
+            )
+            # User-supplied fields take precedence; fill only missing ones
+            nm = name or extracted_fields.get("name")
+            em = email or extracted_fields.get("email")
+            ph = phone or extracted_fields.get("phone")
+            addr_parts = [
+                extracted_fields.get("street"),
+                extracted_fields.get("city"),
+                extracted_fields.get("state"),
+                extracted_fields.get("zip"),
+            ]
+            addr_combined = " ".join([p for p in addr_parts if p])
+            addr = (
+                address
+                or extracted_fields.get("address")
+                or extracted_fields.get("location")
+                or (addr_combined if addr_combined else None)
+            )
+            dept_val = department or extracted_fields.get("department")
+            ttl = title or extracted_fields.get("title")
+            org = organization or extracted_fields.get("organization")
+
+            department_result = process_department(dept_val, dept_overrides)
+            dept_canonical = (
+                department_result["canonical"] if department_result else None
+            )
+
+            results_gliner.append(
+                MintResult(
+                    name=process_name(nm, aggressive_clean=aggressive_clean),
+                    email=process_email(em),
+                    phone=process_phone(ph),
+                    department=department_result,
+                    title=process_title(
+                        ttl, dept_canonical=dept_canonical, overrides=title_overrides
+                    ),
+                    address=process_address(addr),
+                    organization=process_organization(org),
+                )
+            )
+        if len(results_gliner) == 1:
+            return results_gliner[0]
+        return results_gliner
 
     department_result = process_department(department, dept_overrides)
     dept_canonical = department_result["canonical"] if department_result else None
@@ -624,11 +719,15 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (BarColumn,  # type: ignore
-                                           MofNCompleteColumn, Progress,
-                                           SpinnerColumn, TextColumn,
-                                           TimeElapsedColumn,
-                                           TimeRemainingColumn)
+                from rich.progress import (
+                    BarColumn,  # type: ignore
+                    MofNCompleteColumn,
+                    Progress,
+                    SpinnerColumn,
+                    TextColumn,
+                    TimeElapsedColumn,
+                    TimeRemainingColumn,
+                )
 
                 rp = Progress(
                     SpinnerColumn(),

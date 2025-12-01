@@ -5,6 +5,52 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b8] - 2025-12-01
+
+### Added
+- GLiNER configuration object (`gliner_cfg`) to avoid surfacing low-level ML knobs on `mint`.
+- Optional GPU usage for GLiNER (`use_gpu` in config).
+- Manual GLiNER test script for ad-hoc extraction experiments.
+
+### Changed
+- Simplified default GLiNER schema back to the reliable JSON form.
+- GLiNER extraction includes `location` fallback into address normalization; multi-person GLiNER input now raises a clear error.
+- Mint docstrings and README updated with GLiNER caveats and examples.
+
+### Testing
+- 459 tests passing, 2 skipped.
+
+## [2.0.0b7] - 2025-12-01
+
+### Added
+- Explainable comparisons: `compare(..., explain=True)` now returns `(score, explanation_lines)` with component scores, penalties, and floors.
+- Multi-person name splitting: `mint(..., split_multi=True)` splits names like "John and Jane Smith" into separate `MintResult` objects.
+- Name enrichment: captures `nickname` and `suffix_type` (e.g., generational) without polluting middle/full fields.
+
+### Changed
+- Safer nickname handling: detected nicknames are kept in `nickname` only; middle/full/canonical fields stay clean.
+- Docs updated to reflect the new v2 property names and split/explain features.
+
+### Testing
+- 454 tests passing (unit + manual examples), 2 skipped.
+
+## [2.0.0b6] - 2025-12-01
+
+### Changed (Breaking)
+- Finalized v2 property renames for clarity:
+  - `name_standardized` (was `name_str`)
+  - `email_standardized` (was `email_str`)
+  - `phone_standardized` (was `phone_str`)
+  - `title_canonical` (was `title_str`)
+  - `department_canonical` (was `department_str`)
+- Dicts now use a single `canonical` key and `is_valid` flags; legacy aliases (`mapped_to`, `is_valid_number`, `is_valid_format`, `was_overridden`) removed.
+
+### Stability
+- Interface locked for the upcoming v2 stable; no further breaking renames planned under semver.
+
+### Testing
+- 449 tests passing (unit + manual examples), 2 skipped.
+
 ## [2.0.0] - 2025-12-01
 
 ### Changed (Breaking)

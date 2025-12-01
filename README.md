@@ -48,6 +48,39 @@ Names, emails, phones, addresses, departments, titles, organizations—one pipel
 ### Fast
 Typical workloads run sub-millisecond per record with multithreading and built-in dedupe.
 
+### AI extraction (optional)
+Install the ML extra (`pip install gliner2`) and pass `text=` with `use_gliner=True` to extract from unstructured text, then normalize. Structured fields you pass always win. You can also pass `gliner_schema` and `gliner_threshold` for custom schemas and confidence.
+GLiNER extraction is experimental and may be inaccurate; prefer structured inputs when available.
+
+Example (signature block → canonicalized):
+```
+text = """
+John A. Miller
+Deputy Director of Public Works
+City of Springfield, Missouri
+305 E McDaniel St, Springfield, MO 65806
+Phone: (417) 864-1234
+Email: jmiller@springfieldmo.gov
+"""
+
+result = mint(text=text, use_gliner=True)
+
+# Result:
+# MintResult(
+#   name: John A Miller
+#   email: jmiller@springfieldmo.gov
+#   phone: +1 417-864-1234
+#   department: Public Works
+#   title:
+#     raw: Deputy Director
+#     normalized: Deputy Director
+#     canonical: deputy director
+#   address: None
+#   organization: Springfield Missouri
+# )
+```
+You can also batch texts: `mint(texts=[...], use_gliner=True)` returns a list of `MintResult` objects.
+
 ## Installation
 ```bash
 pip install humanmint
