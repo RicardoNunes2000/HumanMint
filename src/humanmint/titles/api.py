@@ -8,7 +8,7 @@ result dictionary with raw, cleaned, and canonical information.
 from typing import Dict, Optional, TypedDict
 
 from .matching import find_best_match
-from .normalize import normalize_title
+from .normalize import extract_seniority, normalize_title
 from .normalize import re as _re
 
 
@@ -230,10 +230,14 @@ def normalize_title_full(
     if canonical_value and confidence == 0.0:
         confidence = 0.7
 
+    # Extract seniority level from the cleaned title
+    seniority = extract_seniority(cleaned)
+
     return {
         "raw": raw_title,
         "cleaned": cleaned,
         "canonical": canonical_value,
         "is_valid": is_valid,
         "confidence": float(confidence if canonical_value else 0.0),
+        "seniority": seniority,
     }

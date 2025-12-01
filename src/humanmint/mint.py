@@ -273,6 +273,11 @@ class MintResult:
         return self.title["confidence"] if self.title else 0.0
 
     @property
+    def title_seniority(self) -> Optional[str]:
+        """Get seniority level (Senior, Lead, Principal, etc.), or None."""
+        return self.title.get("seniority") if self.title else None
+
+    @property
     def address_raw(self) -> Optional[str]:
         """Get raw address, or None."""
         return self.address.get("raw") if self.address else None

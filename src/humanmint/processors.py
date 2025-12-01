@@ -294,6 +294,7 @@ def process_title(
             "canonical": result.get("canonical"),
             "is_valid": result.get("is_valid"),
             "confidence": result.get("confidence", 0.0),
+            "seniority": result.get("seniority"),
         }
     except (ValueError, FileNotFoundError):
         return None

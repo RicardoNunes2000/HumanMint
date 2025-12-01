@@ -303,3 +303,135 @@ def normalize_title(raw_title: str, strip_codes: str = "both") -> str:
         ValueError: If the input is empty or not a string.
     """
     return _normalize_title_cached(raw_title, strip_codes)
+
+
+def extract_seniority(normalized_title: str) -> str:
+    """
+    Extract seniority level from a normalized job title.
+
+    Detects common seniority modifiers like Senior, Junior, Lead, Principal, etc.
+    Returns the detected seniority level or None if not found.
+
+    Args:
+        normalized_title: A normalized job title (typically output from normalize_title).
+
+    Returns:
+        str: The seniority level (e.g., "Senior", "Junior", "Lead", "Principal"),
+             or None if no seniority modifier is detected.
+
+    Example:
+        >>> extract_seniority("Senior Maintenance Technician")
+        "Senior"
+        >>> extract_seniority("Lead Software Engineer")
+        "Lead"
+        >>> extract_seniority("Maintenance Technician")
+        None
+    """
+    if not normalized_title or not isinstance(normalized_title, str):
+        return None
+
+    title_lower = normalized_title.lower()
+
+    # Seniority keywords (ordered by specificity - longest first to avoid partial matches)
+    seniority_keywords = [
+        # C-suite roles
+        "chief executive officer",
+        "chief operating officer",
+        "chief financial officer",
+        "chief information officer",
+        "chief technology officer",
+        "chief marketing officer",
+        "chief product officer",
+        "chief security officer",
+        "chief academic officer",
+        "chief risk officer",
+        "chief compliance officer",
+        "chief information security officer",
+        "chief data officer",
+        "chief human resources officer",
+        "chief legal officer",
+        "chief strategy officer",
+        "chief quality officer",
+        "chief medical officer",
+        "chief nursing officer",
+
+        # Executive/Director level
+        "executive director",
+        "executive vice president",
+        "senior vice president",
+        "vice president",
+        "associate vice president",
+        "assistant vice president",
+        "deputy director",
+        "assistant director",
+        "associate director",
+
+        # Principal/Lead roles (longer phrases first)
+        "principal engineer",
+        "principal architect",
+        "principal consultant",
+        "principal analyst",
+        "principal scientist",
+        "principal product manager",
+        "principal research scientist",
+        "principal investigator",
+        "principal counsel",
+        "principal manager",
+
+        # Senior roles (longer phrases first)
+        "senior engineer",
+        "senior architect",
+        "senior manager",
+        "senior director",
+        "senior analyst",
+        "senior consultant",
+        "senior advisor",
+        "senior specialist",
+        "senior scientist",
+        "senior developer",
+        "senior administrator",
+        "senior technician",
+        "senior associate",
+        "senior counsel",
+        "senior planner",
+        "senior researcher",
+        "senior investigator",
+        "senior officer",
+
+        # Lead roles (longer phrases first)
+        "lead engineer",
+        "lead architect",
+        "lead developer",
+        "lead analyst",
+        "lead manager",
+        "lead consultant",
+        "lead designer",
+        "lead scientist",
+        "lead investigator",
+        "lead researcher",
+
+        # Staff-level individual contributors
+        "staff engineer",
+        "staff architect",
+        "staff scientist",
+        "staff analyst",
+
+        # Single-word seniority modifiers (catch-all, in order of hierarchy)
+        "chief",
+        "executive",
+        "director",
+        "principal",
+        "senior",
+        "lead",
+        "junior",
+        "assistant",
+        "associate",
+        "entry-level",
+    ]
+
+    for keyword in seniority_keywords:
+        if title_lower.startswith(keyword):
+            # Return the properly capitalized version
+            return " ".join(word.capitalize() for word in keyword.split())
+
+    return None

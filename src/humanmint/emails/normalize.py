@@ -95,6 +95,13 @@ def _validate(email: str) -> Optional[str]:
 def _extract_fields(email: str) -> Dict[str, str]:
     local, _, domain = email.partition("@")
     local_base = local.split("+", 1)[0]
+
+    # Strip +tag from local part for non-consumer domains
+    # Consumer domains (Gmail, Yahoo, etc.) use +tags intentionally, so keep them
+    if not is_free_provider(domain) and "+" in local:
+        local = local_base
+        email = f"{local}@{domain}"
+
     return {
         "email": email,
         "local": local,

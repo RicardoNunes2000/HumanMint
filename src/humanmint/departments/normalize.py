@@ -23,6 +23,8 @@ _SYMBOL_WRAPPER_PATTERN = re.compile(r"[#|]+")
 _SEPARATOR_PATTERN = re.compile(r"-+")
 _SLASH_PATTERN = re.compile(r"\s*/\s*")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
+_BRACKET_PATTERN = re.compile(r"[\[\{][^\]\}]*[\]\}]")
+_CODE_SEPARATOR_PATTERN = re.compile(r"\b\d{3}\s*[/\-]\s*\d{3}\b")
 _CONTACT_PATTERNS = (
     r"\breach\s+(?:me|us)\s+at\b",
     r"\bcontact\s+(?:me|us)\b",
@@ -32,7 +34,7 @@ _CONTACT_PATTERNS = (
     r"\btel\b",
     r"\bcell\b",
 )
-_APOSTROPHE_PATTERN = re.compile(r"[’‘]")
+_APOSTROPHE_PATTERN = re.compile(r"['']")
 _ACRONYMS = {"IT", "HR", "GIS", "OEM", "DPW", "PW"}
 _DEPT_META_PATTERN = re.compile(r"\s*\((?:ref#?|id|ticket)\s*[^)]*\)$", re.IGNORECASE)
 _ABBREVIATIONS = {
@@ -181,6 +183,42 @@ def _remove_parentheticals(text: str) -> str:
     return remove_parentheticals(text)
 
 
+def _remove_brackets(text: str) -> str:
+    """
+    Remove all bracketed and braced content from text.
+
+    Matches patterns like:
+    - [Something], [text here]
+    - {Something}, {text here}
+
+    Args:
+        text: Input string potentially containing brackets or braces.
+
+    Returns:
+        str: Text with bracketed/braced content removed.
+    """
+    return _BRACKET_PATTERN.sub(" ", text)
+
+
+def _remove_code_separators(text: str) -> str:
+    """
+    Remove patterns like codes separated by slashes or dashes (e.g., 005 / 006).
+
+    These patterns are internal reference codes that don't represent actual
+    department names. Matches patterns like:
+    - 005 / 006
+    - 001-002
+    - 100 - 200
+
+    Args:
+        text: Input string potentially containing code separators.
+
+    Returns:
+        str: Text with code separator patterns removed.
+    """
+    return _CODE_SEPARATOR_PATTERN.sub(" ", text)
+
+
 def _expand_abbreviations(text: str) -> str:
     """
     Expand common abbreviations in department names.
@@ -303,10 +341,12 @@ def _normalize_department_cached(raw_dept: str, strip_codes: str) -> str:
     text = _remove_phone_numbers(text)
     text = _remove_emails(text)
     text = _strip_symbol_wrappers(text)
+    text = _remove_code_separators(text)
     text = _normalize_separators(text)
     text = _remove_contact_phrases(text)
-    text = _remove_codes_and_ids(text, strip_codes=strip_codes)
     text = _remove_parentheticals(text)
+    text = _remove_brackets(text)
+    text = _remove_codes_and_ids(text, strip_codes=strip_codes)
     text = _remove_extra_whitespace(text)
     text = _DEPT_META_PATTERN.sub("", text).strip()
     text = normalize_unicode_ascii(text)

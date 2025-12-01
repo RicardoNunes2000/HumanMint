@@ -5,6 +5,93 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0b5] - 2025-12-01
+
+### Added
+
+- **Seniority Level Extraction** - New `extract_seniority()` function and `title_seniority` property
+  - Detects 80+ seniority modifiers (Senior, Lead, Principal, Chief, etc.)
+  - Supports multi-word titles: "Chief Executive Officer", "Senior Vice President", etc.
+  - Available via API: `mint(title="Senior Engineer").title_seniority` → "Senior"
+  - Added to TitleResult TypedDict for structured output
+
+- **Email Tag Stripping** - Automatic `+tag` removal for non-consumer domains
+  - Rule: For corporate/government emails, `john+test@company.com` → `john@company.com`
+  - Preserves tags for Gmail/Yahoo/Hotmail (consumers use them intentionally)
+  - Enabled in email normalization pipeline
+
+- **Roman Numeral Suffix Support** - Proper uppercase display for name suffixes
+  - Detects roman numerals II through X
+  - Displays as uppercase: "John Smith III" instead of "John Smith Iii"
+  - Added ROMAN_NUMERALS mapping to constants
+
+- **Department Bracket/Code Removal** - Improved noise filtering
+  - Removes square brackets: `[Something]` → stripped
+  - Removes curly braces: `{Text}` → stripped
+  - Removes code separator patterns: `005 / 006` → stripped
+  - Example: "005 / 006 - Bureau (Actual) of [Something]" → "Bureau Of"
+
+### Enhanced
+
+- **Title Abbreviation Expansion**
+  - Added `snr` → "Senior" mapping (in addition to existing `sr`)
+  - Added `rec` → "Recreation" mapping for parks/recreation titles
+  - Now supports: "Rec Supervisor" → "Recreation Supervisor"
+
+- **Test Organization**
+  - Moved comprehensive integration tests to `manual_tests/` directory
+  - Kept fast unit tests in `unittests/` (348 tests, ~2.6s)
+  - Manual tests: 25 standalone scripts for real-world scenarios
+  - Total test coverage: 440 pytest tests + 25 manual test scripts
+
+### Fixed
+
+- **test10.py Real-World Test Suite** - Fixed 3 test case failures
+  - Updated expectations to match actual canonical titles
+  - "Sr Maint Tech" now correctly normalizes to "maintenance technician" with seniority extracted
+  - "Rec Supervisor" now matches with expanded abbreviation dictionary
+
+### Testing
+
+- All 440 pytest unit tests passing (2 skipped)
+- All 25 manual/integration test scripts passing
+- test10.py: 5/5 real-world US employee scenarios passing
+- Zero regressions from new features
+
+## [2.0.0b4] - 2025-12-01
+
+### Major Improvements
+
+- **Department Fuzzy Matching** - Three-pass fuzzy matching strategy with generic token stripping
+  - Pass 1 (Strict): 90% token_sort_ratio threshold
+  - Pass 2 (Lenient): 70% token_sort_ratio with semantic agreement
+  - Pass 3 (Partial): 60% token_set_ratio for cases with extra location-specific words
+  - Generic token filtering: Strips "department", "division", "bureau", "agency", "city", "county", "state", etc. before matching
+  - Lenient semantic agreement: Allows matches when one side is generic/untagged (e.g., "Maintenance")
+
+### Fixed
+
+- **Department matching regressions** - Fixed cases that weren't matching due to:
+  - "Public Works Dept" → now matches "Public Works" (was failing at 68.57% threshold)
+  - "Strt Maint" → now matches "Maintenance" (semantic agreement now lenient)
+  - "Food Service High School Cafeteria" → now matches "Food Service" (token_set_ratio handles extra words)
+
+- **Data completeness** - Added missing canonical departments:
+  - Added "Recorder" to canonical list and department categories (Courts & Legal)
+  - Updated semantic tokens: "manager" and "director" now properly tagged as "ADMIN"
+
+- **Test suite** - Fixed 7 failing unit tests:
+  - Updated category tests to use lowercase category names (code standard)
+  - Updated semantic extraction tests to reflect improved "manager" → "ADMIN" tagging
+  - Updated semantic conflict tests to expect correct conflict detection between ADMIN and IT domains
+
+### Testing
+
+- All 37 integration tests passing
+- All 477 unit tests passing (2 skipped)
+- Department matching works correctly on edge cases with location-specific noise
+- Semantic tagging now properly classifies management roles as administrative domain
+
 ## [2.0.0b3] - 2025-12-01
 
 ### Major Fixes

@@ -26,6 +26,7 @@ TITLE_ABBREVIATIONS = {
     "coord": "Coordinator",
     "spec": "Specialist",
     "sr": "Senior",
+    "snr": "Senior",
     "jr": "Junior",
     "vp": "Vice President",
     "avp": "Assistant Vice President",
@@ -75,6 +76,7 @@ TITLE_ABBREVIATIONS = {
     "it": "Information Technology",
     "ux": "User Experience",
     "ui": "User Interface",
+    "rec": "Recreation",
     "dir": "Director",
     "dirs": "Director",
 }

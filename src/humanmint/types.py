@@ -56,6 +56,7 @@ class TitleResult(TypedDict, total=False):
     canonical: Optional[str]
     is_valid: Optional[bool]
     confidence: float
+    seniority: Optional[str]
 
 
 class AddressResult(TypedDict, total=False):

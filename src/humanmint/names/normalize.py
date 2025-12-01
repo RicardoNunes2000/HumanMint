@@ -11,8 +11,8 @@ from typing import Dict, Optional
 
 from nameparser import HumanName
 
-from humanmint.constants.names import (PLACEHOLDER_NAMES, TITLE_PREFIXES,
-                                       US_SUFFIXES)
+from humanmint.constants.names import (PLACEHOLDER_NAMES, ROMAN_NUMERALS,
+                                       TITLE_PREFIXES, US_SUFFIXES)
 from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
 
 _EMPTY_NAME: Dict[str, Optional[str]] = {
@@ -334,7 +334,9 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
     if last:
         full_parts.append(last)
     if suffix:
-        full_parts.append(suffix.capitalize())
+        # Use uppercase for roman numerals, capitalize for others
+        suffix_display = ROMAN_NUMERALS.get(suffix, suffix.capitalize())
+        full_parts.append(suffix_display)
     full = " ".join(full_parts)
 
     # Validate name quality
