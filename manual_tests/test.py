@@ -194,6 +194,23 @@ def generate_messy_title():
 
 
 def main() -> None:
+    """Run HumanMint stress test with 50,000 synthetic records.
+
+    Generates synthetic data with intentional messiness, processes it through bulk(),
+    validates output quality, and reports performance metrics. Tests deduplication,
+    multiprocessing, and caching behavior under realistic load.
+
+    Test Configuration:
+        - NUM_RECORDS: Number of synthetic records to generate (configurable)
+        - WORKERS: Number of parallel worker processes (configurable)
+        - Deduplication: Enabled to test caching performance on duplicates
+        - Data: Includes messy names, emails, phones, departments, titles
+
+    Output:
+        - Prints generation time, processing time, and throughput
+        - Reports data quality metrics (valid names, emails, phones)
+        - Verifies that results are properly expanded after deduplication
+    """
     print(f"--- HumanMint Stress Test Configuration ---")
     print(f"Records to generate: {NUM_RECORDS:,}")
     print(f"Worker processes:    {WORKERS}")

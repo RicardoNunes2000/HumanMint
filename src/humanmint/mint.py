@@ -64,7 +64,22 @@ if TYPE_CHECKING:
 
 
 def _run_mint_record(rec: dict) -> "MintResult":
-    """Top-level helper to allow ProcessPoolExecutor pickling."""
+    """Process a single record dict through mint.
+
+    This is a module-level helper function that allows ProcessPoolExecutor
+    to pickle and parallelize the mint operation across records.
+
+    Args:
+        rec: Dictionary containing any of the mint() function parameters
+            (name, email, phone, department, title, address, organization, text).
+
+    Returns:
+        MintResult: The normalized and cleaned result for the input record.
+
+    Example:
+        >>> rec = {"name": "John Doe", "email": "JOHN@EXAMPLE.COM"}
+        >>> result = _run_mint_record(rec)
+    """
     return mint(**rec)
 
 
@@ -614,6 +629,22 @@ def mint(
 
     # Detect multi-person names and split if requested
     def _split_multi_person_names(raw: str) -> Optional[list[str]]:
+        """Split multi-person names on common connectors.
+
+        Detects when a single name field contains multiple people separated by
+        'and', '&', '/', '+', or ';' and splits them intelligently. Skips splitting
+        for single "Last, First" format names.
+
+        Args:
+            raw: The raw name string that may contain multiple names.
+
+        Returns:
+            List of individual names if multiple people detected, None otherwise.
+
+        Example:
+            >>> _split_multi_person_names("John Doe and Jane Smith")
+            ['John Doe', 'Jane Smith']
+        """
         # If it's a single "Last, First ..." format (one comma, no connectors), don't split
         if (
             raw.count(",") == 1
@@ -785,9 +816,19 @@ def bulk(
     """
 
     def _noop() -> None:
+        """No-op progress callback."""
         return None
 
     def _compute_chunk_size(seq_len: Optional[int], pool_size: int) -> int:
+        """Compute optimal chunk size for ProcessPoolExecutor.
+
+        Args:
+            seq_len: Length of sequence to process, or None if unknown.
+            pool_size: Number of worker processes.
+
+        Returns:
+            Optimal chunk size (at least 1) to balance parallelism overhead.
+        """
         if not seq_len or seq_len <= 0:
             return 1
         return max(1, seq_len // max(1, pool_size * 4))
@@ -831,12 +872,15 @@ def bulk(
                 task_id = rp.add_task("Bulk minting", total=total)
 
                 def _progress_start() -> None:
+                    """Start Rich progress bar."""
                     rp.start()
 
                 def _progress_stop() -> None:
+                    """Stop and clean up Rich progress bar."""
                     rp.stop()
 
                 def _progress_tick() -> None:
+                    """Advance Rich progress bar by one unit."""
                     rp.advance(task_id, 1)
 
                 progress_start = _progress_start
@@ -849,9 +893,11 @@ def bulk(
                     bar = tqdm(total=total, desc="Bulk minting", unit="rec")
 
                     def _progress_tick() -> None:
+                        """Advance tqdm progress bar by one unit."""
                         bar.update(1)
 
                     def _progress_stop() -> None:
+                        """Close tqdm progress bar."""
                         bar.close()
 
                     progress_tick = _progress_tick
@@ -862,14 +908,17 @@ def bulk(
                     step = max(1, (total or 1) // 20)
 
                     def _progress_tick() -> None:
+                        """Print simple progress update to stdout."""
                         processed[0] += 1
                         if processed[0] % step == 0 or processed[0] == total:
                             print(f"Processed {processed[0]}/{total or '?'}")
 
                     def _progress_start() -> None:
+                        """Print startup message."""
                         print("Starting bulk mint...")
 
                     def _progress_stop() -> None:
+                        """Print completion message."""
                         print("Bulk mint complete.")
 
                     progress_start = _progress_start
@@ -877,6 +926,14 @@ def bulk(
                     progress_tick = _progress_tick
 
     def _run_mint(rec: dict) -> MintResult:
+        """Process a single record dict through mint within bulk context.
+
+        Args:
+            rec: Dictionary of parameters to pass to mint().
+
+        Returns:
+            MintResult: Normalized result for the record.
+        """
         return mint(**rec)
 
     # Handle deduplication if enabled

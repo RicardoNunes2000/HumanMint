@@ -38,7 +38,21 @@ except Exception:
 
 
 def __getattr__(name: str) -> Any:
-    """Lazy-load heavy modules/functions on first access."""
+    """Lazy-load heavy modules/functions on first access.
+
+    Args:
+        name: The attribute name to load.
+
+    Returns:
+        The requested module, function, or class.
+
+    Raises:
+        AttributeError: If the attribute does not exist in _LAZY_MODULES.
+
+    Example:
+        >>> from humanmint import mint  # triggers __getattr__
+        >>> result = mint(name="John Doe")
+    """
     if name in _LAZY_MODULES:
         module = importlib.import_module(_LAZY_MODULES[name])
         attr = getattr(module, name) if hasattr(module, name) else module
@@ -51,6 +65,15 @@ def __getattr__(name: str) -> Any:
 
 
 def __dir__() -> list[str]:
+    """Return list of public attributes and lazy-loaded modules.
+
+    Returns:
+        Sorted list of all available module attributes and lazy-loadable names.
+
+    Example:
+        >>> 'mint' in dir(humanmint)
+        True
+    """
     return sorted(list(globals().keys()) + list(_LAZY_MODULES.keys()))
 
 

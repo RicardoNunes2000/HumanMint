@@ -96,9 +96,19 @@ score, reasons = compare(r1, r2, explain=True)  # 0->100
 ```python
 from humanmint import bulk, export_json, export_csv, export_parquet, export_sql
 
+# Process records in parallel
 results = bulk(records, workers=4, progress=True)
+
+# Export results to various formats
 export_json(results, "out.json")
 export_csv(results, "out.csv", flatten=True)
+
+# Note: For per-record overrides (dept_overrides, title_overrides), include them in each record dict
+records_with_overrides = [
+    {**rec, "dept_overrides": {"IT": "Information Technology"}}
+    for rec in records
+]
+results = bulk(records_with_overrides, workers=4)
 ```
 
 ## CLI

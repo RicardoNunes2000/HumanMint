@@ -13,7 +13,16 @@ from .normalize import re as _re
 
 
 class TitleResult(TypedDict, total=False):
-    """Result structure for title normalization."""
+    """Result structure for title normalization.
+
+    Fields:
+        raw: Original input title string.
+        cleaned: Cleaned version after noise removal.
+        canonical: Standardized canonical title form, or None.
+        is_valid: Whether the title passed validation.
+        confidence: Confidence score (0-1) of the match.
+        seniority: Extracted seniority level (e.g., 'Senior', 'Junior').
+    """
     raw: str
     cleaned: str
     canonical: Optional[str]

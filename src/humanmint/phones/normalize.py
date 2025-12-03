@@ -101,8 +101,17 @@ def _extract_extension(raw: str) -> tuple[str, Optional[str]]:
 
 
 def _strip_international_prefix(raw: str) -> str:
-    """
-    Strip leading 00 (common international prefix) and collapse +001 -> +1.
+    """Strip leading 00 (common international prefix) and collapse +001 -> +1.
+
+    Args:
+        raw: Raw phone string with possible international prefix.
+
+    Returns:
+        Phone string with normalized international prefix.
+
+    Example:
+        >>> _strip_international_prefix("00441234567890")
+        '+441234567890'
     """
     if not raw:
         return raw
@@ -138,7 +147,18 @@ def _empty(
     carrier_name: Optional[str] = None,
     time_zones: Optional[list[str]] = None,
 ) -> Dict[str, Optional[str]]:
-    """Return empty/invalid phone result."""
+    """Return empty/invalid phone result.
+
+    Args:
+        extension: Extension number if present, or None.
+        country: Country/region code, or None.
+        location: Geographic location description, or None.
+        carrier_name: Carrier/provider name, or None.
+        time_zones: List of time zones for number, or None.
+
+    Returns:
+        Standard empty phone dict with optional fields populated.
+    """
     result = _EMPTY_PHONE.copy()
     result["extension"] = extension
     result["country"] = country
@@ -152,18 +172,25 @@ def _empty(
 def _normalize_phone_cached(
     phone_part: str, country: Optional[str], extension: Optional[str]
 ) -> Dict[str, Optional[str]]:
-    """
-    Cached normalization core to avoid expensive re-parsing.
+    """Cached normalization core to avoid expensive re-parsing.
 
-    This function uses @lru_cache(maxsize=4096) to cache phone parsing results.
+    Uses @lru_cache(maxsize=4096) to cache phone parsing results.
     The phonenumbers library is expensive for large batches; caching dramatically
     improves performance when processing duplicate phone numbers.
 
-    To clear the cache if memory is a concern:
-        >>> _normalize_phone_cached.cache_clear()
+    Args:
+        phone_part: Phone number string to parse.
+        country: Optional country/region code hint for parsing.
+        extension: Optional extension number if present.
 
-    To check cache statistics:
-        >>> _normalize_phone_cached.cache_info()
+    Returns:
+        Normalized phone result dict with e164, pretty, country, type, location, etc.
+
+    Note:
+        To clear the cache if memory is a concern:
+            >>> _normalize_phone_cached.cache_clear()
+        To check cache statistics:
+            >>> _normalize_phone_cached.cache_info()
     """
     try:
         parsed = phonenumbers.parse(phone_part, country)

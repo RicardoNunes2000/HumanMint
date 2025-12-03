@@ -23,7 +23,11 @@ _gender_warning_emitted = False
 
 
 def _load_gender_data_from_cache() -> Optional[Dict[str, str]]:
-    """Load gender data from a prebuilt cache, if present."""
+    """Load gender data from a prebuilt cache, if present.
+
+    Returns:
+        Dict mapping name (lowercase) to gender ("M" or "F"), or None if cache unavailable.
+    """
     if not NAMES_CACHE.exists():
         return None
     try:

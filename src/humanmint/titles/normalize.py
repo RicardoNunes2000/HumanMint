@@ -23,16 +23,31 @@ from humanmint.text_clean import (
 
 
 def _strip_garbage(text: str) -> str:
-    """Remove obvious non-title noise (HTML, SQL comments, corruption markers)."""
+    """Remove obvious non-title noise (HTML, SQL comments, corruption markers).
+
+    Args:
+        text: Input string with potential garbage.
+
+    Returns:
+        Text with garbage removed.
+    """
     return strip_garbage(text)
 
 
 def _expand_abbreviations(text: str) -> str:
-    """Expand common job title abbreviations."""
+    """Expand common job title abbreviations.
+
+    Args:
+        text: Text with abbreviated titles (e.g., "SW Dev").
+
+    Returns:
+        Text with abbreviations expanded (e.g., "Software Developer").
+    """
     preserve = PRESERVE_ABBREVIATIONS or _load_preserve_abbreviations()
     pattern, abbr_map = _get_title_abbreviation_regex()
 
     def replace(match: re.Match[str]) -> str:
+        """Replace abbreviation with expanded form or preserve if special case."""
         raw = match.group(0)
         clean = raw.rstrip(".,")
         lower_clean = clean.lower().replace(".", "")
@@ -50,6 +65,11 @@ def _expand_abbreviations(text: str) -> str:
 
 @lru_cache(maxsize=1)
 def _get_title_abbreviation_regex() -> tuple[re.Pattern[str], dict[str, str]]:
+    """Build and cache regex pattern for title abbreviation matching.
+
+    Returns:
+        Tuple of (compiled_regex_pattern, abbreviation_to_expanded_map).
+    """
     abbr_map = TITLE_ABBREVIATIONS or _load_title_abbreviations()
     keys = sorted(abbr_map.keys(), key=len, reverse=True)
     if not keys:
@@ -160,7 +180,14 @@ def _remove_parenthetical_info(text: str) -> str:
 
 
 def _normalize_separators(text: str) -> str:
-    """Normalize common separators like slashes and ampersands."""
+    """Normalize common separators like slashes and ampersands.
+
+    Args:
+        text: Text with potential separator variations.
+
+    Returns:
+        Text with normalized separators (consistent spacing/format).
+    """
     if re.search(r"\bclerk of the works\b", text, flags=re.IGNORECASE):
         return text
     # Keep slashes as explicit separators, collapse long dash runs to spaces
@@ -183,7 +210,14 @@ def _normalize_separators(text: str) -> str:
 
 
 def _strip_trailing_dept_tokens(text: str) -> str:
-    """Remove trailing department acronyms (e.g., PW, DPW, HR) that leak into titles."""
+    """Remove trailing department acronyms (e.g., PW, DPW, HR) that leak into titles.
+
+    Args:
+        text: Title text potentially with department tokens.
+
+    Returns:
+        Title with trailing department tokens removed.
+    """
     tokens = text.split()
     if not tokens:
         return text
@@ -195,9 +229,16 @@ def _strip_trailing_dept_tokens(text: str) -> str:
 
 
 def _smart_title_case(text: str, preserve_caps: set[str]) -> str:
-    """
-    Title-case while keeping stopwords lowercase and short abbreviations uppercase.
+    """Title-case while keeping stopwords lowercase and short abbreviations uppercase.
+
     Handles special cases like "Mc" + capital letter (McDonald, not Mc donald).
+
+    Args:
+        text: Text to apply title case to.
+        preserve_caps: Set of acronyms/abbreviations that should stay uppercase.
+
+    Returns:
+        Text with intelligent title casing applied.
     """
     parts = []
     tokens = text.split()
@@ -339,7 +380,11 @@ def normalize_title(raw_title: str, strip_codes: str = "both") -> str:
 
 @lru_cache(maxsize=1)
 def _seniority_keywords() -> list[str]:
-    """Load ordered seniority keywords from packaged cache."""
+    """Load ordered seniority keywords from packaged cache.
+
+    Returns:
+        List of seniority keywords in priority order, lowercase.
+    """
     try:
         data = load_package_json_gz("seniority_keywords.json.gz")
         if isinstance(data, list):
@@ -413,6 +458,11 @@ def extract_seniority(normalized_title: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_title_abbreviations() -> dict[str, str]:
+    """Load title abbreviations from packaged cache.
+
+    Returns:
+        Dict mapping lowercase abbreviations to expanded forms.
+    """
     try:
         data = load_package_json_gz("title_abbreviations.json.gz")
         if isinstance(data, dict):
@@ -424,6 +474,11 @@ def _load_title_abbreviations() -> dict[str, str]:
 
 @lru_cache(maxsize=1)
 def _load_title_stopwords() -> set[str]:
+    """Load title stopwords (words to keep lowercase) from packaged cache.
+
+    Returns:
+        Set of lowercase stopwords.
+    """
     try:
         data = load_package_json_gz("title_stopwords.json.gz")
         if isinstance(data, list):
@@ -435,6 +490,11 @@ def _load_title_stopwords() -> set[str]:
 
 @lru_cache(maxsize=1)
 def _load_preserve_abbreviations() -> set[str]:
+    """Load abbreviations to preserve in uppercase from packaged cache.
+
+    Returns:
+        Set of uppercase abbreviations that should stay uppercase.
+    """
     try:
         data = load_package_json_gz("title_preserve_abbreviations.json.gz")
         if isinstance(data, list):

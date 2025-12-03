@@ -204,8 +204,22 @@ def _strip_title_prefixes(text: str) -> str:
 
 
 def _normalize_capitalization(text: str) -> str:
-    """
-    Normalize capitalization in a name.
+    """Normalize capitalization in a name.
+
+    Handles special cases like Scottish/Irish prefixes (Mc, Mac, O'), particles (de, van, etc.),
+    apostrophe names (D'Angelo), hyphenated names, and preserves interior capitals (DiCaprio).
+
+    Args:
+        text: Raw name part to normalize capitalization for.
+
+    Returns:
+        Name with proper capitalization applied.
+
+    Example:
+        >>> _normalize_capitalization("mcdonough")
+        'Mcdonough'
+        >>> _normalize_capitalization("d'angelo")
+        "D'angelo"
     """
     if not text:
         return ""
@@ -270,7 +284,20 @@ def _normalize_capitalization(text: str) -> str:
 
 
 def _extract_middle_parts(middle: str) -> Optional[str]:
-    """Clean and normalize middle names/initials."""
+    """Clean and normalize middle names/initials.
+
+    Args:
+        middle: Raw middle name string that may contain periods or spaces.
+
+    Returns:
+        Normalized middle name(s) with proper casing, or None if empty.
+
+    Example:
+        >>> _extract_middle_parts("j.r.")
+        'J R'
+        >>> _extract_middle_parts("Robert Lee")
+        'Robert Lee'
+    """
     if not middle:
         return None
 
@@ -291,7 +318,23 @@ def _extract_middle_parts(middle: str) -> Optional[str]:
 
 
 def _detect_suffix(last: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-    """Extract suffix from last name if present."""
+    """Extract suffix from last name if present.
+
+    Handles generational suffixes (Jr, Sr, II, III, etc.), credential suffixes,
+    and textual ordinals embedded in names ("the third" -> "iii").
+
+    Args:
+        last: Last name that may contain a suffix.
+
+    Returns:
+        Tuple of (remaining_last_name, suffix) where suffix is None if no suffix found.
+
+    Example:
+        >>> _detect_suffix("Smith Jr.")
+        ('Smith', 'jr')
+        >>> _detect_suffix("King the Third")
+        ('King', 'iii')
+    """
     if not last:
         return last, None
 
@@ -334,7 +377,20 @@ def _detect_suffix(last: Optional[str]) -> tuple[Optional[str], Optional[str]]:
 
 
 def _looks_like_corporate(text: str) -> bool:
-    """Heuristic: detect corporate indicators in the string."""
+    """Detect corporate indicators in the string.
+
+    Args:
+        text: Text to check for corporate keywords.
+
+    Returns:
+        True if corporate keywords are found, False otherwise.
+
+    Example:
+        >>> _looks_like_corporate("Acme Corporation")
+        True
+        >>> _looks_like_corporate("John Smith")
+        False
+    """
     if not text:
         return False
 
@@ -348,9 +404,21 @@ def _looks_like_corporate(text: str) -> bool:
 
 
 def _select_best_segment(text: str) -> str:
-    """
-    When delimiters are present, pick the segment most likely to be the person's name.
-    Handles formats like "Title - Last, First" or "Dept | Smith, Jane".
+    """Select best segment when delimiters are present in text.
+
+    When text contains delimiters (-, |, etc.), identifies which segment is most
+    likely to be the person's name. Handles formats like "Title - Last, First"
+    or "Dept | Smith, Jane".
+
+    Args:
+        text: Text potentially containing multiple delimited segments.
+
+    Returns:
+        Best candidate segment for a person's name.
+
+    Example:
+        >>> _select_best_segment("Engineer - Smith, John | Acme Inc")
+        'Smith, John'
     """
     if not text:
         return text
@@ -389,7 +457,20 @@ def _select_best_segment(text: str) -> str:
 
 
 def _normalize_hyphenated_last(last: str) -> str:
-    """Handle hyphenated last names correctly."""
+    """Handle hyphenated and space-separated last names correctly.
+
+    Args:
+        last: Last name that may be hyphenated or contain space-separated particles.
+
+    Returns:
+        Last name with proper capitalization applied to each part.
+
+    Example:
+        >>> _normalize_hyphenated_last("smith-jones")
+        'Smith-Jones'
+        >>> _normalize_hyphenated_last("van der berg")
+        'Van Der Berg'
+    """
     if "-" not in last:
         # Handle space-separated particles and ordinals sensibly
         return " ".join(_normalize_capitalization(part) for part in last.split())
@@ -399,16 +480,30 @@ def _normalize_hyphenated_last(last: str) -> str:
 
 
 def _empty() -> Dict[str, Optional[str]]:
-    """Return empty/invalid name result."""
+    """Return empty/invalid name result.
+
+    Returns:
+        Standard empty name dict with all fields set to None.
+    """
     return _EMPTY_NAME.copy()
 
 
 def _dedupe_trailing_duplicate_first(cleaned: str) -> str:
-    """
-    Drop trailing duplicated first names like "Jane Doe, Jane".
+    """Drop trailing duplicated first names like "Jane Doe, Jane".
 
-    These often come from copy/paste or CSV join issues. The pattern we want to fix is:
-    "<first> <last>, <first>" where the comma section is just a repeat of the leading first token.
+    Fixes patterns like "<first> <last>, <first>" where the comma section
+    is just a repeat of the leading first token. Often from copy/paste or
+    CSV join issues.
+
+    Args:
+        cleaned: Cleaned name string potentially containing duplicate.
+
+    Returns:
+        Name with trailing duplicate removed.
+
+    Example:
+        >>> _dedupe_trailing_duplicate_first("Jane Doe, Jane")
+        'Jane Doe'
     """
     parts = [p.strip() for p in cleaned.split(",") if p.strip()]
     if len(parts) >= 2:
@@ -463,8 +558,26 @@ def _validate_name_quality(
 
 
 def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
-    """
-    Normalize a name into structured components.
+    """Normalize a name into structured components.
+
+    Main public API function. Parses and cleans a raw name string into first, middle,
+    last, suffix, and nickname components with proper capitalization and validation.
+
+    Args:
+        raw: Raw name string, or None.
+
+    Returns:
+        Dict with keys: full, first, middle, last, suffix, nickname, is_valid.
+        Returns empty dict on invalid input.
+
+    Example:
+        >>> result = normalize_name("Dr. John Robert Smith Jr.")
+        >>> result["first"]
+        'John'
+        >>> result["last"]
+        'Smith'
+        >>> result["suffix"]
+        'Jr'
     """
     if not raw or not isinstance(raw, str):
         return _empty()

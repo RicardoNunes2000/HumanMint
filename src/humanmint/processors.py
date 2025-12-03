@@ -37,7 +37,11 @@ from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
 
 @lru_cache(maxsize=1)
 def _name_token_set() -> set[str]:
-    """Load name tokens from names.json.gz for quick person scoring."""
+    """Load name tokens from names.json.gz for quick person scoring.
+
+    Returns:
+        Set of lowercase name tokens from cached names data, empty set on error.
+    """
     try:
         data = load_package_json_gz("names.json.gz")
         return {k.lower() for k in data.keys()}
@@ -47,7 +51,11 @@ def _name_token_set() -> set[str]:
 
 @lru_cache(maxsize=1)
 def _semantic_token_map() -> dict[str, Optional[str]]:
-    """Load semantic tokens map (token -> category) for org/person heuristics."""
+    """Load semantic tokens map (token -> category) for org/person heuristics.
+
+    Returns:
+        Mapping of lowercase tokens to their semantic category, empty dict on error.
+    """
     try:
         data = load_package_json_gz("semantic_tokens.json.gz")
         return {k.lower(): (v.lower() if isinstance(v, str) else None) for k, v in data.items()}
@@ -56,16 +64,29 @@ def _semantic_token_map() -> dict[str, Optional[str]]:
 
 
 def _tokenize_lower(text: str) -> list[str]:
-    """Lowercase, tokenized words (alpha/numeric/apostrophe) for scoring."""
+    """Lowercase, tokenized words (alpha/numeric/apostrophe) for scoring.
+
+    Args:
+        text: Text to tokenize.
+
+    Returns:
+        List of lowercase alphanumeric/apostrophe tokens.
+    """
     return re.findall(r"[a-z0-9']+", text.lower())
 
 
 def _person_org_score(text: str) -> tuple[float, float, bool]:
-    """
-    Compute lightweight person vs. org score using:
-    - name token presence
-    - non-person phrases/patterns
-    - semantic token categories
+    """Compute lightweight person vs. org score.
+
+    Uses name token presence, non-person phrases/patterns, and semantic token categories
+    to estimate whether text is a person name or organization name.
+
+    Args:
+        text: Text to score.
+
+    Returns:
+        Tuple of (person_score, org_score, is_likely_org_from_patterns).
+            Higher scores indicate stronger match for that category.
     """
     tokens = _tokenize_lower(text)
     if not tokens:
@@ -465,6 +486,14 @@ def process_department(
     }
 
     def _infer_domains_from_text(text: Optional[str]) -> set[str]:
+        """Infer functional domains (IT, WATER, etc.) from text tokens.
+
+        Args:
+            text: Text to analyze, or None.
+
+        Returns:
+            Set of domain codes inferred from vocabulary and token analysis.
+        """
         if not text:
             return set()
         tokens = set(re.findall(r"[a-z0-9']+", text.lower()))
@@ -653,7 +682,19 @@ def process_title(
 
 
 def process_address(raw_address: Optional[str]) -> Optional[AddressResult]:
-    """Normalize a postal address (US-focused)."""
+    """Normalize a postal address (US-focused).
+
+    Args:
+        raw_address: Raw address string, or None.
+
+    Returns:
+        AddressResult dict with normalized fields, or None on error or empty input.
+
+    Example:
+        >>> result = process_address("123 Main St, Springfield, IL 62701")
+        >>> result.get("street")
+        '123 Main Street'
+    """
     try:
         return normalize_address(raw_address)
     except Exception:
@@ -661,7 +702,19 @@ def process_address(raw_address: Optional[str]) -> Optional[AddressResult]:
 
 
 def process_organization(raw_org: Optional[str]) -> Optional[OrganizationResult]:
-    """Normalize an organization/agency name."""
+    """Normalize an organization/agency name.
+
+    Args:
+        raw_org: Raw organization name, or None.
+
+    Returns:
+        OrganizationResult dict with normalized fields, or None on error or empty input.
+
+    Example:
+        >>> result = process_organization("City of Springfield Dept. of Public Works")
+        >>> result.get("canonical")
+        'Springfield City'
+    """
     try:
         return normalize_organization(raw_org)
     except Exception:
