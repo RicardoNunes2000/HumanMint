@@ -1,6 +1,6 @@
 # HumanMint v2
 
-HumanMint cleans and normalizes messy contact data with one line of code. It standardizes names, emails, phones, addresses, departments, titles, and organizations using curated public-sector mappings you won’t find anywhere else.
+HumanMint cleans and normalizes messy contact data with one line of code. It standardizes names, emails, phones, addresses, departments, titles, and organizations. It is a general-purpose cleaner for B2B and public-sector data, and ships with curated public-sector mappings you won’t find anywhere else.
 
 ```python
 from humanmint import mint
@@ -28,12 +28,13 @@ results = mint(name="John and Jane Smith", split_multi=True)
 ```
 
 ## Why HumanMint
+- General-purpose: works for government data and B2B (execs, VPs, directors, managers) without switching libraries.
 - Real-world chaos: titles inside names, departments with numbers/phone extensions, strange-casing emails, smashed-together addresses.
 - Unique data: 23K+ department variants → 64 categories; 73K+ titles with curated canonicals + BLS; context-aware (dept-informed) title mapping not available off-the-shelf.
 - Safe defaults: length guards, optional aggressive cleaning, semantic conflict checks, bulk dedupe, and optional multi-person name splitting.
 
 ### Department & Title mapping you can’t get elsewhere
-Curated public-sector mappings that solve the “impossible to Google” parts of contact normalization.
+Curated public-sector mappings that solve the “impossible to Google” parts of contact normalization. Works for governments and B2B roles (CEOs, VPs, Directors, Managers) alike.
 ```
 "City Administration"    -> "Administration"       [administration]
 "Finance Department"     -> "Finance"              [finance]
@@ -43,13 +44,13 @@ Curated public-sector mappings that solve the “impossible to Google” parts o
 Titles get similar treatment across 73K standardized forms with optional department context to boost accuracy.
 
 ### All fields in one library
-Names, emails, phones, addresses, departments, titles, organizations—one pipeline. Most libraries cover one field; HumanMint returns the whole record with canonicalization, categorization, and confidence.
+Names, emails, phones, addresses, departments, titles, organizations—one pipeline. Most libraries clean only one field (just names or just phones); HumanMint normalizes the entire record with canonicalization, categorization, and confidence.
 
 ### Fast
 Typical workloads run sub-millisecond per record with multithreading and built-in dedupe.
 
 ### AI extraction (optional)
-Install the ML extra (`pip install gliner2`) and pass `text=` with `use_gliner=True` to extract from unstructured text, then normalize. Structured fields you pass always win. You can also pass a `GlinerConfig` (`gliner_cfg`) to control schema, threshold, and GPU usage.
+Install the ML extra (`pip install humanmint[ml]`) and pass `text=` with `use_gliner=True` to extract from unstructured text, then normalize. Structured fields you pass always win. You can also pass a `GlinerConfig` (`gliner_cfg`) to control schema, threshold, and GPU usage.
 GLiNER extraction is experimental and may be inaccurate; prefer structured inputs when available.
 
 Example (signature block → canonicalized):
@@ -106,6 +107,10 @@ result = mint(text=text, use_gliner=True, gliner_cfg=cfg)
 ## Installation
 ```bash
 pip install humanmint
+# Optional extras:
+#   pip install humanmint[address]  # usaddress parsing
+#   pip install humanmint[pandas]   # DataFrame helpers
+#   pip install humanmint[ml]       # GLiNER2 extraction
 ```
 
 ## Quickstart
@@ -128,32 +133,26 @@ results = bulk(records, workers=4)
 ```
 
 ## Access Patterns
+Quick reference (full field guide in `docs/FIELDS.md`):
 - Dict access: `result.title["canonical"]`, `result.department["canonical"]`, `result.department["category"]`
 - Properties (preferred): `name_standardized`, `title_canonical`, `department_canonical`, `email_standardized`, `phone_standardized`, `address_canonical`, `organization_canonical`
 - Full dicts: `result.title`, `result.department`, `result.email`, etc.
 
-## Recommended Properties
+## Recommended Properties (quick reference)
 
-**Names**
-- `name_standardized`, `name_first`, `name_last`, `name_middle`, `name_suffix`, `name_suffix_type`, `name_gender`, `name_nickname`
+**Names** — `name_standardized`, `name_first`, `name_last`, `name_middle`, `name_suffix`, `name_suffix_type`, `name_gender`, `name_nickname`
 
-**Emails**
-- `email_standardized`, `email_domain`, `email_is_valid`, `email_is_generic_inbox`, `email_is_free_provider`
+**Emails** — `email_standardized`, `email_domain`, `email_is_valid`, `email_is_generic_inbox`, `email_is_free_provider`
 
-**Phones**
-- `phone_standardized`, `phone_e164`, `phone_pretty`, `phone_extension`, `phone_is_valid`, `phone_type`
+**Phones** — `phone_standardized`, `phone_e164`, `phone_pretty`, `phone_extension`, `phone_is_valid`, `phone_type`
 
-**Departments**
-- `department_canonical`, `department_category`, `department_normalized`, `department_override`
+**Departments** — `department_canonical`, `department_category`, `department_normalized`, `department_override`
 
-**Titles**
-- `title_canonical`, `title_raw`, `title_normalized`, `title_is_valid`, `title_confidence`, `title_seniority`
+**Titles** — `title_canonical`, `title_raw`, `title_normalized`, `title_is_valid`, `title_confidence`, `title_seniority`
 
-**Addresses**
-- `address_canonical`, `address_raw`, `address_street`, `address_unit`, `address_city`, `address_state`, `address_zip`, `address_country`
+**Addresses** — `address_canonical`, `address_raw`, `address_street`, `address_unit`, `address_city`, `address_state`, `address_zip`, `address_country`
 
-**Organizations**
-- `organization_raw`, `organization_normalized`, `organization_canonical`, `organization_confidence`
+**Organizations** — `organization_raw`, `organization_normalized`, `organization_canonical`, `organization_confidence`
 
 Use `result.get("email.is_valid")` or other dot paths to fetch nested dict values.
 

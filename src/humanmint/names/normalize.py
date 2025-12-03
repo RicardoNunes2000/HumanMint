@@ -172,22 +172,29 @@ def _normalize_capitalization(text: str) -> str:
     if not text:
         return ""
 
-    # Handle short prefix apostrophe names like D'Angelo, L'Oreal
-    if re.match(r"^[A-Za-z]'[A-Za-z].*", text):
-        head, tail = text.split("'", 1)
-        return f"{head.upper()}'{tail.capitalize()}"
+    # Respect dotted initials like O.J. or D.J. without lowercasing inner letters
+    if re.match(r"^[A-Za-z](?:\.[A-Za-z])+(?:\.)?$", text):
+        letters = re.findall(r"[A-Za-z]", text)
+        suffix = "." if text.endswith(".") else ""
+        return ".".join(ch.upper() for ch in letters) + suffix
 
-    # Handle hyphenated names (e.g., Mary-Jane, Johnson-Smith)
-    if "-" in text:
-        parts = text.split("-")
-        return "-".join(_normalize_capitalization(p) for p in parts)
-
-    # Handle Scottish/Irish prefixes (Mc, Mac, O')
+    # Handle Scottish/Irish prefixes (Mc, Mac, O') before generic apostrophe logic
     if text.lower().startswith("mc") and len(text) > 2:
         return "Mc" + text[2].upper() + text[3:].lower()
 
     if text.lower().startswith("o'") and len(text) > 2:
         return "O'" + text[2].upper() + text[3:].lower()
+
+    # Handle short prefix apostrophe names like D'Angelo, L'Oreal
+    if re.match(r"^[A-Za-z]'[A-Za-z].*", text):
+        head, tail = text.split("'", 1)
+        return f"{head.capitalize()}'{tail.capitalize()}"
+
+    # Handle short prefix apostrophe names like D'Angelo, L'Oreal
+    # Handle hyphenated names (e.g., Mary-Jane, Johnson-Smith)
+    if "-" in text:
+        parts = text.split("-")
+        return "-".join(_normalize_capitalization(p) for p in parts)
 
     return text.capitalize()
 
@@ -381,6 +388,9 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
     cleaned = _strip_ranks_and_badges(cleaned)
     if not cleaned:
         return _empty()
+
+    # Normalize underscores into spaces before further parsing
+    cleaned = cleaned.replace("_", " ")
 
     cleaned = _select_best_segment(cleaned)
     cleaned = _dedupe_trailing_duplicate_first(cleaned)

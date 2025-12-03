@@ -156,7 +156,11 @@ def _normalize_phone_cached(
     try:
         parsed = phonenumbers.parse(phone_part, country)
     except NumberParseException:
-        return _empty(extension=extension, country=country)
+        # Retry without region hint to let international numbers parse
+        try:
+            parsed = phonenumbers.parse(phone_part, None)
+        except NumberParseException:
+            return _empty(extension=extension, country=country)
 
     detected_country = phonenumbers.region_code_for_number(parsed)
 
@@ -263,6 +267,7 @@ def normalize_phone(
     # Common separators: "/", ";", ",", " or ", "|" (phone trees, shared lines)
     candidates = re.split(r"(?:/|;|,|\bor\b|\|)", raw)
     first_extension = None
+    first_raw_candidate = None
     for candidate in candidates:
         candidate = candidate.strip()
         if not candidate:
@@ -272,6 +277,8 @@ def normalize_phone(
         phone_part, extension = _extract_extension(phone_clean)
         phone_part = phone_part.strip()
         extension = extension or None
+        if first_raw_candidate is None:
+            first_raw_candidate = phone_part or phone_clean or candidate
         if first_extension is None:
             first_extension = extension
 
@@ -283,5 +290,8 @@ def normalize_phone(
             return result.copy()
 
     # If none of the splits validate, return an empty/invalid phone result
-    # but preserve the first detected extension (helps when number is malformed).
-    return _empty(extension=first_extension)
+    # but preserve the first detected extension (helps when number is malformed)
+    # and keep the raw digits so data isn't lost.
+    fallback = _empty(extension=first_extension)
+    fallback["pretty"] = first_raw_candidate or raw
+    return fallback

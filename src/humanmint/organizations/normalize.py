@@ -70,6 +70,7 @@ def normalize_organization(raw: Optional[str]) -> Optional[Dict[str, Optional[st
         normalized_tokens.append(_ABBREV_MAP.get(tok, tok))
 
     normalized = " ".join(normalized_tokens)
+    normalized = normalized.strip(" &,-")
     canonical = normalized.title()
     confidence = 0.7 + 0.05 * min(len(normalized_tokens), 4)
     confidence = min(confidence, 0.95)

@@ -51,6 +51,9 @@ address = [
 pandas = [
     "pandas>=1.5",
 ]
+ml = [
+    "gliner2>=0.2.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/RicardoNunes2000/HumanMint"

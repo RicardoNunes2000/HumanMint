@@ -213,3 +213,26 @@ def test_normalize_name_handles_quoted_nickname():
     assert res.name_suffix == "iii"
     assert res.name_nickname.lower() == "jimmy"
     assert res.name_standardized.lower() == "james o'connor iii"
+
+
+def test_normalize_name_preserves_dotted_initials():
+    result = normalize_name("O.J. Simpson")
+
+    assert result["first"] == "O.J."
+    assert result["last"] == "Simpson"
+    assert result["full"] == "O.J. Simpson"
+
+
+def test_normalize_name_preserves_mc_apostrophe_casing():
+    result = normalize_name("Jamie McDonald's")
+
+    assert result["last"] == "McDonald's"
+    assert result["full"] == "Jamie McDonald's"
+
+
+def test_normalize_name_handles_underscores_as_spaces():
+    result = normalize_name("Jane_Doe")
+
+    assert result["first"] == "Jane"
+    assert result["last"] == "Doe"
+    assert result["full"] == "Jane Doe"
