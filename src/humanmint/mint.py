@@ -939,28 +939,25 @@ def bulk(
     # Handle deduplication if enabled
     if deduplicate and materialized:
         # Create deduplication keys from record values
-        unique_records: dict[str, dict] = {}
-        record_map: list[str] = []  # Maps original index → dedup key
+        fields = (
+            "name",
+            "email",
+            "phone",
+            "department",
+            "title",
+            "address",
+            "organization",
+        )
+        unique_records: dict[tuple[str, ...], dict] = {}
+        record_map: list[tuple[str, ...]] = []  # Maps original index → dedup key
 
         for rec in materialized:
-            # Create canonical key from all field values (lowercased, stripped)
-            key_parts = []
-            for field in [
-                "name",
-                "email",
-                "phone",
-                "department",
-                "title",
-                "address",
-                "organization",
-            ]:
-                val = rec.get(field)
-                if val:
-                    key_parts.append(str(val).lower().strip())
-
-            key = "|".join(key_parts)
+            key = tuple(
+                str(rec.get(field)).lower().strip()
+                for field in fields
+                if rec.get(field)
+            )
             record_map.append(key)
-
             if key not in unique_records:
                 unique_records[key] = rec
 
