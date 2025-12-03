@@ -303,6 +303,23 @@ def _empty() -> Dict[str, Optional[str]]:
     return _EMPTY_NAME.copy()
 
 
+def _dedupe_trailing_duplicate_first(cleaned: str) -> str:
+    """
+    Drop trailing duplicated first names like "Jane Doe, Jane".
+
+    These often come from copy/paste or CSV join issues. The pattern we want to fix is:
+    "<first> <last>, <first>" where the comma section is just a repeat of the leading first token.
+    """
+    parts = [p.strip() for p in cleaned.split(",") if p.strip()]
+    if len(parts) >= 2:
+        left_first = parts[0].split()[0].lower() if parts[0] else ""
+        trailing = parts[-1].lower()
+        if left_first and trailing == left_first:
+            # Remove the duplicated trailing first token
+            return ", ".join(parts[:-1])
+    return cleaned
+
+
 def _validate_name_quality(
     first: Optional[str], last: Optional[str], middle: Optional[str]
 ) -> bool:
@@ -366,6 +383,7 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
         return _empty()
 
     cleaned = _select_best_segment(cleaned)
+    cleaned = _dedupe_trailing_duplicate_first(cleaned)
 
     if _looks_like_corporate(cleaned):
         return _empty()
