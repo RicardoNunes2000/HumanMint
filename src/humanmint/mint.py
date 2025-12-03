@@ -32,6 +32,7 @@ Example:
             >>> result.title_canonical
             'deputy director'
 """
+
 from __future__ import annotations
 
 import re
@@ -39,11 +40,24 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, Union
 
-from .processors import (process_address, process_department, process_email,
-                         process_name, process_organization, process_phone,
-                         process_title)
-from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
-                    OrganizationResult, PhoneResult, TitleResult)
+from .processors import (
+    process_address,
+    process_department,
+    process_email,
+    process_name,
+    process_organization,
+    process_phone,
+    process_title,
+)
+from .types import (
+    AddressResult,
+    DepartmentResult,
+    EmailResult,
+    NameResult,
+    OrganizationResult,
+    PhoneResult,
+    TitleResult,
+)
 
 if TYPE_CHECKING:
     from . import gliner
@@ -52,6 +66,7 @@ if TYPE_CHECKING:
 def _run_mint_record(rec: dict) -> "MintResult":
     """Top-level helper to allow ProcessPoolExecutor pickling."""
     return mint(**rec)
+
 
 # Input length limits to prevent DoS and data validation
 MAX_NAME_LENGTH = 1000
@@ -687,9 +702,7 @@ def mint(
             return results_gliner[0]
         return results_gliner
 
-    title_preview = process_title(
-        title, dept_canonical=None, overrides=title_overrides
-    )
+    title_preview = process_title(title, dept_canonical=None, overrides=title_overrides)
     department_result = process_department(
         department,
         dept_overrides,
@@ -717,11 +730,11 @@ def bulk(
     deduplicate: bool = True,
 ) -> list[MintResult]:
     """
-    Process multiple records (dicts accepted by mint) in parallel using threads.
+    Process multiple records (dicts accepted by mint) in parallel using processes.
 
     Args:
         records: Iterable of dicts accepted by mint().
-        workers: Max worker threads.
+        workers: Max worker processes.
         progress: If truthy, display progress. Uses Rich when available, otherwise
                   a simple stdout ticker. You can also pass a callable to be
                   invoked on each completed record.
@@ -759,11 +772,15 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (BarColumn,  # type: ignore
-                                           MofNCompleteColumn, Progress,
-                                           SpinnerColumn, TextColumn,
-                                           TimeElapsedColumn,
-                                           TimeRemainingColumn)
+                from rich.progress import (  # type: ignore
+                    BarColumn,
+                    MofNCompleteColumn,
+                    Progress,
+                    SpinnerColumn,
+                    TextColumn,
+                    TimeElapsedColumn,
+                    TimeRemainingColumn,
+                )
 
                 rp = Progress(
                     SpinnerColumn(),
@@ -824,8 +841,6 @@ def bulk(
     def _run_mint(rec: dict) -> MintResult:
         return mint(**rec)
 
-    from concurrent.futures import ThreadPoolExecutor
-
     # Handle deduplication if enabled
     if deduplicate and materialized:
         # Create deduplication keys from record values
@@ -872,7 +887,9 @@ def bulk(
 
         chunk_size = _compute_chunk_size(len(unique_list), workers)
         with ProcessPoolExecutor(max_workers=workers) as executor:
-            for res in executor.map(_run_mint_record, unique_list, chunksize=chunk_size):
+            for res in executor.map(
+                _run_mint_record, unique_list, chunksize=chunk_size
+            ):
                 results_unique.append(res)
                 if progress_tick:
                     progress_tick()
@@ -887,10 +904,14 @@ def bulk(
     results: list[MintResult] = []
     progress_start()
     records_to_process = records if materialized is None else materialized
-    seq_len = len(records_to_process) if hasattr(records_to_process, "__len__") else None
+    seq_len = (
+        len(records_to_process) if hasattr(records_to_process, "__len__") else None
+    )
     chunk_size = _compute_chunk_size(seq_len, workers)
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        for res in executor.map(_run_mint_record, records_to_process, chunksize=chunk_size):
+        for res in executor.map(
+            _run_mint_record, records_to_process, chunksize=chunk_size
+        ):
             results.append(res)
             if progress_tick:
                 progress_tick()

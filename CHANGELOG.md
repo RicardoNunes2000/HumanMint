@@ -5,6 +5,38 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1b] - 2025-12-03
+
+### Added
+- Real-world test cases and comprehensive manual testing script for validation.
+- Department abbreviation cache and mapping files for improved normalization.
+- Support for textual ordinals in name normalization (e.g., 'the Third' → 'III').
+- Enhanced email normalization with anti-scraping format support.
+- Better handling of Scottish/Irish name prefixes and dotted initials.
+- Phone normalization improvements with retry logic for international numbers.
+- Improved address normalization heuristics for ordinals and unit extraction.
+- New entity comparison scoring boosts and mismatch penalties.
+- Updated semantic token mappings for improved categorization.
+
+### Changed
+- **Significant performance improvement:** Refactored imports across modules for consistency and readability, resulting in much faster library initialization speed.
+- Enhanced name normalization to detect and remove trailing duplicate first names.
+- Improved department matching logic to avoid false positives.
+- Organization normalization now trims trailing special characters.
+- Accents preserved in Unicode normalization for better fidelity with diacritics.
+- Better multi-person name splitting logic to avoid incorrect splits on 'Last, First' formats.
+- Enhanced handling of ambiguous department names and inputs.
+
+### Fixed
+- Corrected handling of 'NULL' as an invalid name value.
+- Improved person/organization scoring for single-token known names.
+- Better title normalization for chained roles (e.g., 'Clerk of the Works', 'Chief-of-Staff').
+- Enhanced detection and handling of corporate/department names, OCR errors, HTML entities, and mojibake.
+- Removed obsolete manual test scripts.
+
+### Testing
+- 459 tests passing, 2 skipped.
+
 ## [2.0.0] - 2025-12-01
 
 ### Highlights (stable)

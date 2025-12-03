@@ -48,14 +48,14 @@ class HumanMintAccessor:
             dept_col: Column containing department values (auto-detected if None).
             title_col: Column containing job titles (auto-detected if None).
             cols: Optional iterable of column names to limit auto-detection.
-            use_bulk: If True, use threaded bulk() for processing instead of per-row apply.
-            workers: Worker threads for bulk mode.
+            use_bulk: If True, use process-based bulk() for processing instead of per-row apply.
+            workers: Worker processes for bulk mode.
             progress: Pass-through to bulk() progress (True/"rich"/callable).
 
         Returns:
             New DataFrame with added hm_* columns for normalized data.
         """
-        from .column_guess import COLUMN_GUESSES, guess_column
+        from .column_guess import guess_column
         from .mint import bulk, mint
 
         df = self._obj.copy()

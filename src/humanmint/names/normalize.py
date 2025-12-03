@@ -504,6 +504,9 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
     tokens_original = cleaned.split()
     parsed = HumanName(cleaned)
 
+    # Capture honorific/title as parsed by nameparser for internal reuse (do not expose)
+    parsed_honorific = parsed.title.strip() if parsed.title else None
+
     first = parsed.first.strip() if parsed.first else None
     middle = parsed.middle.strip() if parsed.middle else None
     last = parsed.last.strip() if parsed.last else None
@@ -542,6 +545,11 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
     if not suffix:
         last, extracted_suffix = _detect_suffix(last)
     suffix = suffix or extracted_suffix
+
+    # If nameparser found an honorific and first is missing, try to recover from honorific+last
+    if parsed_honorific and not first and last:
+        # e.g., "Dr. Smith" => honorific="Dr", last="Smith" ; prefer to keep last, skip honorific
+        first = None
 
     if suffix:
         suffix = suffix.lower().rstrip(".")

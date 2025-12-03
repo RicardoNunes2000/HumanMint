@@ -8,12 +8,18 @@ removing noise, extra whitespace, and common artifacts.
 import re
 from functools import lru_cache
 
-from humanmint.constants.titles import (PRESERVE_ABBREVIATIONS, STOPWORDS,
-                                        TITLE_ABBREVIATIONS)
+from humanmint.constants.titles import (
+    PRESERVE_ABBREVIATIONS,
+    STOPWORDS,
+    TITLE_ABBREVIATIONS,
+)
 from humanmint.data.utils import load_package_json_gz
-from humanmint.text_clean import (normalize_unicode_ascii,
-                                  remove_parentheticals, strip_codes_and_ids,
-                                  strip_garbage)
+from humanmint.text_clean import (
+    normalize_unicode_ascii,
+    remove_parentheticals,
+    strip_codes_and_ids,
+    strip_garbage,
+)
 
 
 def _strip_garbage(text: str) -> str:
@@ -23,7 +29,6 @@ def _strip_garbage(text: str) -> str:
 
 def _expand_abbreviations(text: str) -> str:
     """Expand common job title abbreviations."""
-    abbreviations = TITLE_ABBREVIATIONS or _load_title_abbreviations()
     preserve = PRESERVE_ABBREVIATIONS or _load_preserve_abbreviations()
     pattern, abbr_map = _get_title_abbreviation_regex()
 
@@ -50,7 +55,9 @@ def _get_title_abbreviation_regex() -> tuple[re.Pattern[str], dict[str, str]]:
     if not keys:
         return re.compile(r"$^"), {}
     pattern_str = r"\b(" + "|".join(re.escape(k) for k in keys) + r")\.?\b"
-    return re.compile(pattern_str, re.IGNORECASE), {k.lower(): v for k, v in abbr_map.items()}
+    return re.compile(pattern_str, re.IGNORECASE), {
+        k.lower(): v for k, v in abbr_map.items()
+    }
 
 
 def _remove_name_prefixes(text: str) -> str:
@@ -166,7 +173,12 @@ def _normalize_separators(text: str) -> str:
     text = re.sub(r"\s+of\s+the\s+(?=[A-Za-z])", " / ", text, flags=re.IGNORECASE)
     text = re.sub(r"\s+to\s+(?=[A-Za-z])", " / ", text, flags=re.IGNORECASE)
     # Avoid breaking phrases like "Chief of Police" by only splitting "of" when followed by another "of"/"to" chain
-    text = re.sub(r"\s+of\s+(?=(?:Deputy|Assistant|Associate)\b)", " / ", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"\s+of\s+(?=(?:Deputy|Assistant|Associate)\b)",
+        " / ",
+        text,
+        flags=re.IGNORECASE,
+    )
     return text
 
 
@@ -199,7 +211,9 @@ def _smart_title_case(text: str, preserve_caps: set[str]) -> str:
         base_upper = token.upper()
         base_lower = token.lower()
 
-        if base_upper in preserve_caps or base_upper in (PRESERVE_ABBREVIATIONS or _load_preserve_abbreviations()):
+        if base_upper in preserve_caps or base_upper in (
+            PRESERVE_ABBREVIATIONS or _load_preserve_abbreviations()
+        ):
             parts.append(base_upper + suffix)
             continue
 
@@ -378,6 +392,8 @@ def extract_seniority(normalized_title: str) -> str:
             return " ".join(word.capitalize() for word in keyword.split())
 
     return None
+
+
 @lru_cache(maxsize=1)
 def _load_title_abbreviations() -> dict[str, str]:
     try:
