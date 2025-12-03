@@ -5,23 +5,7 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.2b] - 2025-12-03
-
-### Added
-- Phone metadata: geocoded `phone_location`, capped `phone_time_zones` (toll-free suppressed), and best-effort carrier.
-- Free-text phone extraction: `extract_phones(text, region="US")` helper to pull numbers from unstructured text and auto-extraction from noisy phone strings in `mint`.
-- Title seniority: explicit handling for Manager/Lead/Head; assistant-to-leadership remains elevated.
-- Name conveniences: `name_salutation`, improved particles (van/der/von/…), and Roman numeral suffix display.
-- Tests: coverage for new phone/title/name behaviors and noisy-phone extraction.
-
-### Changed
-- Exports: time zone lists are flattened safely for SQL/CSV; stress-test CSV includes phone metadata and drops the empty carrier column.
-- Toll-free and wide-area (>5) time zone lists are suppressed to avoid large outputs.
-
-### Fixed
-- Phone normalization no longer raises on phone_type handling and now trims long noisy phone strings before length validation.
-
-## [2.0.1b] - 2025-12-03
+## [2.0.1] - 2025-12-03
 
 ### Added
 - Real-world test cases and comprehensive manual testing script for validation.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from typing import Any, Dict
 
-__version__ = "2.0.1b"
+__version__ = "2.0.1"
 
 # Lazy module/function map to avoid heavy imports on initial import humanmint
 _LAZY_MODULES: Dict[str, str] = {
