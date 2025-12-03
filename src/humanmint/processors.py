@@ -190,6 +190,8 @@ def process_name(
             dept_match = find_best_department_match(cleaned_name, threshold=0.7)
             if dept_match:
                 dept_hint = True
+            elif dept_norm and not is_likely_non_department(dept_norm):
+                dept_hint = True
         except Exception:
             pass
 

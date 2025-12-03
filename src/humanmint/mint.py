@@ -577,6 +577,14 @@ def mint(
         cleaned = re.sub(r"[,&/+;]", " and ", raw)
         connectors = re.compile(r"\s+(?:and|&|/|\+|;)\s+", re.IGNORECASE)
         parts = [p.strip(" ,") for p in connectors.split(cleaned) if p.strip(" ,")]
+
+        # If the last part is "and <name>", and we have 2 parts, treat as 2 people
+        if len(parts) == 2 and parts[1].lower().startswith("and "):
+            parts[1] = parts[1][3:].strip()
+        # If more than 2 parts and the last starts with "and", remove the "and"
+        elif len(parts) >= 2 and parts[-1].lower().startswith("and "):
+            parts[-1] = parts[-1][3:].strip()
+
         if len(parts) < 2:
             return None
 

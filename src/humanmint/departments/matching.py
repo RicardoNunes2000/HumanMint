@@ -440,6 +440,8 @@ def find_best_match(
         raise ValueError("Department name cannot be empty")
 
     search_name = normalize_department(dept_name) if normalize else dept_name
+    if search_name and search_name.lower() in {"empty", "tbd", "n/a", "na"}:
+        return None
     return _find_best_match_normalized(search_name, threshold)
 
 
