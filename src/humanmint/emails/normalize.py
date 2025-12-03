@@ -61,6 +61,9 @@ def _clean(raw: str) -> str:
     cleaned = raw.strip().strip("<>").lower()
     cleaned = cleaned.replace(" ", "")
 
+    # Strip trailing parenthetical notes appended to emails (e.g., email@city.gov(johnsmith))
+    cleaned = re.sub(r"\([^)]*\)\s*$", "", cleaned)
+
     # Handle mailto: and URL-style inputs
     if cleaned.startswith("mailto:"):
         cleaned = cleaned[len("mailto:") :]
