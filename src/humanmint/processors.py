@@ -256,11 +256,13 @@ def process_name(
                     middle_name = None
 
         # Display version of suffix (roman numerals uppercased, otherwise capitalized)
-        suffix_display = (
-            ROMAN_NUMERALS.get(suffix_name, suffix_name.capitalize())
-            if suffix_name
-            else None
-        )
+        suffix_display = None
+        if suffix_name:
+            suffix_lower = suffix_name.lower()
+            if suffix_lower in {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"}:
+                suffix_display = suffix_lower.upper()
+            else:
+                suffix_display = ROMAN_NUMERALS.get(suffix_name, suffix_name.capitalize())
 
         canonical_parts = [first_name.lower()]
         if middle_name:
@@ -317,6 +319,19 @@ def process_name(
             if any(t in org_keywords for t in tokens) and not suffix_type:
                 return None
 
+        def _guess_salutation(gender_val: Optional[str]) -> Optional[str]:
+            """Map detected gender to a salutation; keep neutral when unknown."""
+            if not gender_val or gender_val == "unknown":
+                return None
+            gender_val = gender_val.lower()
+            if gender_val == "male":
+                return "Mr."
+            if gender_val == "female":
+                return "Ms."
+            if gender_val in {"nonbinary", "non-binary"}:
+                return "Mx."
+            return None
+
         return {
             "raw": raw_name,
             "first": first_name or "",
@@ -332,6 +347,7 @@ def process_name(
             "nickname": nickname,
             "canonical": canonical_val,
             "is_valid": enriched.get("is_valid", False),
+            "salutation": _guess_salutation(gender),
         }
     except (ValueError, AttributeError, TypeError, FileNotFoundError):
         return None
@@ -392,6 +408,9 @@ def process_phone(raw_phone: Optional[str]) -> Optional[PhoneResult]:
                 "is_valid": result.get("is_valid", False),
                 "type": result.get("type"),
                 "country": result.get("country"),
+                "location": result.get("location"),
+                "carrier": result.get("carrier"),
+                "time_zones": result.get("time_zones"),
             }
         return None
     except (ValueError, TypeError, FileNotFoundError):

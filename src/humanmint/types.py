@@ -19,6 +19,7 @@ class NameResult(TypedDict, total=False):
     gender: str
     nickname: Optional[str]
     canonical: str
+    salutation: Optional[str]
 
 
 class EmailResult(TypedDict, total=False):
@@ -42,6 +43,9 @@ class PhoneResult(TypedDict, total=False):
     is_valid: bool
     type: Optional[str]
     country: Optional[str]
+    location: Optional[str]
+    carrier: Optional[str]
+    time_zones: Optional[list[str]]
 
 
 class DepartmentResult(TypedDict, total=False):

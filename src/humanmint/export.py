@@ -248,7 +248,7 @@ def _flatten_result(result: MintResult) -> Dict[str, Any]:
         elif isinstance(field_value, dict):
             for key, val in field_value.items():
                 flat_key = f"{field_name}_{key}"
-                flat[flat_key] = val
+                flat[flat_key] = ";".join(val) if isinstance(val, list) else val
         else:
             flat[field_name] = field_value
 

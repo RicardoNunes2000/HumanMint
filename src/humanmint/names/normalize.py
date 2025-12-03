@@ -121,6 +121,14 @@ def _strip_noise(raw: str) -> str:
     # Remove parenthetical content (notes, status, etc.)
     raw = re.sub(r"\([^)]*\)", "", raw)
 
+    # Strip obvious code-like tokens/functions that leak from HTML/JS (e.g., alert()).
+    raw = re.sub(
+        r"\b(?:alert|prompt|confirm|eval|script|javascript|onerror|onload|document|window|function)\b\s*(?:\([^)]*\))?",
+        "",
+        raw,
+        flags=re.IGNORECASE,
+    )
+
     # Normalize quotes and strip quoted nicknames while preserving content
     raw = raw.translate(
         str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'", "`": "'", "´": "'"})
@@ -225,7 +233,21 @@ def _normalize_capitalization(text: str) -> str:
         return "O'" + text[2].upper() + text[3:].lower()
 
     # Handle particles like de/da/la/van
-    particles = {"de", "da", "la", "van"}
+    particles = {
+        "de",
+        "da",
+        "la",
+        "le",
+        "van",
+        "von",
+        "der",
+        "den",
+        "del",
+        "della",
+        "di",
+        "du",
+        "des",
+    }
     if text.lower() in particles:
         return text.lower()
 

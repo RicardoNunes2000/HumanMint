@@ -5,12 +5,28 @@ All notable changes to HumanMint are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2b] - 2025-12-03
+
+### Added
+- Phone metadata: geocoded `phone_location`, capped `phone_time_zones` (toll-free suppressed), and best-effort carrier.
+- Free-text phone extraction: `extract_phones(text, region="US")` helper to pull numbers from unstructured text and auto-extraction from noisy phone strings in `mint`.
+- Title seniority: explicit handling for Manager/Lead/Head; assistant-to-leadership remains elevated.
+- Name conveniences: `name_salutation`, improved particles (van/der/von/…), and Roman numeral suffix display.
+- Tests: coverage for new phone/title/name behaviors and noisy-phone extraction.
+
+### Changed
+- Exports: time zone lists are flattened safely for SQL/CSV; stress-test CSV includes phone metadata and drops the empty carrier column.
+- Toll-free and wide-area (>5) time zone lists are suppressed to avoid large outputs.
+
+### Fixed
+- Phone normalization no longer raises on phone_type handling and now trims long noisy phone strings before length validation.
+
 ## [2.0.1b] - 2025-12-03
 
 ### Added
 - Real-world test cases and comprehensive manual testing script for validation.
 - Department abbreviation cache and mapping files for improved normalization.
-- Support for textual ordinals in name normalization (e.g., 'the Third' → 'III').
+- Support for textual ordinals in name normalization (e.g., 'the Third' -> 'III').
 - Enhanced email normalization with anti-scraping format support.
 - Better handling of Scottish/Irish name prefixes and dotted initials.
 - Phone normalization improvements with retry logic for international numbers.
@@ -109,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Accessor properties updated to match the new naming.
 
 ### Added
-- Optional multi-person name splitting: `mint(..., split_multi=True)` detects connectors like "and" / "&" / "+" and returns a list of `MintResult` objects (e.g., "John and Jane Smith" → John Smith, Jane Smith).
+- Optional multi-person name splitting: `mint(..., split_multi=True)` detects connectors like "and" / "&" / "+" and returns a list of `MintResult` objects (e.g., "John and Jane Smith" -> John Smith, Jane Smith).
 - Name enrichment now includes `suffix_type` (e.g., generational) and safer nickname handling (nicknames detected but not injected into middle/full names).
 
 ### Stability commitment
@@ -125,11 +141,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Seniority Level Extraction** - New `extract_seniority()` function and `title_seniority` property
   - Detects 80+ seniority modifiers (Senior, Lead, Principal, Chief, etc.)
   - Supports multi-word titles: "Chief Executive Officer", "Senior Vice President", etc.
-  - Available via API: `mint(title="Senior Engineer").title_seniority` → "Senior"
+  - Available via API: `mint(title="Senior Engineer").title_seniority` -> "Senior"
   - Added to TitleResult TypedDict for structured output
 
 - **Email Tag Stripping** - Automatic `+tag` removal for non-consumer domains
-  - Rule: For corporate/government emails, `john+test@company.com` → `john@company.com`
+  - Rule: For corporate/government emails, `john+test@company.com` -> `john@company.com`
   - Preserves tags for Gmail/Yahoo/Hotmail (consumers use them intentionally)
   - Enabled in email normalization pipeline
 
@@ -139,17 +155,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added ROMAN_NUMERALS mapping to constants
 
 - **Department Bracket/Code Removal** - Improved noise filtering
-  - Removes square brackets: `[Something]` → stripped
-  - Removes curly braces: `{Text}` → stripped
-  - Removes code separator patterns: `005 / 006` → stripped
-  - Example: "005 / 006 - Bureau (Actual) of [Something]" → "Bureau Of"
+  - Removes square brackets: `[Something]` -> stripped
+  - Removes curly braces: `{Text}` -> stripped
+  - Removes code separator patterns: `005 / 006` -> stripped
+  - Example: "005 / 006 - Bureau (Actual) of [Something]" -> "Bureau Of"
 
 ### Enhanced
 
 - **Title Abbreviation Expansion**
-  - Added `snr` → "Senior" mapping (in addition to existing `sr`)
-  - Added `rec` → "Recreation" mapping for parks/recreation titles
-  - Now supports: "Rec Supervisor" → "Recreation Supervisor"
+  - Added `snr` -> "Senior" mapping (in addition to existing `sr`)
+  - Added `rec` -> "Recreation" mapping for parks/recreation titles
+  - Now supports: "Rec Supervisor" -> "Recreation Supervisor"
 
 - **Test Organization**
   - Moved comprehensive integration tests to `manual_tests/` directory
@@ -185,9 +201,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Department matching regressions** - Fixed cases that weren't matching due to:
-  - "Public Works Dept" → now matches "Public Works" (was failing at 68.57% threshold)
-  - "Strt Maint" → now matches "Maintenance" (semantic agreement now lenient)
-  - "Food Service High School Cafeteria" → now matches "Food Service" (token_set_ratio handles extra words)
+  - "Public Works Dept" -> now matches "Public Works" (was failing at 68.57% threshold)
+  - "Strt Maint" -> now matches "Maintenance" (semantic agreement now lenient)
+  - "Food Service High School Cafeteria" -> now matches "Food Service" (token_set_ratio handles extra words)
 
 - **Data completeness** - Added missing canonical departments:
   - Added "Recorder" to canonical list and department categories (Courts & Legal)
@@ -195,7 +211,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Test suite** - Fixed 7 failing unit tests:
   - Updated category tests to use lowercase category names (code standard)
-  - Updated semantic extraction tests to reflect improved "manager" → "ADMIN" tagging
+  - Updated semantic extraction tests to reflect improved "manager" -> "ADMIN" tagging
   - Updated semantic conflict tests to expect correct conflict detection between ADMIN and IT domains
 
 ### Testing
@@ -394,7 +410,7 @@ This is a **beta release** preparing for HumanMint 2.0 with significant performa
 
 - **Canonicalization layer** - Separates matching discovery from standardization
   - `map_to_canonical()` maps matched job titles to standardized forms
-  - Example: "chief of police" → "police chief" (standardized form)
+  - Example: "chief of police" -> "police chief" (standardized form)
   - Maintains consistency while improving coverage from 75.2% to ~95%
 
 - **Job titles database** - Compressed JSON format for efficient loading
@@ -417,7 +433,7 @@ This is a **beta release** preparing for HumanMint 2.0 with significant performa
 ### Tested
 - **Quality metrics**
   - 50 longer, complex government titles: 100% success rate (41 high confidence, 9 medium)
-  - Examples: "Chief of Police" → "police chief", "Public Works Director" → "public works director"
+  - Examples: "Chief of Police" -> "police chief", "Public Works Director" -> "public works director"
   - All 359 unit tests pass (2 skipped)
   - Full integration with departments, names, emails, and phones
 
@@ -431,14 +447,14 @@ This is a **beta release** preparing for HumanMint 2.0 with significant performa
   - Fuzzy matches: 0.75-0.92 based on actual match score
 
 - **Bug #6: Abbreviation expansion** - Title abbreviations now properly expand with punctuation handling
-  - Fixed handling of titles with commas and periods (e.g., "Dir., Planning" → "Director, Planning")
+  - Fixed handling of titles with commas and periods (e.g., "Dir., Planning" -> "Director, Planning")
   - Added missing abbreviations: "mngr", "ast", "supr", "dir"
   - Improved abbreviation matching for complex titles
 
 - **Bug #7: Department deduplication** - Multi-token phrase repetition now correctly removed
-  - "Police Police Department" → "Police Department"
-  - "IT IT Department" → "IT Department"
-  - "Information Technology Information Technology" → "Information Technology"
+  - "Police Police Department" -> "Police Department"
+  - "IT IT Department" -> "IT Department"
+  - "Information Technology Information Technology" -> "Information Technology"
   - Sophisticated algorithm handles token windows up to phrase length
 
 - **Bug #8: MintResult field propagation** (undiscovered in original report) - Name validation field now correctly propagated
@@ -486,7 +502,7 @@ This is a **beta release** preparing for HumanMint 2.0 with significant performa
 - **`title_str` property**: Added convenient `title_str` property to `MintResult` that returns canonical title
   - Matches the pattern of other `_str` properties (`name_str`, `email_str`, `phone_str`, `department_str`)
   - Returns `title["canonical"]` for consistent API access across all field types
-  - Example: `result.title_str` → `"police chief"` (shorthand for `result.title["canonical"]`)
+  - Example: `result.title_str` -> `"police chief"` (shorthand for `result.title["canonical"]`)
 
 ### Changed
 - **Improved documentation accuracy**: All code examples in README and use case docs now verified to run correctly
@@ -505,14 +521,14 @@ This is a **beta release** preparing for HumanMint 2.0 with significant performa
 ### Added
 - **Complete batch export suite**: Production-ready export functionality for cleaned data
   - `export_json()` — Export to JSON with full nested structure preserved
-  - `export_csv()` — Export to CSV with optional field flattening (name.first → name_first)
+  - `export_csv()` — Export to CSV with optional field flattening (name.first -> name_first)
   - `export_parquet()` — Export to Apache Parquet for analytics and data science workflows (requires pyarrow)
   - `export_sql()` — Export directly to SQL databases (requires sqlalchemy)
   - Full support for both nested and flattened output formats
   - Comprehensive test coverage with 8 dedicated test cases
 
 ### Changed
-- Consolidated and stabilized batch processing pipeline with `bulk()` → `export_*()` workflow
+- Consolidated and stabilized batch processing pipeline with `bulk()` -> `export_*()` workflow
 - Enhanced flexibility for downstream data integration and analytics
 
 ## [0.1.9] - 2025-11-28
@@ -527,7 +543,7 @@ This is a **beta release** preparing for HumanMint 2.0 with significant performa
   - Comprehensive test coverage with 8 test cases for all export formats
 
 ### Changed
-- Enhanced data pipeline flexibility: `bulk()` → `export_*()` workflow enables seamless data integration
+- Enhanced data pipeline flexibility: `bulk()` -> `export_*()` workflow enables seamless data integration
 
 ## [0.1.8] - 2025-11-28
 
@@ -652,7 +668,7 @@ This is a **beta release** preparing for HumanMint 2.0 with significant performa
 
 ## Versioning Notes
 
-### What Gets Bumped?
+### What Gets Bumped-
 - **Major (X.0.0)**: Breaking API changes
 - **Minor (0.X.0)**: New features, backward compatible
 - **Patch (0.0.X)**: Bug fixes, internal improvements

@@ -1,6 +1,6 @@
 # HumanMint v2
 
-HumanMint cleans and normalizes messy contact data with one call. It standardizes names, emails, phones, addresses, departments, titles, and organizations. It’s built for both public-sector data and B2B (CEOs, VPs, directors, managers) and ships with curated public-sector mappings.
+HumanMint cleans and normalizes messy contact data with one call. It standardizes names, emails, phones, addresses, departments, titles, and organizations. It's built for both public-sector data and B2B (CEOs, VPs, directors, managers) and ships with curated public-sector mappings.
 
 ```python
 from humanmint import mint
@@ -32,7 +32,7 @@ mint(name="John and Jane Smith", split_multi=True)
 ## Why HumanMint
 - General-purpose: works for government and B2B without swapping libraries.
 - Real-world chaos: handles titles inside names, departments with codes/phones, smashed addresses, anti-scraper emails, casing quirks.
-- Unique data: 23K+ department variants → 64 categories; 73K+ titles with curated canonicals + BLS; context-aware title mapping.
+- Unique data: 23K+ department variants -> 64 categories; 73K+ titles with curated canonicals + BLS; context-aware title mapping.
 - Safe defaults: length guards, optional aggressive cleaning, semantic conflict checks, bulk dedupe, multi-person name splitting.
 - Fast: lazy imports for quick startup, process-based bulk for CPU-bound speed, built-in dedupe to avoid redundant work.
 
@@ -76,8 +76,9 @@ results = bulk(records, workers=4)
 
 ## Recommended Properties
 - Names: `name_standardized`, `name_first`, `name_last`, `name_middle`, `name_suffix`, `name_gender`, `name_nickname`
+- Name extras: `name_salutation` (Mr./Ms./Mx.)
 - Emails: `email_standardized`, `email_domain`, `email_is_valid`, `email_is_generic_inbox`, `email_is_free_provider`
-- Phones: `phone_standardized`, `phone_e164`, `phone_pretty`, `phone_extension`, `phone_is_valid`, `phone_type`
+- Phones: `phone_standardized`, `phone_e164`, `phone_pretty`, `phone_extension`, `phone_is_valid`, `phone_type`, `phone_location`, `phone_time_zones`
 - Departments: `department_canonical`, `department_category`, `department_normalized`, `department_override`
 - Titles: `title_canonical`, `title_raw`, `title_normalized`, `title_is_valid`, `title_confidence`, `title_seniority`
 - Addresses: `address_canonical`, `address_raw`, `address_street`, `address_unit`, `address_city`, `address_state`, `address_zip`, `address_country`
@@ -88,7 +89,7 @@ Use `result.get("email.is_valid")` to fetch nested dict values via dot paths.
 ## Comparing Records
 ```python
 from humanmint import compare
-score, reasons = compare(r1, r2, explain=True)  # 0–100
+score, reasons = compare(r1, r2, explain=True)  # 0->100
 ```
 
 ## Batch & Export
@@ -114,3 +115,4 @@ humanmint clean input.csv output.csv --name-col name --email-col email --phone-c
 - US-focused address parsing; `usaddress` used when available, otherwise heuristics.
 - Optional deps (pandas, pyarrow, sqlalchemy, rich, tqdm) enhance exports and progress bars.
 - Department and title datasets are curated and updated regularly for best accuracy.
+

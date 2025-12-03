@@ -20,11 +20,12 @@ The `compare()` function uses weighted scoring to determine similarity between t
 from humanmint import compare
 
 # Default weights:
-# - name: 40%
-# - email: 30%
-# - phone: 20%
-# - department: 5%
-# - title: 5%
+# - name: 0.4
+# - email: 0.4
+# - phone: 0.4
+# - department: 0.2
+# - title: 0.2
+# (weights are renormalized based on which signals exist on both sides)
 
 score = compare(result1, result2)
 ```
@@ -401,17 +402,17 @@ result = mint(
 ### 1. Use Bulk for Large Datasets
 
 ```python
-# ❌ Slow for large datasets
+# Slow for large datasets
 results = [mint(**record) for record in records]
 
-# ✅ Fast parallel processing
+# Fast parallel processing
 results = bulk(records, workers=4)
 ```
 
 ### 2. Flatten for Database Export
 
 ```python
-# ✅ Easy to import into SQL
+# Easy to import into SQL
 export_csv(results, "output.csv", flatten=True)
 export_sql(results, "db.sqlite", table="contacts", flatten=True)
 ```
@@ -427,7 +428,16 @@ DEPT_OVERRIDES = {
 
 # Use across multiple operations
 for batch in large_dataset_batches:
-    results = bulk(batch, dept_overrides=DEPT_OVERRIDES)
+    batch_with_overrides = [
+        {
+            **rec,
+            "dept_overrides": DEPT_OVERRIDES,
+            # Add title overrides the same way, if you have them
+            # "title_overrides": TITLE_OVERRIDES,
+        }
+        for rec in batch
+    ]
+    results = bulk(batch_with_overrides, workers=4)
 ```
 
 ### 4. Validate Results

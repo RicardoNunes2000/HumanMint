@@ -20,11 +20,21 @@ _LAZY_MODULES: Dict[str, str] = {
     "mint": "humanmint.mint",
     "bulk": "humanmint.mint",
     "MintResult": "humanmint.mint",
+    "extract_phones": "humanmint.phones",
     "export_json": "humanmint.export",
     "export_csv": "humanmint.export",
     "export_parquet": "humanmint.export",
     "export_sql": "humanmint.export",
 }
+
+# Eagerly bind common callables to avoid submodule shadowing (e.g., `from humanmint import mint`)
+try:  # pragma: no cover - safe eager binding
+    _mint_mod = importlib.import_module("humanmint.mint")
+    mint = _mint_mod.mint
+    bulk = _mint_mod.bulk
+    MintResult = _mint_mod.MintResult
+except Exception:
+    pass
 
 
 def __getattr__(name: str) -> Any:

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import orjson
+import unicodedata
 
 # Cache for names dataset (lazy-loaded)
 _gender_cache: Optional[Dict[str, str]] = None
@@ -116,14 +117,17 @@ def infer_gender(
             _gender_warning_emitted = True
         gender_data = {}
 
-    # Clean first name
-    first_name_lower = first_name.strip().lower()
+    # Clean first name; try exact (accented) and accent-folded variants
+    orig_lower = first_name.strip().lower()
+    folded = unicodedata.normalize("NFKD", first_name)
+    folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+    folded_lower = folded.strip().lower()
 
-    if not first_name_lower:
+    if not (orig_lower or folded_lower):
         return {"gender": "Unknown", "confidence": None}
 
     # Look up gender
-    sex = gender_data.get(first_name_lower)
+    sex = gender_data.get(orig_lower) or gender_data.get(folded_lower)
 
     if not sex:
         gender_label = "Unknown"

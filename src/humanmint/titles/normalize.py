@@ -386,6 +386,23 @@ def extract_seniority(normalized_title: str) -> str:
     if "executive assistant" in title_lower or "assistant to the" in title_lower:
         return None
 
+    # Explicit seniority for common mid/upper bands
+    if "head of" in title_lower or title_lower.startswith("head "):
+        return "Head"
+    if "manager" in title_lower:
+        return "Manager"
+    if re.search(r"\blead\b", title_lower):
+        return "Lead"
+
+    # Assistant paired with director/VP is still a leadership tier, not admin
+    if "assistant" in title_lower:
+        if "director" in title_lower:
+            return "Assistant Director"
+        if "vice president" in title_lower or re.search(r"\bvp\b", title_lower):
+            return "Assistant Vice President"
+        # Otherwise treat plain "assistant" as low seniority
+        return "Assistant"
+
     for keyword in _seniority_keywords():
         if title_lower.startswith(keyword):
             # Return the properly capitalized version

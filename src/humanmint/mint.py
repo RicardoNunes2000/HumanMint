@@ -195,6 +195,11 @@ class MintResult:
         return self.name["gender"] if self.name else None
 
     @property
+    def name_salutation(self) -> Optional[str]:
+        """Get salutation (Mr./Ms./Mx.), or None."""
+        return self.name.get("salutation") if self.name else None
+
+    @property
     def email_standardized(self) -> Optional[str]:
         """Get normalized email, or None."""
         return self.email["normalized"] if self.email else None
@@ -252,9 +257,29 @@ class MintResult:
         return self.phone.get("type") if self.phone else None
 
     @property
+    def phone_location(self) -> Optional[str]:
+        """Get phone geocoded location (best effort), or None."""
+        return self.phone.get("location") if self.phone else None
+
+    @property
+    def phone_carrier(self) -> Optional[str]:
+        """Get phone carrier name (best effort), or None."""
+        return self.phone.get("carrier") if self.phone else None
+
+    @property
+    def phone_time_zones(self) -> Optional[list]:
+        """Get possible time zones for the phone, or None."""
+        return self.phone.get("time_zones") if self.phone else None
+
+    @property
     def department_canonical(self) -> Optional[str]:
         """Get canonical department name, or None."""
         return self.department.get("canonical") if self.department else None
+
+    @property
+    def department_raw(self) -> Optional[str]:
+        """Get raw department value, or None."""
+        return self.department.get("raw") if self.department else None
 
     @property
     def department_category(self) -> Optional[str]:
@@ -544,6 +569,19 @@ def mint(
     # Validate GLiNER usage
     if use_gliner and not (text or texts):
         raise ValueError("use_gliner=True requires text=... or texts=[...] input")
+
+    # Pre-trim long phone strings by extracting the first valid number from free text.
+    if isinstance(phone, str) and len(phone) > MAX_PHONE_LENGTH:
+        try:
+            from .phones import extract_phones
+
+            matches = extract_phones(phone, region="US")
+            if matches:
+                phone_candidate = matches[0].get("e164") or matches[0].get("pretty")
+                if phone_candidate:
+                    phone = phone_candidate
+        except Exception:
+            pass
 
     # Validate input field lengths to prevent DoS attacks
     # Note: Check isinstance(x, str) to handle NaN from pandas DataFrames

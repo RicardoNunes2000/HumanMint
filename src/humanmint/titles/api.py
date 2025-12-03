@@ -19,6 +19,7 @@ class TitleResult(TypedDict, total=False):
     canonical: Optional[str]
     is_valid: bool
     confidence: float
+    seniority: Optional[str]
 
 
 def normalize_title_full(
