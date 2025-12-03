@@ -70,3 +70,226 @@ tech,technology
 digital,digital
 web,web
 internet,internet
+is,information systems
+iis,information systems
+infosys,information systems
+dev,development
+devops,development operations
+qa,quality assurance
+qtech,quality technology
+software,software
+app,application
+apps,applications
+sde,software development
+sre,site reliability engineering
+dba,database administration
+database,database
+sys,systems
+sysadmin,systems administration
+admin,administration
+network,network
+net,network
+sec,security
+infosec,information security
+cybersec,cybersecurity
+itsec,it security
+
+# Human Resources
+hr,human resources
+hrm,human resources management
+hrd,human resources development
+recruiting,recruiting
+recruitment,recruitment
+recruit,recruiting
+talent,talent acquisition
+talentmgmt,talent management
+emp,employee relations
+emprel,employee relations
+comp,compensation
+benefits,benefits
+training,training
+learning,learning and development
+ld,learning and development
+org,organizational development
+orgdev,organizational development
+peopleops,people operations
+
+# Sales and Business Development
+sales,sales
+bdev,business development
+bizdev,business development
+enterprise,enterprise sales
+acctmgmt,account management
+am,account management
+csr,customer service
+custserv,customer service
+customer,customer service
+support,customer support
+csm,customer success
+success,customer success
+
+# Marketing and Communications
+marketing,marketing
+mkt,marketing
+mktg,marketing
+promo,promotions
+comms,communications
+comm,communications
+pr,public relations
+publicrel,public relations
+content,content
+digital,digital marketing
+demand,demand generation
+campaigns,campaign management
+branding,branding
+brand,branding
+social,social media
+product,product marketing
+pmo,product marketing
+events,events
+event,events
+
+# Finance and Accounting (expanded)
+acct,accounting
+acctg,accounting
+ap,accounts payable
+ar,accounts receivable
+fin,finance
+fpa,financial planning and analysis
+fpna,financial planning and analysis
+treas,treasury
+payr,payroll
+payroll,payroll
+audit,audit
+auditing,audit
+cfo,chief financial officer
+controller,controller
+budget,budgeting
+forecasting,forecasting
+tax,tax
+taxcomp,tax compliance
+ar,accounts receivable
+
+# Legal and Compliance (expanded)
+legal,legal
+law,legal
+compliance,compliance
+reg,regulatory
+regulatory,regulatory
+gc,general counsel
+ethics,ethics
+privacy,privacy
+gdpr,privacy
+lc,legal and compliance
+corp,corporate
+risk,risk management
+riskm,risk management
+
+# Operations and Logistics (expanded)
+ops,operations
+op,operations
+opns,operations
+busops,business operations
+bizops,business operations
+log,logistics
+logistics,logistics
+fleet,fleet
+supply,supply chain
+supplychain,supply chain
+scm,supply chain
+proc,procurement
+procurement,procurement
+purch,purchasing
+purchasing,purchasing
+fac,facilities
+facil,facilities
+vendor,vendor management
+vendormgmt,vendor management
+contracts,contracts management
+real,real estate
+realestate,real estate
+
+# Quality and Maintenance (expanded)
+qa,quality assurance
+qc,quality control
+quality,quality
+qm,quality management
+maint,maintenance
+maint.,maintenance
+mainten,maintenance
+maintenance,maintenance
+equipment,equipment
+eng,engineering
+engineering,engineering
+process,process improvement
+continuous,continuous improvement
+lean,lean operations
+six,six sigma
+
+# Health and Medical (expanded)
+med,medicine
+med.,medicine
+medicine,medicine
+im,internal medicine
+intmed,internal medicine
+clin,clinical
+clinic,clinic
+clinical,clinical
+health,health services
+healthsvc,health services
+nursing,nursing
+nurse,nursing
+pharma,pharmacy
+pharmacy,pharmacy
+research,research
+rd,research and development
+innovation,innovation
+
+# Case and Support Services (expanded)
+cm,case management
+casemgmt,case management
+case,case management
+social,social services
+socialwork,social work
+counseling,counseling
+counsel,counseling
+advocacy,advocacy
+community,community services
+communitydev,community development
+outreach,outreach
+
+# Executive / Management
+exec,executive
+management,management
+mgmt,management
+director,director
+dir,director
+manager,manager
+mgr,manager
+vp,vice president
+vice,vice president
+c,chief
+ceo,chief executive officer
+cto,chief technology officer
+coo,chief operations officer
+cfo,chief financial officer
+ciso,chief information security officer
+strategy,strategy
+strategic,strategic planning
+planning,planning
+admin,administration
+
+# General / Cross-Functional
+admin,administration
+admin.,administration
+general,general
+shared,shared services
+services,services
+office,office management
+hr,human resources
+internal,internal services
+corporate,corporate services
+business,business services
+support,support services
+misc,miscellaneous
+other,other

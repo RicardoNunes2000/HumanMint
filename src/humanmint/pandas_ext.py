@@ -12,9 +12,7 @@ from __future__ import annotations
 from typing import Callable, Iterable, Optional, Union
 
 import pandas as pd
-
-from .column_guess import COLUMN_GUESSES, guess_column
-from .mint import bulk, mint
+from .column_guess import COLUMN_GUESSES
 
 
 @pd.api.extensions.register_dataframe_accessor("humanmint")
@@ -57,6 +55,9 @@ class HumanMintAccessor:
         Returns:
             New DataFrame with added hm_* columns for normalized data.
         """
+        from .column_guess import COLUMN_GUESSES, guess_column
+        from .mint import bulk, mint
+
         df = self._obj.copy()
         # Strip whitespace from column names
         df.columns = df.columns.str.strip()

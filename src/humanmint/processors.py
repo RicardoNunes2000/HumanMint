@@ -473,6 +473,17 @@ def process_department(
         dept_domains = _infer_domains_from_text(normalized or raw_dept)
         title_domains = _infer_domains_from_text(title_canonical)
 
+        # Preserve generic business departments that should not remap (e.g., Accounting)
+        if normalized and normalized.lower() == "accounting":
+            return {
+                "raw": raw_dept,
+                "normalized": normalized,
+                "canonical": normalized,
+                "category": get_department_category(normalized.lower()) or None,
+                "is_override": False,
+                "confidence": 0.85,
+            }
+
         # Explicit mapping for web/digital/online/website keywords (prefer IT over fuzzy)
         if normalized:
             if re.search(r"\b(web|website|digital|online|internet)\b", normalized.lower()):

@@ -6,7 +6,7 @@ department_categories.json.gz (generated from semantic tokens).
 """
 
 import gzip
-import json
+import orjson
 from pathlib import Path
 from typing import Optional
 
@@ -28,8 +28,8 @@ def _load_categories():
         if not categories_file.exists():
             return {}
 
-        with gzip.open(categories_file, "rt", encoding="utf-8") as f:
-            _CATEGORIES_CACHE = json.load(f)
+        with gzip.open(categories_file, "rb") as f:
+            _CATEGORIES_CACHE = orjson.loads(f.read())
             return _CATEGORIES_CACHE
     except Exception:
         return {}

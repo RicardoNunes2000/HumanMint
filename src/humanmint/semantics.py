@@ -34,14 +34,59 @@ from typing import Optional
 if sys.version_info >= (3, 9):
     from importlib.resources import files
 else:
-    from importlib_resources import files
+    from importlib_resources import files  # noqa: F401
 
-import orjson
+import orjson  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
 # Module-level cache for semantic tokens (lazy-loaded on first use)
 _semantic_tokens: Optional[dict[str, str]] = None
+
+# Targeted overrides to stabilize key domains regardless of upstream data.
+SEMANTIC_OVERRIDES: dict[str, str] = {
+    # IT / Digital
+    "software": "IT",
+    "web": "IT",
+    "website": "IT",
+    "online": "IT",
+    "internet": "IT",
+    "digital": "IT",
+    "technology": "IT",
+    "tech": "IT",
+    # Ops / admin
+    "manager": "ADMIN",
+    "management": "ADMIN",
+    "mgr": "ADMIN",
+    "director": "ADMIN",
+    "engineer": "IT",
+    "ops": "OPS",
+    "opns": "OPS",
+    "operations": "OPS",
+    # Infrastructure / maintenance
+    "infrastructure": "INFRA",
+    "mechanic": "INFRA",
+    "maintenance": "INFRA",
+    "maint": "INFRA",
+    "water": "INFRA",
+    # Legal / risk
+    "risk": "RISK",
+    "legal": "LEGAL",
+    # Health / social
+    "human": "SOCIAL",
+    "case": "SOCIAL",
+    "casemgmt": "SOCIAL",
+    "cm": "SOCIAL",
+    "casework": "SOCIAL",
+    # Education
+    "teacher": "EDU",
+    "professor": "EDU",
+    "instructor": "EDU",
+    "educator": "EDU",
+    # Neutralize noisy tokens
+    "developer": "NULL",
+    "services": "NULL",
+}
 
 
 def _load_semantic_tokens() -> dict[str, str]:
@@ -63,6 +108,8 @@ def _load_semantic_tokens() -> dict[str, str]:
 
         data = load_package_json_gz("semantic_tokens.json.gz")
         _semantic_tokens = data if isinstance(data, dict) else {}
+        for token, domain in SEMANTIC_OVERRIDES.items():
+            _semantic_tokens[token] = domain
         return _semantic_tokens
     except FileNotFoundError:
         logger.warning(
@@ -190,12 +237,26 @@ def check_semantic_conflict(text_a: str, text_b: str) -> bool:
 # GENERIC RANK WORDS: These are excluded from token validation
 # (sr, jr, iii, etc. are not meaningful for hallucination detection)
 _GENERIC_RANK_TOKENS = {
-    "sr", "sr.", "senior",
-    "jr", "jr.", "junior",
-    "i", "ii", "iii", "iv", "v",
-    "1st", "2nd", "3rd",
-    "asst", "asst.", "assistant",
-    "assoc", "assoc.", "associate",
+    "sr",
+    "sr.",
+    "senior",
+    "jr",
+    "jr.",
+    "junior",
+    "i",
+    "ii",
+    "iii",
+    "iv",
+    "v",
+    "1st",
+    "2nd",
+    "3rd",
+    "asst",
+    "asst.",
+    "assistant",
+    "assoc",
+    "assoc.",
+    "associate",
 }
 
 # TITLE WORDS: Cache for canonical title words from title_heuristics.json.gz
@@ -223,6 +284,7 @@ def _load_title_words() -> set[str]:
 
     try:
         from humanmint.data.utils import load_package_json_gz
+
         data = load_package_json_gz("title_heuristics.json.gz")
 
         canonicals = data.get("canonicals", [])
@@ -251,8 +313,8 @@ def _load_title_words() -> set[str]:
         # 2. Appears at end position in at least 1 of them
         # This filters out specializations like "gis" which only appear at start
         title_words = {
-            token for token, (total, at_end)
-            in token_positions.items()
+            token
+            for token, (total, at_end) in token_positions.items()
             if total >= 2 and at_end >= 1
         }
 
@@ -260,6 +322,7 @@ def _load_title_words() -> set[str]:
         return title_words
     except Exception as e:
         # Gracefully degrade - return empty set if file not found
+        logger.error(f"Failed to load title words for semantic safeguard: {e}")
         _TITLE_WORDS_CACHE = set()
         return _TITLE_WORDS_CACHE
 
@@ -294,9 +357,7 @@ def _extract_meaningful_tokens(text: str) -> set[str]:
 
 
 def _has_hallucinations(
-    input_tokens: set[str],
-    candidate_tokens: set[str],
-    input_domains: set[str]
+    input_tokens: set[str], candidate_tokens: set[str], input_domains: set[str]
 ) -> bool:
     """
     Detect if candidate introduces tokens from different semantic domains or substitutes key tokens.
@@ -360,9 +421,21 @@ def _has_hallucinations(
     # List of common generic/rank tokens that can appear in any title
     # (don't count as hallucinations if they appear as extra tokens)
     GENERIC_FILLERS = {
-        "senior", "junior", "lead", "principal", "head", "chief",
-        "assistant", "associate", "apprentice", "trainee",
-        "full", "time", "part", "contract", "temporary",
+        "senior",
+        "junior",
+        "lead",
+        "principal",
+        "head",
+        "chief",
+        "assistant",
+        "associate",
+        "apprentice",
+        "trainee",
+        "full",
+        "time",
+        "part",
+        "contract",
+        "temporary",
     }
 
     # GUARD 1: Check for token substitution (missing input tokens + extra candidate tokens)

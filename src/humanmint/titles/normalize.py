@@ -10,6 +10,7 @@ from functools import lru_cache
 
 from humanmint.constants.titles import (PRESERVE_ABBREVIATIONS, STOPWORDS,
                                         TITLE_ABBREVIATIONS)
+from humanmint.data.utils import load_package_json_gz
 from humanmint.text_clean import (normalize_unicode_ascii,
                                   remove_parentheticals, strip_codes_and_ids,
                                   strip_garbage)
@@ -22,22 +23,34 @@ def _strip_garbage(text: str) -> str:
 
 def _expand_abbreviations(text: str) -> str:
     """Expand common job title abbreviations."""
-    parts = []
-    for token in text.split():
-        # Strip trailing periods and commas (e.g., "Dir." -> "dir", "Dir.," -> "dir")
-        clean_token = token.rstrip(".,").lower()
-        if clean_token in PRESERVE_ABBREVIATIONS:
-            parts.append(token.rstrip(".,"))
-        elif clean_token in TITLE_ABBREVIATIONS:
-            expanded = TITLE_ABBREVIATIONS[clean_token]
-            # Preserve common shorthand like "ops" alongside expansion
-            if clean_token == "ops":
-                parts.append(f"{expanded} ops")
-            else:
-                parts.append(expanded)
-        else:
-            parts.append(token)
-    return " ".join(parts)
+    abbreviations = TITLE_ABBREVIATIONS or _load_title_abbreviations()
+    preserve = PRESERVE_ABBREVIATIONS or _load_preserve_abbreviations()
+    pattern, abbr_map = _get_title_abbreviation_regex()
+
+    def replace(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        clean = raw.rstrip(".,")
+        lower_clean = clean.lower().replace(".", "")
+        if lower_clean in preserve:
+            return clean
+        expanded = abbr_map.get(lower_clean)
+        if expanded:
+            if lower_clean == "ops":
+                return f"{expanded} ops"
+            return expanded
+        return raw
+
+    return pattern.sub(replace, text)
+
+
+@lru_cache(maxsize=1)
+def _get_title_abbreviation_regex() -> tuple[re.Pattern[str], dict[str, str]]:
+    abbr_map = TITLE_ABBREVIATIONS or _load_title_abbreviations()
+    keys = sorted(abbr_map.keys(), key=len, reverse=True)
+    if not keys:
+        return re.compile(r"$^"), {}
+    pattern_str = r"\b(" + "|".join(re.escape(k) for k in keys) + r")\.?\b"
+    return re.compile(pattern_str, re.IGNORECASE), {k.lower(): v for k, v in abbr_map.items()}
 
 
 def _remove_name_prefixes(text: str) -> str:
@@ -186,11 +199,11 @@ def _smart_title_case(text: str, preserve_caps: set[str]) -> str:
         base_upper = token.upper()
         base_lower = token.lower()
 
-        if base_upper in preserve_caps:
+        if base_upper in preserve_caps or base_upper in (PRESERVE_ABBREVIATIONS or _load_preserve_abbreviations()):
             parts.append(base_upper + suffix)
             continue
 
-        if base_lower in STOPWORDS:
+        if base_lower in (STOPWORDS or _load_title_stopwords()):
             parts.append(base_lower + suffix)
             continue
 
@@ -243,6 +256,8 @@ def _normalize_title_cached(raw_title: str, strip_codes: str) -> str:
     text = _normalize_separators(text)
     text = _remove_parenthetical_info(text)
     text = _expand_abbreviations(text)
+    # Strip trailing dots left from abbreviation expansion (e.g., "Chief." -> "Chief")
+    text = re.sub(r"\b([A-Za-z]+)\.(?=\s|$)", r"\1", text)
     text = _strip_trailing_dept_tokens(text)
     text = _remove_extra_whitespace(text)
 
@@ -308,6 +323,18 @@ def normalize_title(raw_title: str, strip_codes: str = "both") -> str:
     return _normalize_title_cached(raw_title, strip_codes)
 
 
+@lru_cache(maxsize=1)
+def _seniority_keywords() -> list[str]:
+    """Load ordered seniority keywords from packaged cache."""
+    try:
+        data = load_package_json_gz("seniority_keywords.json.gz")
+        if isinstance(data, list):
+            return [str(x).strip().lower() for x in data if str(x).strip()]
+    except Exception:
+        pass
+    return []
+
+
 def extract_seniority(normalized_title: str) -> str:
     """
     Extract seniority level from a normalized job title.
@@ -345,106 +372,40 @@ def extract_seniority(normalized_title: str) -> str:
     if "executive assistant" in title_lower or "assistant to the" in title_lower:
         return None
 
-    # Seniority keywords (ordered by specificity - longest first to avoid partial matches)
-    seniority_keywords = [
-        # C-suite roles
-        "chief executive officer",
-        "chief operating officer",
-        "chief financial officer",
-        "chief information officer",
-        "chief technology officer",
-        "chief marketing officer",
-        "chief product officer",
-        "chief security officer",
-        "chief academic officer",
-        "chief risk officer",
-        "chief compliance officer",
-        "chief information security officer",
-        "chief data officer",
-        "chief human resources officer",
-        "chief legal officer",
-        "chief strategy officer",
-        "chief quality officer",
-        "chief medical officer",
-        "chief nursing officer",
-
-        # Executive/Director level
-        "executive director",
-        "executive vice president",
-        "senior vice president",
-        "vice president",
-        "associate vice president",
-        "assistant vice president",
-        "deputy director",
-        "assistant director",
-        "associate director",
-
-        # Principal/Lead roles (longer phrases first)
-        "principal engineer",
-        "principal architect",
-        "principal consultant",
-        "principal analyst",
-        "principal scientist",
-        "principal product manager",
-        "principal research scientist",
-        "principal investigator",
-        "principal counsel",
-        "principal manager",
-
-        # Senior roles (longer phrases first)
-        "senior engineer",
-        "senior architect",
-        "senior manager",
-        "senior director",
-        "senior analyst",
-        "senior consultant",
-        "senior advisor",
-        "senior specialist",
-        "senior scientist",
-        "senior developer",
-        "senior administrator",
-        "senior technician",
-        "senior associate",
-        "senior counsel",
-        "senior planner",
-        "senior researcher",
-        "senior investigator",
-        "senior officer",
-
-        # Lead roles (longer phrases first)
-        "lead engineer",
-        "lead architect",
-        "lead developer",
-        "lead analyst",
-        "lead manager",
-        "lead consultant",
-        "lead designer",
-        "lead scientist",
-        "lead investigator",
-        "lead researcher",
-
-        # Staff-level individual contributors
-        "staff engineer",
-        "staff architect",
-        "staff scientist",
-        "staff analyst",
-
-        # Single-word seniority modifiers (catch-all, in order of hierarchy)
-        "chief",
-        "executive",
-        "director",
-        "principal",
-        "senior",
-        "lead",
-        "junior",
-        "assistant",
-        "associate",
-        "entry-level",
-    ]
-
-    for keyword in seniority_keywords:
+    for keyword in _seniority_keywords():
         if title_lower.startswith(keyword):
             # Return the properly capitalized version
             return " ".join(word.capitalize() for word in keyword.split())
 
     return None
+@lru_cache(maxsize=1)
+def _load_title_abbreviations() -> dict[str, str]:
+    try:
+        data = load_package_json_gz("title_abbreviations.json.gz")
+        if isinstance(data, dict):
+            return {k.lower(): v for k, v in data.items()}
+    except Exception:
+        pass
+    return TITLE_ABBREVIATIONS
+
+
+@lru_cache(maxsize=1)
+def _load_title_stopwords() -> set[str]:
+    try:
+        data = load_package_json_gz("title_stopwords.json.gz")
+        if isinstance(data, list):
+            return {str(x).lower() for x in data}
+    except Exception:
+        pass
+    return set(STOPWORDS)
+
+
+@lru_cache(maxsize=1)
+def _load_preserve_abbreviations() -> set[str]:
+    try:
+        data = load_package_json_gz("title_preserve_abbreviations.json.gz")
+        if isinstance(data, list):
+            return {str(x).upper() for x in data}
+    except Exception:
+        pass
+    return set(PRESERVE_ABBREVIATIONS)

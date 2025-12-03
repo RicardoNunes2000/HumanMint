@@ -8,7 +8,7 @@ Combines:
 """
 
 import gzip
-import json
+import orjson
 import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -26,7 +26,7 @@ def _load_gender_data_from_cache() -> Optional[Dict[str, str]]:
         return None
     try:
         data = gzip.decompress(NAMES_CACHE.read_bytes())
-        payload = json.loads(data.decode("utf-8"))
+        payload = orjson.loads(data)
         if isinstance(payload, dict):
             return {
                 k: v

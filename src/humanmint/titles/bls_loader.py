@@ -6,7 +6,7 @@ Bureau of Labor Statistics and provides lookup functionality for
 canonical title matching.
 """
 
-import json
+import orjson
 from functools import lru_cache
 from typing import Dict, Optional, Set
 
@@ -46,7 +46,7 @@ def _load_bls_titles() -> Dict[str, Dict]:
         package = files("humanmint.data")
         data_file = package.joinpath("bls_titles.json.gz")
         content = gzip.decompress(data_file.read_bytes()).decode("utf-8")
-        data = json.loads(content)
+        data = orjson.loads(content)
         return data.get("titles", {})
     except Exception:
         # Fallback if file doesn't exist (graceful degradation)

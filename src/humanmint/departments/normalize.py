@@ -273,24 +273,26 @@ def _remove_code_separators(text: str) -> str:
 
 def _expand_abbreviations(text: str) -> str:
     """
-    Expand common abbreviations in department names.
-
-    Example:
-        >>> _expand_abbreviations("Strt Maint")
-        "Street Maintenance"
+    Expand common abbreviations in department names using a regex trie.
     """
+    pattern, abbr_map = _get_abbreviation_regex()
+
+    def replace(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        key = raw.lower().replace(".", "")
+        return abbr_map.get(key, raw)
+
+    return pattern.sub(replace, text)
+
+
+@lru_cache(maxsize=1)
+def _get_abbreviation_regex() -> tuple[re.Pattern[str], dict[str, str]]:
     abbr_map = _load_abbreviation_map()
-    parts = []
-    for token in text.split():
-        stripped = token.strip(",.;:")
-        lower = stripped.lower()
-        normalized_key = lower.replace(".", "")
-        expanded = abbr_map.get(lower) or abbr_map.get(normalized_key)
-        if expanded:
-            parts.append(expanded)
-        else:
-            parts.append(token)
-    return " ".join(parts)
+    keys = sorted(abbr_map.keys(), key=len, reverse=True)
+    if not keys:
+        return re.compile(r"$^"), abbr_map
+    pattern_str = r"\b(" + "|".join(re.escape(k) for k in keys) + r")\.?\b"
+    return re.compile(pattern_str, re.IGNORECASE), abbr_map
 
 
 def _restore_acronyms(text: str) -> str:

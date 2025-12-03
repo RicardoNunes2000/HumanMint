@@ -18,8 +18,10 @@ from humanmint.constants.names import (
     PLACEHOLDER_NAMES,
     ROMAN_NUMERALS,
     TITLE_PREFIXES,
-    US_SUFFIXES,
+    GENERATIONAL_SUFFIXES,
+    NON_PERSON_PHRASES,
 )
+from humanmint.data.utils import load_package_json_gz
 from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
 
 _EMPTY_NAME: Dict[str, Optional[str]] = {
@@ -32,6 +34,37 @@ _EMPTY_NAME: Dict[str, Optional[str]] = {
     "is_valid": False,
     "nickname": None,
 }
+
+
+@lru_cache(maxsize=1)
+def _load_name_constants() -> dict[str, set[str] | dict[str, str]]:
+    """Load name constants from cached data files (fallback to in-code defaults)."""
+    constants: dict[str, set[str] | dict[str, str]] = {}
+    try:
+        gen = load_package_json_gz("name_generational_suffixes.json.gz")
+        cred = load_package_json_gz("name_credential_suffixes.json.gz")
+        corp = load_package_json_gz("name_corporate_terms.json.gz")
+        non_person = load_package_json_gz("name_non_person_phrases.json.gz")
+        roman = load_package_json_gz("name_roman_numerals.json.gz")
+        prefixes = load_package_json_gz("name_title_prefixes.json.gz")
+        placeholders = load_package_json_gz("name_placeholder_names.json.gz")
+
+        constants["generational"] = {str(x).lower() for x in gen} if isinstance(gen, list) else set(GENERATIONAL_SUFFIXES)
+        constants["credential"] = {str(x).lower() for x in cred} if isinstance(cred, list) else set(CREDENTIAL_SUFFIXES)
+        constants["corporate"] = {str(x).lower() for x in corp} if isinstance(corp, list) else set(CORPORATE_TERMS)
+        constants["non_person"] = {str(x).lower() for x in non_person} if isinstance(non_person, list) else set(NON_PERSON_PHRASES)
+        constants["roman"] = {k.lower(): v for k, v in roman.items()} if isinstance(roman, dict) else dict(ROMAN_NUMERALS)
+        constants["prefixes"] = {str(x).lower() for x in prefixes} if isinstance(prefixes, list) else set(TITLE_PREFIXES)
+        constants["placeholders"] = {str(x).lower() for x in placeholders} if isinstance(placeholders, list) else set(PLACEHOLDER_NAMES)
+    except Exception:
+        constants["generational"] = set(GENERATIONAL_SUFFIXES)
+        constants["credential"] = set(CREDENTIAL_SUFFIXES)
+        constants["corporate"] = set(CORPORATE_TERMS)
+        constants["non_person"] = set(NON_PERSON_PHRASES)
+        constants["roman"] = dict(ROMAN_NUMERALS)
+        constants["prefixes"] = set(TITLE_PREFIXES)
+        constants["placeholders"] = set(PLACEHOLDER_NAMES)
+    return constants
 
 
 def _fix_common_ocr_errors(text: str) -> str:
@@ -160,8 +193,9 @@ def _strip_title_prefixes(text: str) -> str:
     """Remove leading honorifics/titles (Dr, Mr, Ms, etc.)."""
     if not text:
         return text
+    prefixes = _load_name_constants().get("prefixes", set())
     tokens = [t for t in text.split() if t]
-    while tokens and tokens[0].lower().strip(".,") in TITLE_PREFIXES:
+    while tokens and tokens[0].lower().strip(".,") in prefixes:
         tokens = tokens[1:]
     return " ".join(tokens)
 
@@ -270,10 +304,13 @@ def _detect_suffix(last: Optional[str]) -> tuple[Optional[str], Optional[str]]:
         return (remaining_last if remaining_last else ""), text_ordinals[suffix_candidate]
 
     # Professional/credential suffixes are stripped out of standardized names
-    if suffix_candidate in CREDENTIAL_SUFFIXES:
+    name_consts = _load_name_constants()
+    generational = name_consts.get("generational", set())
+    credential = name_consts.get("credential", set())
+    if suffix_candidate in credential:
         return (remaining_last if remaining_last else ""), None
 
-    if suffix_candidate in US_SUFFIXES:
+    if suffix_candidate in generational:
         return (remaining_last if remaining_last else ""), suffix_candidate
 
     return last, None
@@ -284,8 +321,9 @@ def _looks_like_corporate(text: str) -> bool:
     if not text:
         return False
 
+    corporate_terms = _load_name_constants().get("corporate", set())
     text_lower = text.lower()
-    for term in CORPORATE_TERMS:
+    for term in corporate_terms:
         pattern = rf"\b{re.escape(term)}\b"
         if re.search(pattern, text_lower):
             return True
@@ -441,7 +479,10 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
     if _looks_like_corporate(cleaned):
         return _empty()
 
-    if cleaned.lower() in PLACEHOLDER_NAMES:
+    lower_cleaned = cleaned.lower()
+    placeholders = _load_name_constants().get("placeholders", set())
+    # Reject exact placeholder matches and common postal placeholders
+    if lower_cleaned in placeholders or lower_cleaned in {"postal customer", "current resident"}:
         return _empty()
 
     result = _normalize_name_cached(cleaned)
@@ -478,7 +519,7 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
     suffix = None
     for token in suffix_tokens:
         candidate = token.lower().rstrip(".")
-        if candidate in CREDENTIAL_SUFFIXES:
+        if candidate in _load_name_constants().get("credential", set()):
             continue
         suffix = candidate
         break
@@ -502,9 +543,10 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
 
     middle = _extract_middle_parts(middle) if middle else None
 
+    extracted_suffix = None
     if not suffix:
         last, extracted_suffix = _detect_suffix(last)
-        suffix = extracted_suffix
+    suffix = suffix or extracted_suffix
 
     if suffix:
         suffix = suffix.lower().rstrip(".")
@@ -525,7 +567,7 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
         full_parts.append(last)
     if suffix:
         # Use uppercase for roman numerals, capitalize for others
-        suffix_display = ROMAN_NUMERALS.get(suffix, suffix.capitalize())
+        suffix_display = _load_name_constants().get("roman", {}).get(suffix, suffix.capitalize())
         full_parts.append(suffix_display)
     full = " ".join(full_parts)
 

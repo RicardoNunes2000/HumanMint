@@ -267,6 +267,15 @@ def _find_best_match_strict(search_name: str) -> Optional[str]:
     candidate_key, _score, _ = result
     canonical_match = _CANDIDATE_TO_CANONICAL.get(candidate_key)
 
+    if not canonical_match:
+        return None
+
+    # Require semantic agreement even on the strict pass to block obvious hallucinations
+    input_tags = _get_all_semantic_tags(search_lower)
+    candidate_tags = _get_all_semantic_tags(candidate_key)
+    if not _have_semantic_agreement(input_tags, candidate_tags):
+        return None
+
     return canonical_match
 
 
