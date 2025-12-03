@@ -113,6 +113,11 @@ NON_PERSON_PHRASES = {
     "the library",
     "library",
     "help support",
+    "current resident",
+    "postal customer",
+    "system administrator",
+    "system admin",
+    "administrator",
     "municipal building",
     "administration",
 }

@@ -174,6 +174,36 @@ def test_recursive_title_chain_picks_primary_role():
     assert res.title_canonical is not None
 
 
+def test_interim_director_prefix_stripped_from_name():
+    from humanmint import mint
+
+    res = mint(name="Interim Director Sarah Connor")
+    assert res.name_first == "Sarah"
+    assert res.name_last == "Connor"
+
+
+def test_clerk_of_works_not_generic_clerk():
+    from humanmint import mint
+
+    res = mint(title="Clerk of the Works")
+    assert res.title_canonical == "clerk of the works"
+
+
+def test_chief_of_staff_not_demoted_to_mayor():
+    from humanmint import mint
+
+    res = mint(title="Chief of Staff to the Mayor")
+    assert res.title_canonical == "chief of staff"
+
+
+def test_placeholder_current_resident_and_system_admin_rejected():
+    from humanmint import mint
+
+    assert mint(name="Current Resident").name is None
+    assert mint(name="Postal Customer").name is None
+    assert mint(name="System Administrator").name is None
+
+
 def test_normalize_name_handles_quoted_nickname():
     from humanmint import mint
 

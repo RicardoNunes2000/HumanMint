@@ -25,6 +25,7 @@ from .departments import get_department_category, normalize_department
 from .departments.matching import is_likely_non_department
 from .emails import normalize_email
 from .names import enrich_name, normalize_name
+from .names.normalize import _strip_noise
 from .names.matching import detect_nickname
 from .organizations import normalize_organization
 from .phones import normalize_phone
@@ -121,7 +122,9 @@ def _person_org_score(text: str) -> tuple[float, float, bool]:
             }:
                 org_score += 0.5
 
-    return person_score, org_score, strong_org
+    name_hits = sum(1 for t in tokens if t in names)
+
+    return person_score, org_score, strong_org, name_hits, len(tokens)
 
 
 def process_name(
@@ -161,6 +164,9 @@ def process_name(
                 if cleaned:
                     cleaned_name = cleaned
 
+        # Light noise strip before scoring/gating
+        cleaned_name = _strip_noise(cleaned_name)
+
         # Track if the cleaned string strongly resembles a department or organization.
         dept_hint = False
         org_hint = False
@@ -171,18 +177,25 @@ def process_name(
             return None
 
         # Person vs org scoring based on tokens/semantics
-        person_score, org_score, strong_org = _person_org_score(cleaned_name)
+        person_score, org_score, strong_org, name_hits, token_count = _person_org_score(
+            cleaned_name
+        )
+
+        # Single-token with a known name hit should not be blocked by org heuristics
+        if token_count == 1 and name_hits >= 1:
+            org_score = 0.0
+            strong_org = False
         try:
             dept_norm = normalize_department(cleaned_name)
             dept_match = find_best_department_match(cleaned_name, threshold=0.7)
-            if dept_match or (dept_norm and not is_likely_non_department(dept_norm)):
+            if dept_match:
                 dept_hint = True
         except Exception:
             pass
 
         try:
             org_norm = normalize_organization(cleaned_name)
-            if org_norm and org_norm.get("confidence", 0.0) >= 0.75:
+            if org_norm and org_norm.get("confidence", 0.0) >= 0.9:
                 org_hint = True
         except Exception:
             pass
@@ -193,6 +206,8 @@ def process_name(
         if (org_score - person_score) >= 1.5 and org_score >= 2.0:
             return None
         if org_score >= 3.5 and person_score <= 1.0:
+            return None
+        if name_hits == 0 and token_count >= 2 and (org_score > person_score or org_hint or dept_hint):
             return None
 
         normalized = normalize_name(cleaned_name)

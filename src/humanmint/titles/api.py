@@ -115,6 +115,8 @@ def normalize_title_full(
     cleaned_lower = cleaned.lower()
     if cleaned_lower in special_cases:
         canonical, confidence = special_cases[cleaned_lower]
+    elif "clerk" in cleaned_lower and "works" in cleaned_lower:
+        canonical, confidence = ("clerk of the works", 0.95)
 
     if overrides:
         overrides_lower = {k.lower(): v for k, v in overrides.items()}
@@ -154,6 +156,12 @@ def normalize_title_full(
             elif segments:
                 # Use the primary segment for heuristic validation
                 cleaned_for_valid = primary_segment
+
+        # Promotion bug guard: if we matched a head-of-org role ("mayor", "governor", "president")
+        # from a chain that also contains a chief-of-staff pattern, prefer the chief-of-staff canonical.
+        if canonical in {"mayor", "governor", "president"} and "chief of staff" in cleaned.lower():
+            canonical = "chief of staff"
+            confidence = max(confidence, 0.9)
 
     # Functional heuristics to mark common job patterns as valid even without canonical
     seniority_tokens = {

@@ -141,6 +141,8 @@ def _remove_parenthetical_info(text: str) -> str:
 
 def _normalize_separators(text: str) -> str:
     """Normalize common separators like slashes and ampersands."""
+    if re.search(r"\bclerk of the works\b", text, flags=re.IGNORECASE):
+        return text
     # Keep slashes as explicit separators, collapse long dash runs to spaces
     text = re.sub(r"\s*/\s*", " / ", text)
     text = re.sub(r"[-\u2013\u2014]+", " ", text)

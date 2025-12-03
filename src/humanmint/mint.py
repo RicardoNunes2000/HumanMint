@@ -565,6 +565,14 @@ def mint(
 
     # Detect multi-person names and split if requested
     def _split_multi_person_names(raw: str) -> Optional[list[str]]:
+        # If it's a single "Last, First ..." format (one comma, no connectors), don't split
+        if (
+            raw.count(",") == 1
+            and not re.search(r"\b(?:and|&|/|\+|;)\b", raw, flags=re.IGNORECASE)
+            and re.match(r"^\s*[^,]+,\s*[^,]+", raw)
+        ):
+            return None
+
         # Normalize common connectors (commas, ampersand, slash, plus) to "and"
         cleaned = re.sub(r"[,&/+;]", " and ", raw)
         connectors = re.compile(r"\s+(?:and|&|/|\+|;)\s+", re.IGNORECASE)

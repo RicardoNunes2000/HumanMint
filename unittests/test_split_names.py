@@ -42,3 +42,17 @@ def test_split_two_people_with_semicolon():
     assert isinstance(results, list)
     assert len(results) == 2
     assert {r.name_first for r in results} == {"Steve", "Tim"}
+
+
+def test_last_first_format_not_split():
+    result = mint(name="Smith, Robert", split_multi=True)
+    assert not isinstance(result, list)
+    assert result.name_first == "Robert"
+    assert result.name_last == "Smith"
+
+
+def test_last_first_with_parenthetical_not_split():
+    result = mint(name="SMITH, JOHN (INTERIM)", split_multi=True)
+    assert not isinstance(result, list)
+    assert result.name_first == "John"
+    assert result.name_last == "Smith"
