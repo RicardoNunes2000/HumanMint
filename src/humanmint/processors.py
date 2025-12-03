@@ -75,7 +75,7 @@ def _person_org_score(text: str) -> tuple[float, float, bool]:
     """
     tokens = _tokenize_lower(text)
     if not tokens:
-        return (0.0, 0.0, False)
+        return (0.0, 0.0, False, 0, 0)
 
     names = _name_token_set()
     semantic = _semantic_token_map()
@@ -190,7 +190,11 @@ def process_name(
             dept_match = find_best_department_match(cleaned_name, threshold=0.7)
             if dept_match:
                 dept_hint = True
-            elif dept_norm and not is_likely_non_department(dept_norm):
+            elif (
+                dept_norm
+                and dept_norm.lower() != cleaned_lower
+                and not is_likely_non_department(dept_norm)
+            ):
                 dept_hint = True
         except Exception:
             pass
