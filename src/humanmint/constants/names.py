@@ -1,7 +1,7 @@
 """Constants for name normalization and parsing."""
 
-# US suffixes that should be recognized and extracted
-US_SUFFIXES = {
+# Generational suffixes that should remain part of the standardized name
+GENERATIONAL_SUFFIXES = {
     "jr",
     "sr",
     "ii",
@@ -13,7 +13,12 @@ US_SUFFIXES = {
     "viii",
     "ix",
     "x",
+}
+
+# Professional/credential suffixes that should be stripped from standardized names
+CREDENTIAL_SUFFIXES = {
     "esq",
+    "esquire",
     "phd",
     "md",
     "dds",
@@ -31,6 +36,85 @@ US_SUFFIXES = {
     "cpa",
     "cfa",
     "pe",
+}
+
+# US suffixes that should be recognized and extracted
+US_SUFFIXES = GENERATIONAL_SUFFIXES | CREDENTIAL_SUFFIXES
+
+# Indicators that a string is likely an organization/company rather than a person
+CORPORATE_TERMS = {
+    "inc",
+    "inc.",
+    "incorporated",
+    "llc",
+    "l.l.c.",
+    "ltd",
+    "l.t.d.",
+    "limited",
+    "corp",
+    "corporation",
+    "company",
+    "co",
+    "co.",
+    "plc",
+    "gmbh",
+    "ag",
+    "sa",
+    "s.a.",
+    "sarl",
+    "bv",
+    "nv",
+    "pte",
+    "pty",
+    "llp",
+    "l.l.p.",
+    "lp",
+    "l.p.",
+    "pc",
+    "p.c.",
+    "pllc",
+    "trust",
+    "estate",
+    "foundation",
+    "ministries",
+    "church",
+    "university",
+    "college",
+    "credit union",
+    "bank",
+}
+
+# Department/office phrases that should be treated as non-person names
+NON_PERSON_PHRASES = {
+    "human resources",
+    "information desk",
+    "information center",
+    "general services",
+    "general services administration",
+    "general services department",
+    "customer service",
+    "service center",
+    "service desk",
+    "training room",
+    "call center",
+    "information technology",
+    "finance department",
+    "payroll",
+    "accounts payable",
+    "accounts receivable",
+    "public works",
+    "city hall",
+    "city of",
+    "board of commissioners",
+    "board of education",
+    "board of supervisors",
+    "board of trustees",
+    "commissioners",
+    "the library",
+    "library",
+    "help support",
+    "municipal building",
+    "administration",
 }
 
 # Roman numeral suffixes that should be uppercased in display
@@ -88,6 +172,7 @@ TITLE_PREFIXES = {
     "sen",
     "senator",
     "rep",
+    "interim",
     "judge",
     "justice",
     "amb",

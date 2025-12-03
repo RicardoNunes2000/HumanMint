@@ -11,11 +11,15 @@ Handles the heavy lifting of normalizing individual fields:
 These are internal helpers; use mint() from the main facade instead.
 """
 
+import re
+from functools import lru_cache
 from typing import Optional
 
 from rapidfuzz import fuzz
 
 from .addresses import normalize_address
+from .constants.names import NON_PERSON_PHRASES, ROMAN_NUMERALS
+from .data.utils import load_package_json_gz
 from .departments import find_best_match as find_best_department_match
 from .departments import get_department_category, normalize_department
 from .departments.matching import is_likely_non_department
@@ -25,8 +29,99 @@ from .names.matching import detect_nickname
 from .organizations import normalize_organization
 from .phones import normalize_phone
 from .titles import normalize_title_full
-from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
-                    OrganizationResult, PhoneResult, TitleResult)
+from .types import (
+    AddressResult,
+    DepartmentResult,
+    EmailResult,
+    NameResult,
+    OrganizationResult,
+    PhoneResult,
+    TitleResult,
+)
+
+
+@lru_cache(maxsize=1)
+def _name_token_set() -> set[str]:
+    """Load name tokens from names.json.gz for quick person scoring."""
+    try:
+        data = load_package_json_gz("names.json.gz")
+        return {k.lower() for k in data.keys()}
+    except Exception:
+        return set()
+
+
+@lru_cache(maxsize=1)
+def _semantic_token_map() -> dict[str, Optional[str]]:
+    """Load semantic tokens map (token -> category) for org/person heuristics."""
+    try:
+        data = load_package_json_gz("semantic_tokens.json.gz")
+        return {k.lower(): (v.lower() if isinstance(v, str) else None) for k, v in data.items()}
+    except Exception:
+        return {}
+
+
+def _tokenize_lower(text: str) -> list[str]:
+    """Lowercase, tokenized words (alpha/numeric/apostrophe) for scoring."""
+    return re.findall(r"[a-z0-9']+", text.lower())
+
+
+def _person_org_score(text: str) -> tuple[float, float, bool]:
+    """
+    Compute lightweight person vs. org score using:
+    - name token presence
+    - non-person phrases/patterns
+    - semantic token categories
+    """
+    tokens = _tokenize_lower(text)
+    if not tokens:
+        return (0.0, 0.0, False)
+
+    names = _name_token_set()
+    semantic = _semantic_token_map()
+
+    person_score = 0.0
+    org_score = 0.0
+    lower = text.lower()
+
+    # Strong org patterns that should nearly always be treated as non-person
+    strong_org_patterns = [
+        r"^city of\s+",
+        r"\bboard of\b",
+        r"\bcommissioners?\b",
+        r"\blibrary\b",
+        r"\bhelp\s+support\b",
+    ]
+    strong_org = any(re.search(pat, lower) for pat in strong_org_patterns)
+
+    # Non-person phrase hits add org weight
+    for phrase in NON_PERSON_PHRASES:
+        if phrase in lower:
+            org_score += 3.0
+
+    for tok in tokens:
+        if tok in names:
+            person_score += 2.0
+        if any(ch.isdigit() for ch in tok):
+            org_score += 0.75
+
+        cat = semantic.get(tok)
+        if cat and cat != "null":
+            org_score += 1.0
+            if cat in {
+                "admin",
+                "edu",
+                "finance",
+                "planning",
+                "infra",
+                "safety",
+                "social",
+                "legal",
+                "health",
+                "it",
+            }:
+                org_score += 0.5
+
+    return person_score, org_score, strong_org
 
 
 def process_name(
@@ -53,14 +148,12 @@ def process_name(
         nickname = None
         # Capture quoted nickname if present in raw
         if isinstance(raw_name, str):
-            import re
-
             m = re.search(r"[\"']([^\"']{2,})[\"']", raw_name)
             if m:
                 nickname = m.group(1).strip()
+
         if aggressive_clean:
-            from .names.garbled import (clean_garbled_name,
-                                        should_use_garbled_cleaning)
+            from .names.garbled import clean_garbled_name, should_use_garbled_cleaning
 
             # Auto-detect if cleaning is needed
             if should_use_garbled_cleaning(raw_name):
@@ -68,10 +161,46 @@ def process_name(
                 if cleaned:
                     cleaned_name = cleaned
 
+        # Track if the cleaned string strongly resembles a department or organization.
+        dept_hint = False
+        org_hint = False
+        cleaned_lower = cleaned_name.lower()
+
+        # Reject obvious placeholders like TBD that slip through noise stripping
+        if re.search(r"\btbd\b", cleaned_lower):
+            return None
+
+        # Person vs org scoring based on tokens/semantics
+        person_score, org_score, strong_org = _person_org_score(cleaned_name)
+        try:
+            dept_norm = normalize_department(cleaned_name)
+            dept_match = find_best_department_match(cleaned_name, threshold=0.7)
+            if dept_match or (dept_norm and not is_likely_non_department(dept_norm)):
+                dept_hint = True
+        except Exception:
+            pass
+
+        try:
+            org_norm = normalize_organization(cleaned_name)
+            if org_norm and org_norm.get("confidence", 0.0) >= 0.75:
+                org_hint = True
+        except Exception:
+            pass
+
+        # Gate obvious org/department strings before deep name parsing
+        if strong_org:
+            return None
+        if (org_score - person_score) >= 1.5 and org_score >= 2.0:
+            return None
+        if org_score >= 3.5 and person_score <= 1.0:
+            return None
+
         normalized = normalize_name(cleaned_name)
         enriched = enrich_name(normalized)
 
         if not (enriched.get("full") or enriched.get("is_valid")):
+            if dept_hint or org_hint or org_score > person_score:
+                return None
             return None
 
         first_name = enriched.get("first", "").strip() if enriched.get("first") else ""
@@ -102,6 +231,13 @@ def process_name(
                     middle_name = None
                 elif nickname and nickname.lower() == middle_norm.lower():
                     middle_name = None
+
+        # Display version of suffix (roman numerals uppercased, otherwise capitalized)
+        suffix_display = (
+            ROMAN_NUMERALS.get(suffix_name, suffix_name.capitalize())
+            if suffix_name
+            else None
+        )
 
         canonical_parts = [first_name.lower()]
         if middle_name:
@@ -138,6 +274,26 @@ def process_name(
             else None
         )
 
+        # Reject organization/department-like strings masquerading as names
+        canon_lower = canonical_val.lower()
+        if canon_lower in NON_PERSON_PHRASES:
+            return None
+        # Two-word org-like combos (e.g., "information desk", "general services")
+        if len(canon_lower.split()) <= 3:
+            tokens = canon_lower.split()
+            org_keywords = {
+                "services",
+                "service",
+                "resources",
+                "desk",
+                "center",
+                "administration",
+                "department",
+                "operations",
+            }
+            if any(t in org_keywords for t in tokens) and not suffix_type:
+                return None
+
         return {
             "raw": raw_name,
             "first": first_name or "",
@@ -146,7 +302,7 @@ def process_name(
             "suffix": suffix_name,
             "suffix_type": suffix_type,
             "full": " ".join(
-                p for p in [first_name, middle_name, last_name, suffix_name] if p
+                p for p in [first_name, middle_name, last_name, suffix_display] if p
             )
             or raw_name,
             "gender": gender,

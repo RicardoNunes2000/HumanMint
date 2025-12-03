@@ -35,7 +35,7 @@ Example:
 
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 
 from . import gliner
 from .processors import (
@@ -566,8 +566,8 @@ def mint(
     # Detect multi-person names and split if requested
     def _split_multi_person_names(raw: str) -> Optional[list[str]]:
         # Normalize common connectors (commas, ampersand, slash, plus) to "and"
-        cleaned = re.sub(r"[,&/+]", " and ", raw)
-        connectors = re.compile(r"\s+(?:and|&|/|\+)\s+", re.IGNORECASE)
+        cleaned = re.sub(r"[,&/+;]", " and ", raw)
+        connectors = re.compile(r"\s+(?:and|&|/|\+|;)\s+", re.IGNORECASE)
         parts = [p.strip(" ,") for p in connectors.split(cleaned) if p.strip(" ,")]
         if len(parts) < 2:
             return None
@@ -719,8 +719,8 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (
-                    BarColumn,  # type: ignore
+                from rich.progress import (  # type: ignore
+                    BarColumn,
                     MofNCompleteColumn,
                     Progress,
                     SpinnerColumn,

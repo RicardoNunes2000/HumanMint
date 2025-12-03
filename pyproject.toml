@@ -33,6 +33,7 @@ dependencies = [
     "nicknames>=0.0.2",
     "rapidfuzz>=3.6",
     "orjson>=3.10",
+    "ftfy>=6.1.0",
     "importlib_resources>=5.0; python_version < '3.9'",
 ]
 

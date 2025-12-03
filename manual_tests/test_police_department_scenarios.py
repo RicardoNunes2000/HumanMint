@@ -186,7 +186,7 @@ def build_dataset(n=10000):
 # Benchmark runner
 # ---------------------------
 def main():
-    N = 10000  # change to 20000+ if you want torture mode
+    N = 100000  # change to 20000+ if you want torture mode
     print(f"Generating {N} mixed records...")
 
     records = build_dataset(N)

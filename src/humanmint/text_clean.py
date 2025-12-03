@@ -70,6 +70,23 @@ def normalize_unicode_ascii(text: str, keep_accents: bool = False) -> str:
     if not text:
         return text
 
+    # Repair mojibake/mis-encodings (e.g., RenÃ© -> René) before other steps
+    try:
+        import ftfy  # type: ignore
+
+        text = ftfy.fix_text(text)
+    except Exception:
+        # Fallback: try a simple cp1252 -> utf-8 roundtrip when ftfy isn't available
+        if any(ch in text for ch in ("Ã", "â", "�")):
+            try:
+                candidate = text.encode("latin-1", errors="ignore").decode(
+                    "utf-8", errors="ignore"
+                )
+                if candidate:
+                    text = candidate
+            except Exception:
+                pass
+
     replacements = {
         "’": "'",
         "‘": "'",

@@ -145,6 +145,13 @@ def _normalize_separators(text: str) -> str:
     text = re.sub(r"\s*/\s*", " / ", text)
     text = re.sub(r"[-\u2013\u2014]+", " ", text)
     text = re.sub(r"\s*&\s*", " & ", text)
+    # Collapse recursive/chain phrases like "to the", "of the" into separators,
+    # but only when part of multi-role chains (keep small words for core titles)
+    text = re.sub(r"\s+to\s+the\s+(?=[A-Za-z])", " / ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+of\s+the\s+(?=[A-Za-z])", " / ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+to\s+(?=[A-Za-z])", " / ", text, flags=re.IGNORECASE)
+    # Avoid breaking phrases like "Chief of Police" by only splitting "of" when followed by another "of"/"to" chain
+    text = re.sub(r"\s+of\s+(?=(?:Deputy|Assistant|Associate)\b)", " / ", text, flags=re.IGNORECASE)
     return text
 
 

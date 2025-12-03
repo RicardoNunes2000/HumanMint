@@ -5,14 +5,21 @@ Core name parsing, capitalization normalization, and noise removal.
 Builds on top of the nameparser library for robust name parsing.
 """
 
+import html
 import re
 from functools import lru_cache
 from typing import Dict, Optional
 
 from nameparser import HumanName
 
-from humanmint.constants.names import (PLACEHOLDER_NAMES, ROMAN_NUMERALS,
-                                       TITLE_PREFIXES, US_SUFFIXES)
+from humanmint.constants.names import (
+    CORPORATE_TERMS,
+    CREDENTIAL_SUFFIXES,
+    PLACEHOLDER_NAMES,
+    ROMAN_NUMERALS,
+    TITLE_PREFIXES,
+    US_SUFFIXES,
+)
 from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
 
 _EMPTY_NAME: Dict[str, Optional[str]] = {
@@ -24,6 +31,17 @@ _EMPTY_NAME: Dict[str, Optional[str]] = {
     "canonical": None,
     "is_valid": False,
 }
+
+
+def _fix_common_ocr_errors(text: str) -> str:
+    """Correct common digit-as-letter OCR errors within alphabetic words."""
+    def _replace(match: re.Match[str]) -> str:
+        word = match.group(0)
+        if not re.search(r"[A-Za-z]", word):
+            return word
+        return word.replace("0", "o")
+
+    return re.sub(r"\w+", _replace, text)
 
 
 def _strip_noise(raw: str) -> str:
@@ -43,6 +61,14 @@ def _strip_noise(raw: str) -> str:
     if not raw:
         return ""
 
+    # Decode HTML entities and normalize non-breaking spaces up front
+    raw = html.unescape(raw)
+    raw = raw.replace("\u00a0", " ")
+    raw = _fix_common_ocr_errors(raw)
+
+    # Strip leading list numbering/bullets (e.g., "1. Alice", "12) Bob")
+    raw = re.sub(r"^\s*\d+[\.\)]\s*", "", raw)
+
     # Remove invisible characters from copy/paste (ZWSP, BOM, etc.)
     raw = re.sub(r"[\u200b-\u200d\ufeff]", "", raw)
 
@@ -56,6 +82,12 @@ def _strip_noise(raw: str) -> str:
     raw = re.sub(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", "", raw)
     # Remove short local numbers that sneak into names (e.g., 555-0202)
     raw = re.sub(r"\b\d{3}[-.]?\d{4}\b", "", raw)
+
+    # If string contains "c/o" or "care of", keep the portion after it
+    care_of_match = re.search(r"\b(?:c/o|care of)\b", raw, flags=re.IGNORECASE)
+    if care_of_match:
+        remainder = raw[care_of_match.end() :].strip(" ,.-")
+        raw = remainder or raw
 
     # Remove parenthetical content (notes, status, etc.)
     raw = re.sub(r"\([^)]*\)", "", raw)
@@ -71,7 +103,7 @@ def _strip_noise(raw: str) -> str:
 
     # Remove trailing/embedded credentials (professional certs, degrees) not part of legal name
     raw = re.sub(
-        r"(?:,|\s)+(?:PMP|CPA|SHRM-?CP|SHRM-?SCP|RN-?BC?|MPA|MPH|MBA|JD|PHD|PH\.?D|ED\.?D|EDD|ED\.?S|EDS|MD|M\.?D\.?|DO|DDS|DVM|PE|CISSP|LCSW)\b\.?",
+        r"(?:,|\s)+(?:PMP|CPA|SHRM-?CP|SHRM-?SCP|RN-?BC?|MPA|MPH|MBA|JD|PHD|PH\.?D|ED\.?D|EDD|ED\.?S|EDS|MD|M\.?D\.?|DO|DDS|DVM|PE|CISSP|LCSW|ESQ|ESQUIRE)\b\.?",
         "",
         raw,
         flags=re.IGNORECASE,
@@ -85,13 +117,19 @@ def _strip_noise(raw: str) -> str:
         flags=re.IGNORECASE,
     )
 
+    # Strip leading/trailing stray punctuation/brackets left by SQL injection/artifacts
+    raw = re.sub(r"^[\s\"'\)\(\[\]]+", "", raw)
+    raw = re.sub(r"[\s\"'\)\(\[\];:]+$", "", raw)
+    raw = re.sub(r"[()'\"]+$", "", raw)
+
+    raw = re.sub(r"\s+", " ", raw)
     return raw.strip()
 
 
 def _strip_ranks_and_badges(text: str) -> str:
     """Remove common rank prefixes and badge/ID numbers that leak into name fields."""
     text = re.sub(
-        r"\b(?:sgt|sergeant|capt|captain|cpt|lt|lieutenant|officer|ofc|deputy|det|detective|sheriff|chief|cpl|corporal|gov|governor|sen|senator|rep|representative)\.?\b",
+        r"\b(?:sgt|sergeant|capt|captain|cpt|lt|lieutenant|officer|ofc|deputy|det|detective|sheriff|chief|cpl|corporal|gov|governor|sen|senator|rep|representative|council\s*member|councilmember|councilman|councilwoman|council)\.?\b",
         "",
         text,
         flags=re.IGNORECASE,
@@ -180,12 +218,74 @@ def _detect_suffix(last: Optional[str]) -> tuple[Optional[str], Optional[str]]:
         return last, None
 
     parts = last.split()
-    if parts and parts[-1].lower().rstrip(".") in US_SUFFIXES:
-        suffix = parts[-1].rstrip(".")
-        remaining_last = " ".join(parts[:-1])
-        return (remaining_last if remaining_last else ""), suffix.lower()
+    if not parts:
+        return last, None
+
+    suffix_candidate = parts[-1].lower().rstrip(".")
+    remaining_last = " ".join(parts[:-1])
+
+    # Professional/credential suffixes are stripped out of standardized names
+    if suffix_candidate in CREDENTIAL_SUFFIXES:
+        return (remaining_last if remaining_last else ""), None
+
+    if suffix_candidate in US_SUFFIXES:
+        return (remaining_last if remaining_last else ""), suffix_candidate
 
     return last, None
+
+
+def _looks_like_corporate(text: str) -> bool:
+    """Heuristic: detect corporate indicators in the string."""
+    if not text:
+        return False
+
+    text_lower = text.lower()
+    for term in CORPORATE_TERMS:
+        pattern = rf"\b{re.escape(term)}\b"
+        if re.search(pattern, text_lower):
+            return True
+    return False
+
+
+def _select_best_segment(text: str) -> str:
+    """
+    When delimiters are present, pick the segment most likely to be the person's name.
+    Handles formats like "Title - Last, First" or "Dept | Smith, Jane".
+    """
+    if not text:
+        return text
+
+    if not re.search(r"[|:]|- ", text):
+        return text
+
+    segments = [
+        seg.strip(" ,")
+        for seg in re.split(r"\s*[|:]\s+|-\s+", text)
+        if seg and seg.strip(" ,")
+    ]
+    if not segments:
+        return text
+
+    best_seg = segments[0]
+    best_score = -10
+    for seg in segments:
+        score = 0
+        tokens = [t for t in seg.split() if t]
+        if "," in seg:
+            score += 3
+        if len(tokens) >= 2:
+            score += 2
+        if len(tokens) >= 3:
+            score += 1
+        if _looks_like_corporate(seg):
+            score -= 3
+        if re.match(r"^[A-Za-z]+,\s*[A-Za-z]+", seg):
+            score += 2
+        if score > best_score:
+            best_seg = seg
+            best_score = score
+
+    return best_seg
 
 
 def _normalize_hyphenated_last(last: str) -> str:
@@ -264,6 +364,11 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
     if not cleaned:
         return _empty()
 
+    cleaned = _select_best_segment(cleaned)
+
+    if _looks_like_corporate(cleaned):
+        return _empty()
+
     if cleaned.lower() in PLACEHOLDER_NAMES:
         return _empty()
 
@@ -291,7 +396,17 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
     first = parsed.first.strip() if parsed.first else None
     middle = parsed.middle.strip() if parsed.middle else None
     last = parsed.last.strip() if parsed.last else None
-    suffix = parsed.suffix.strip() if parsed.suffix else None
+
+    suffix_tokens = []
+    if parsed.suffix:
+        suffix_tokens = [tok for tok in re.split("[\\s,]+", parsed.suffix) if tok]
+    suffix = None
+    for token in suffix_tokens:
+        candidate = token.lower().rstrip(".")
+        if candidate in CREDENTIAL_SUFFIXES:
+            continue
+        suffix = candidate
+        break
 
     if not first and not last:
         return _EMPTY_NAME

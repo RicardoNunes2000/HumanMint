@@ -35,3 +35,10 @@ def test_split_three_people_with_commas_and_and():
     assert len(results) == 3
     assert {r.name_first for r in results} == {"Michael", "Sarah", "John"}
     assert all(r.name_last == "O'Reilly" for r in results)
+
+
+def test_split_two_people_with_semicolon():
+    results = mint(name="Steve Jobs; Tim Cook", split_multi=True)
+    assert isinstance(results, list)
+    assert len(results) == 2
+    assert {r.name_first for r in results} == {"Steve", "Tim"}
