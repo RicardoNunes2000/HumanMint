@@ -20,3 +20,11 @@ def test_explicit_usa_indicator_sets_country():
     result = mint(address="123 Example Street, Ottawa, ON K1A0B1, Canada, USA")
     assert result.address
     assert result.address.get("country") == "US"
+
+
+def test_smashed_address_desmashes_before_parsing():
+    result = mint(address="123MainSt Apt4B SpringfieldIL62704")
+    assert result.address
+    assert result.address.get("city") == "Springfield"
+    assert result.address.get("state") == "IL"
+    assert result.address.get("zip") == "62704"

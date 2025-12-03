@@ -5,14 +5,18 @@ Core name parsing, capitalization normalization, and noise removal.
 Builds on top of the nameparser library for robust name parsing.
 """
 
+import html
 import re
 from functools import lru_cache
 from typing import Dict, Optional
 
 from nameparser import HumanName
 
-from humanmint.constants.names import (PLACEHOLDER_NAMES, ROMAN_NUMERALS,
-                                       TITLE_PREFIXES, US_SUFFIXES)
+from humanmint.constants.names import (CORPORATE_TERMS, CREDENTIAL_SUFFIXES,
+                                       GENERATIONAL_SUFFIXES,
+                                       NON_PERSON_PHRASES, PLACEHOLDER_NAMES,
+                                       ROMAN_NUMERALS, TITLE_PREFIXES)
+from humanmint.data.utils import load_package_json_gz
 from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
 
 _EMPTY_NAME: Dict[str, Optional[str]] = {
@@ -23,7 +27,50 @@ _EMPTY_NAME: Dict[str, Optional[str]] = {
     "full": None,
     "canonical": None,
     "is_valid": False,
+    "nickname": None,
 }
+
+
+@lru_cache(maxsize=1)
+def _load_name_constants() -> dict[str, set[str] | dict[str, str]]:
+    """Load name constants from cached data files (fallback to in-code defaults)."""
+    constants: dict[str, set[str] | dict[str, str]] = {}
+    try:
+        gen = load_package_json_gz("name_generational_suffixes.json.gz")
+        cred = load_package_json_gz("name_credential_suffixes.json.gz")
+        corp = load_package_json_gz("name_corporate_terms.json.gz")
+        non_person = load_package_json_gz("name_non_person_phrases.json.gz")
+        roman = load_package_json_gz("name_roman_numerals.json.gz")
+        prefixes = load_package_json_gz("name_title_prefixes.json.gz")
+        placeholders = load_package_json_gz("name_placeholder_names.json.gz")
+
+        constants["generational"] = {str(x).lower() for x in gen} if isinstance(gen, list) else set(GENERATIONAL_SUFFIXES)
+        constants["credential"] = {str(x).lower() for x in cred} if isinstance(cred, list) else set(CREDENTIAL_SUFFIXES)
+        constants["corporate"] = {str(x).lower() for x in corp} if isinstance(corp, list) else set(CORPORATE_TERMS)
+        constants["non_person"] = {str(x).lower() for x in non_person} if isinstance(non_person, list) else set(NON_PERSON_PHRASES)
+        constants["roman"] = {k.lower(): v for k, v in roman.items()} if isinstance(roman, dict) else dict(ROMAN_NUMERALS)
+        constants["prefixes"] = {str(x).lower() for x in prefixes} if isinstance(prefixes, list) else set(TITLE_PREFIXES)
+        constants["placeholders"] = {str(x).lower() for x in placeholders} if isinstance(placeholders, list) else set(PLACEHOLDER_NAMES)
+    except Exception:
+        constants["generational"] = set(GENERATIONAL_SUFFIXES)
+        constants["credential"] = set(CREDENTIAL_SUFFIXES)
+        constants["corporate"] = set(CORPORATE_TERMS)
+        constants["non_person"] = set(NON_PERSON_PHRASES)
+        constants["roman"] = dict(ROMAN_NUMERALS)
+        constants["prefixes"] = set(TITLE_PREFIXES)
+        constants["placeholders"] = set(PLACEHOLDER_NAMES)
+    return constants
+
+
+def _fix_common_ocr_errors(text: str) -> str:
+    """Correct common digit-as-letter OCR errors within alphabetic words."""
+    def _replace(match: re.Match[str]) -> str:
+        word = match.group(0)
+        if not re.search(r"[A-Za-z]", word):
+            return word
+        return word.replace("0", "o")
+
+    return re.sub(r"\w+", _replace, text)
 
 
 def _strip_noise(raw: str) -> str:
@@ -43,6 +90,14 @@ def _strip_noise(raw: str) -> str:
     if not raw:
         return ""
 
+    # Decode HTML entities and normalize non-breaking spaces up front
+    raw = html.unescape(raw)
+    raw = raw.replace("\u00a0", " ")
+    raw = _fix_common_ocr_errors(raw)
+
+    # Strip leading list numbering/bullets (e.g., "1. Alice", "12) Bob")
+    raw = re.sub(r"^\s*\d+[\.\)]\s*", "", raw)
+
     # Remove invisible characters from copy/paste (ZWSP, BOM, etc.)
     raw = re.sub(r"[\u200b-\u200d\ufeff]", "", raw)
 
@@ -57,8 +112,22 @@ def _strip_noise(raw: str) -> str:
     # Remove short local numbers that sneak into names (e.g., 555-0202)
     raw = re.sub(r"\b\d{3}[-.]?\d{4}\b", "", raw)
 
+    # If string contains "c/o" or "care of", keep the portion after it
+    care_of_match = re.search(r"\b(?:c/o|care of)\b", raw, flags=re.IGNORECASE)
+    if care_of_match:
+        remainder = raw[care_of_match.end() :].strip(" ,.-")
+        raw = remainder or raw
+
     # Remove parenthetical content (notes, status, etc.)
     raw = re.sub(r"\([^)]*\)", "", raw)
+
+    # Strip obvious code-like tokens/functions that leak from HTML/JS (e.g., alert()).
+    raw = re.sub(
+        r"\b(?:alert|prompt|confirm|eval|script|javascript|onerror|onload|document|window|function)\b\s*(?:\([^)]*\))?",
+        "",
+        raw,
+        flags=re.IGNORECASE,
+    )
 
     # Normalize quotes and strip quoted nicknames while preserving content
     raw = raw.translate(
@@ -71,7 +140,7 @@ def _strip_noise(raw: str) -> str:
 
     # Remove trailing/embedded credentials (professional certs, degrees) not part of legal name
     raw = re.sub(
-        r"(?:,|\s)+(?:PMP|CPA|SHRM-?CP|SHRM-?SCP|RN-?BC?|MPA|MPH|MBA|JD|PHD|PH\.?D|ED\.?D|EDD|ED\.?S|EDS|MD|M\.?D\.?|DO|DDS|DVM|PE|CISSP|LCSW)\b\.?",
+        r"(?:,|\s)+(?:PMP|CPA|SHRM-?CP|SHRM-?SCP|RN-?BC?|MPA|MPH|MBA|JD|PHD|PH\.?D|ED\.?D|EDD|ED\.?S|EDS|MD|M\.?D\.?|DO|DDS|DVM|PE|CISSP|LCSW|ESQ|ESQUIRE)\b\.?",
         "",
         raw,
         flags=re.IGNORECASE,
@@ -85,13 +154,19 @@ def _strip_noise(raw: str) -> str:
         flags=re.IGNORECASE,
     )
 
+    # Strip leading/trailing stray punctuation/brackets left by SQL injection/artifacts
+    raw = re.sub(r"^[\s\"'\)\(\[\]]+", "", raw)
+    raw = re.sub(r"[\s\"'\)\(\[\];:]+$", "", raw)
+    raw = re.sub(r"[()'\"]+$", "", raw)
+
+    raw = re.sub(r"\s+", " ", raw)
     return raw.strip()
 
 
 def _strip_ranks_and_badges(text: str) -> str:
     """Remove common rank prefixes and badge/ID numbers that leak into name fields."""
     text = re.sub(
-        r"\b(?:sgt|sergeant|capt|captain|cpt|lt|lieutenant|officer|ofc|deputy|det|detective|sheriff|chief|cpl|corporal|gov|governor|sen|senator|rep|representative)\.?\b",
+        r"\b(?:sgt|sergeant|capt|captain|cpt|lt|lieutenant|officer|ofc|deputy|det|detective|sheriff|chief|cpl|corporal|gov|governor|sen|senator|rep|representative|council\s*member|councilmember|councilman|councilwoman|council)\.?\b",
         "",
         text,
         flags=re.IGNORECASE,
@@ -113,6 +188,7 @@ def _normalize_unicode(text: str) -> str:
         text = ftfy.fix_text(text)
     except Exception:
         pass
+    # Preserve accents for accurate name rendering
     return normalize_unicode_ascii(text, keep_accents=True)
 
 
@@ -120,41 +196,108 @@ def _strip_title_prefixes(text: str) -> str:
     """Remove leading honorifics/titles (Dr, Mr, Ms, etc.)."""
     if not text:
         return text
+    prefixes = _load_name_constants().get("prefixes", set())
     tokens = [t for t in text.split() if t]
-    while tokens and tokens[0].lower().strip(".,") in TITLE_PREFIXES:
+    while tokens and tokens[0].lower().strip(".,") in prefixes:
         tokens = tokens[1:]
     return " ".join(tokens)
 
 
 def _normalize_capitalization(text: str) -> str:
-    """
-    Normalize capitalization in a name.
+    """Normalize capitalization in a name.
+
+    Handles special cases like Scottish/Irish prefixes (Mc, Mac, O'), particles (de, van, etc.),
+    apostrophe names (D'Angelo), hyphenated names, and preserves interior capitals (DiCaprio).
+
+    Args:
+        text: Raw name part to normalize capitalization for.
+
+    Returns:
+        Name with proper capitalization applied.
+
+    Example:
+        >>> _normalize_capitalization("mcdonough")
+        'Mcdonough'
+        >>> _normalize_capitalization("d'angelo")
+        "D'angelo"
     """
     if not text:
         return ""
 
+    # Multi-token (space-separated) names: normalize each part
+    if " " in text:
+        parts = [p for p in text.split() if p]
+        normalized_parts = [_normalize_capitalization(p) for p in parts]
+        return " ".join(normalized_parts)
+
+    # Respect dotted initials like O.J. or D.J. without lowercasing inner letters
+    if re.match(r"^[A-Za-z](?:\.[A-Za-z])+(?:\.)?$", text):
+        letters = re.findall(r"[A-Za-z]", text)
+        suffix = "." if text.endswith(".") else ""
+        return ".".join(ch.upper() for ch in letters) + suffix
+
+    # Handle Scottish/Irish prefixes (Mc, Mac, O') before generic apostrophe logic
+    if text.lower().startswith("mc") and len(text) > 2:
+        return "Mc" + text[2].upper() + text[3:].lower()
+
+    if text.lower().startswith("mac") and len(text) > 3:
+        return "Mac" + text[3].upper() + text[4:].lower()
+
+    if text.lower().startswith("o'") and len(text) > 2:
+        return "O'" + text[2].upper() + text[3:].lower()
+
+    # Handle particles like de/da/la/van
+    particles = {
+        "de",
+        "da",
+        "la",
+        "le",
+        "van",
+        "von",
+        "der",
+        "den",
+        "del",
+        "della",
+        "di",
+        "du",
+        "des",
+    }
+    if text.lower() in particles:
+        return text.lower()
+
     # Handle short prefix apostrophe names like D'Angelo, L'Oreal
     if re.match(r"^[A-Za-z]'[A-Za-z].*", text):
         head, tail = text.split("'", 1)
-        return f"{head.upper()}'{tail.capitalize()}"
+        return f"{head.capitalize()}'{tail.capitalize()}"
 
+    # Handle short prefix apostrophe names like D'Angelo, L'Oreal
     # Handle hyphenated names (e.g., Mary-Jane, Johnson-Smith)
     if "-" in text:
         parts = text.split("-")
         return "-".join(_normalize_capitalization(p) for p in parts)
 
-    # Handle Scottish/Irish prefixes (Mc, Mac, O')
-    if text.lower().startswith("mc") and len(text) > 2:
-        return "Mc" + text[2].upper() + text[3:].lower()
-
-    if text.lower().startswith("o'") and len(text) > 2:
-        return "O'" + text[2].upper() + text[3:].lower()
+    # Preserve interior caps if present (e.g., DiCaprio, DeNiro) but not when fully uppercase
+    if any(ch.isupper() for ch in text[1:]) and not text.isupper():
+        return text[0].upper() + text[1:]
 
     return text.capitalize()
 
 
 def _extract_middle_parts(middle: str) -> Optional[str]:
-    """Clean and normalize middle names/initials."""
+    """Clean and normalize middle names/initials.
+
+    Args:
+        middle: Raw middle name string that may contain periods or spaces.
+
+    Returns:
+        Normalized middle name(s) with proper casing, or None if empty.
+
+    Example:
+        >>> _extract_middle_parts("j.r.")
+        'J R'
+        >>> _extract_middle_parts("Robert Lee")
+        'Robert Lee'
+    """
     if not middle:
         return None
 
@@ -175,31 +318,201 @@ def _extract_middle_parts(middle: str) -> Optional[str]:
 
 
 def _detect_suffix(last: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-    """Extract suffix from last name if present."""
+    """Extract suffix from last name if present.
+
+    Handles generational suffixes (Jr, Sr, II, III, etc.), credential suffixes,
+    and textual ordinals embedded in names ("the third" -> "iii").
+
+    Args:
+        last: Last name that may contain a suffix.
+
+    Returns:
+        Tuple of (remaining_last_name, suffix) where suffix is None if no suffix found.
+
+    Example:
+        >>> _detect_suffix("Smith Jr.")
+        ('Smith', 'jr')
+        >>> _detect_suffix("King the Third")
+        ('King', 'iii')
+    """
     if not last:
         return last, None
 
     parts = last.split()
-    if parts and parts[-1].lower().rstrip(".") in US_SUFFIXES:
-        suffix = parts[-1].rstrip(".")
-        remaining_last = " ".join(parts[:-1])
-        return (remaining_last if remaining_last else ""), suffix.lower()
+    if not parts:
+        return last, None
+
+    suffix_candidate = parts[-1].lower().rstrip(".")
+    remaining_last = " ".join(parts[:-1])
+
+    text_ordinals = {
+        "first": "i",
+        "second": "ii",
+        "third": "iii",
+        "fourth": "iv",
+        "fifth": "v",
+        "sixth": "vi",
+        "seventh": "vii",
+        "eighth": "viii",
+        "ninth": "ix",
+        "tenth": "x",
+    }
+
+    # Textual ordinals embedded in last name: "... the third" -> suffix iii
+    if len(parts) >= 2 and parts[-2].lower() == "the" and suffix_candidate in text_ordinals:
+        remaining_last = " ".join(parts[:-2]).strip()
+        return (remaining_last if remaining_last else ""), text_ordinals[suffix_candidate]
+
+    # Professional/credential suffixes are stripped out of standardized names
+    name_consts = _load_name_constants()
+    generational = name_consts.get("generational", set())
+    credential = name_consts.get("credential", set())
+    if suffix_candidate in credential:
+        return (remaining_last if remaining_last else ""), None
+
+    if suffix_candidate in generational:
+        return (remaining_last if remaining_last else ""), suffix_candidate
 
     return last, None
 
 
+def _looks_like_corporate(text: str) -> bool:
+    """Detect corporate indicators in the string.
+
+    Args:
+        text: Text to check for corporate keywords.
+
+    Returns:
+        True if corporate keywords are found, False otherwise.
+
+    Example:
+        >>> _looks_like_corporate("Acme Corporation")
+        True
+        >>> _looks_like_corporate("John Smith")
+        False
+    """
+    if not text:
+        return False
+
+    corporate_terms = _load_name_constants().get("corporate", set())
+    text_lower = text.lower()
+    for term in corporate_terms:
+        pattern = rf"\b{re.escape(term)}\b"
+        if re.search(pattern, text_lower):
+            return True
+    return False
+
+
+def _select_best_segment(text: str) -> str:
+    """Select best segment when delimiters are present in text.
+
+    When text contains delimiters (-, |, etc.), identifies which segment is most
+    likely to be the person's name. Handles formats like "Title - Last, First"
+    or "Dept | Smith, Jane".
+
+    Args:
+        text: Text potentially containing multiple delimited segments.
+
+    Returns:
+        Best candidate segment for a person's name.
+
+    Example:
+        >>> _select_best_segment("Engineer - Smith, John | Acme Inc")
+        'Smith, John'
+    """
+    if not text:
+        return text
+
+    if not re.search(r"[|:]|- ", text):
+        return text
+
+    segments = [
+        seg.strip(" ,")
+        for seg in re.split(r"\s*[|:]\s+|-\s+", text)
+        if seg and seg.strip(" ,")
+    ]
+    if not segments:
+        return text
+
+    best_seg = segments[0]
+    best_score = -10
+    for seg in segments:
+        score = 0
+        tokens = [t for t in seg.split() if t]
+        if "," in seg:
+            score += 3
+        if len(tokens) >= 2:
+            score += 2
+        if len(tokens) >= 3:
+            score += 1
+        if _looks_like_corporate(seg):
+            score -= 3
+        if re.match(r"^[A-Za-z]+,\s*[A-Za-z]+", seg):
+            score += 2
+        if score > best_score:
+            best_seg = seg
+            best_score = score
+
+    return best_seg
+
+
 def _normalize_hyphenated_last(last: str) -> str:
-    """Handle hyphenated last names correctly."""
+    """Handle hyphenated and space-separated last names correctly.
+
+    Args:
+        last: Last name that may be hyphenated or contain space-separated particles.
+
+    Returns:
+        Last name with proper capitalization applied to each part.
+
+    Example:
+        >>> _normalize_hyphenated_last("smith-jones")
+        'Smith-Jones'
+        >>> _normalize_hyphenated_last("van der berg")
+        'Van Der Berg'
+    """
     if "-" not in last:
-        return _normalize_capitalization(last)
+        # Handle space-separated particles and ordinals sensibly
+        return " ".join(_normalize_capitalization(part) for part in last.split())
 
     parts = last.split("-")
     return "-".join(_normalize_capitalization(p) for p in parts)
 
 
 def _empty() -> Dict[str, Optional[str]]:
-    """Return empty/invalid name result."""
+    """Return empty/invalid name result.
+
+    Returns:
+        Standard empty name dict with all fields set to None.
+    """
     return _EMPTY_NAME.copy()
+
+
+def _dedupe_trailing_duplicate_first(cleaned: str) -> str:
+    """Drop trailing duplicated first names like "Jane Doe, Jane".
+
+    Fixes patterns like "<first> <last>, <first>" where the comma section
+    is just a repeat of the leading first token. Often from copy/paste or
+    CSV join issues.
+
+    Args:
+        cleaned: Cleaned name string potentially containing duplicate.
+
+    Returns:
+        Name with trailing duplicate removed.
+
+    Example:
+        >>> _dedupe_trailing_duplicate_first("Jane Doe, Jane")
+        'Jane Doe'
+    """
+    parts = [p.strip() for p in cleaned.split(",") if p.strip()]
+    if len(parts) >= 2:
+        left_first = parts[0].split()[0].lower() if parts[0] else ""
+        trailing = parts[-1].lower()
+        if left_first and trailing == left_first:
+            # Remove the duplicated trailing first token
+            return ", ".join(parts[:-1])
+    return cleaned
 
 
 def _validate_name_quality(
@@ -245,11 +558,34 @@ def _validate_name_quality(
 
 
 def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
-    """
-    Normalize a name into structured components.
+    """Normalize a name into structured components.
+
+    Main public API function. Parses and cleans a raw name string into first, middle,
+    last, suffix, and nickname components with proper capitalization and validation.
+
+    Args:
+        raw: Raw name string, or None.
+
+    Returns:
+        Dict with keys: full, first, middle, last, suffix, nickname, is_valid.
+        Returns empty dict on invalid input.
+
+    Example:
+        >>> result = normalize_name("Dr. John Robert Smith Jr.")
+        >>> result["first"]
+        'John'
+        >>> result["last"]
+        'Smith'
+        >>> result["suffix"]
+        'Jr'
     """
     if not raw or not isinstance(raw, str):
         return _empty()
+
+    nickname = None
+    m_nick = re.search(r"[\"'()]([^\"'()]{2,})[\"'()]", raw)
+    if m_nick:
+        nickname = m_nick.group(1).strip()
 
     cleaned = _strip_noise(raw).strip()
     if not cleaned:
@@ -264,11 +600,26 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
     if not cleaned:
         return _empty()
 
-    if cleaned.lower() in PLACEHOLDER_NAMES:
+    # Normalize underscores into spaces before further parsing
+    cleaned = cleaned.replace("_", " ")
+
+    cleaned = _select_best_segment(cleaned)
+    cleaned = _dedupe_trailing_duplicate_first(cleaned)
+
+    if _looks_like_corporate(cleaned):
+        return _empty()
+
+    lower_cleaned = cleaned.lower()
+    placeholders = _load_name_constants().get("placeholders", set())
+    # Reject exact placeholder matches and common postal placeholders
+    if lower_cleaned in placeholders or lower_cleaned in {"postal customer", "current resident"}:
         return _empty()
 
     result = _normalize_name_cached(cleaned)
-    return result.copy()
+    result = result.copy()
+    if nickname:
+        result["nickname"] = nickname
+    return result
 
 
 @lru_cache(maxsize=4096)
@@ -288,10 +639,23 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
     tokens_original = cleaned.split()
     parsed = HumanName(cleaned)
 
+    # Capture honorific/title as parsed by nameparser for internal reuse (do not expose)
+    parsed_honorific = parsed.title.strip() if parsed.title else None
+
     first = parsed.first.strip() if parsed.first else None
     middle = parsed.middle.strip() if parsed.middle else None
     last = parsed.last.strip() if parsed.last else None
-    suffix = parsed.suffix.strip() if parsed.suffix else None
+
+    suffix_tokens = []
+    if parsed.suffix:
+        suffix_tokens = [tok for tok in re.split("[\\s,]+", parsed.suffix) if tok]
+    suffix = None
+    for token in suffix_tokens:
+        candidate = token.lower().rstrip(".")
+        if candidate in _load_name_constants().get("credential", set()):
+            continue
+        suffix = candidate
+        break
 
     if not first and not last:
         return _EMPTY_NAME
@@ -312,9 +676,15 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
 
     middle = _extract_middle_parts(middle) if middle else None
 
+    extracted_suffix = None
     if not suffix:
         last, extracted_suffix = _detect_suffix(last)
-        suffix = extracted_suffix
+    suffix = suffix or extracted_suffix
+
+    # If nameparser found an honorific and first is missing, try to recover from honorific+last
+    if parsed_honorific and not first and last:
+        # e.g., "Dr. Smith" => honorific="Dr", last="Smith" ; prefer to keep last, skip honorific
+        first = None
 
     if suffix:
         suffix = suffix.lower().rstrip(".")
@@ -335,7 +705,7 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
         full_parts.append(last)
     if suffix:
         # Use uppercase for roman numerals, capitalize for others
-        suffix_display = ROMAN_NUMERALS.get(suffix, suffix.capitalize())
+        suffix_display = _load_name_constants().get("roman", {}).get(suffix, suffix.capitalize())
         full_parts.append(suffix_display)
     full = " ".join(full_parts)
 
@@ -350,4 +720,5 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
         "full": full,
         "canonical": canonical,
         "is_valid": is_valid,
+        "nickname": None,
     }

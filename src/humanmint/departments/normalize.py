@@ -7,7 +7,9 @@ removing noise, extra whitespace, and common artifacts.
 
 import re
 from functools import lru_cache
+from pathlib import Path
 
+from humanmint.data.utils import load_package_json_gz
 from humanmint.text_clean import (normalize_unicode_ascii,
                                   remove_parentheticals, strip_codes_and_ids,
                                   strip_garbage)
@@ -118,7 +120,60 @@ _ABBREVIATIONS = {
     "ph": "public health",
     "wrks": "works",
     "resourcs": "resources",
+    "web": "web",
+    "website": "website",
+    "digital": "digital",
 }
+
+
+@lru_cache(maxsize=1)
+def _load_abbreviation_map() -> dict[str, str]:
+    """
+    Load dynamic abbreviation expansions from packaged data.
+
+    Falls back to the compiled-in set if the cache file is missing.
+    """
+    merged = dict(_ABBREVIATIONS)
+
+    def _load_from_txt(txt_path: Path) -> None:
+        if not txt_path.exists():
+            return
+        for line in txt_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "," in stripped:
+                key, value = [p.strip() for p in stripped.split(",", 1)]
+            elif "\t" in stripped:
+                key, value = [p.strip() for p in stripped.split("\t", 1)]
+            else:
+                parts = [p.strip() for p in stripped.split() if p.strip()]
+                if len(parts) >= 2:
+                    key, value = parts[0], " ".join(parts[1:])
+                else:
+                    continue
+            if key and value:
+                merged[key.lower()] = value
+
+    try:
+        extra = load_package_json_gz("department_abbreviations.json.gz")
+        if isinstance(extra, dict):
+            merged.update({k.lower(): v for k, v in extra.items() if v})
+    except FileNotFoundError:
+        # Development fallback: read the raw txt if cache not built yet
+        txt_paths = [
+            Path(__file__).resolve().parents[1]
+            / "data"
+            / "original"
+            / "department_abbreviations.txt",
+            Path(__file__).resolve().parent / "data" / "department_abbreviations.txt",
+        ]
+        for path in txt_paths:
+            _load_from_txt(path)
+    except Exception:
+        pass
+
+    return merged
 
 
 def _strip_garbage(text: str) -> str:
@@ -218,23 +273,26 @@ def _remove_code_separators(text: str) -> str:
 
 def _expand_abbreviations(text: str) -> str:
     """
-    Expand common abbreviations in department names.
-
-    Example:
-        >>> _expand_abbreviations("Strt Maint")
-        "Street Maintenance"
+    Expand common abbreviations in department names using a regex trie.
     """
-    parts = []
-    for token in text.split():
-        stripped = token.strip(",.;:")
-        lower = stripped.lower()
-        normalized_key = lower.replace(".", "")
-        expanded = _ABBREVIATIONS.get(lower) or _ABBREVIATIONS.get(normalized_key)
-        if expanded:
-            parts.append(expanded)
-        else:
-            parts.append(token)
-    return " ".join(parts)
+    pattern, abbr_map = _get_abbreviation_regex()
+
+    def replace(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        key = raw.lower().replace(".", "")
+        return abbr_map.get(key, raw)
+
+    return pattern.sub(replace, text)
+
+
+@lru_cache(maxsize=1)
+def _get_abbreviation_regex() -> tuple[re.Pattern[str], dict[str, str]]:
+    abbr_map = _load_abbreviation_map()
+    keys = sorted(abbr_map.keys(), key=len, reverse=True)
+    if not keys:
+        return re.compile(r"$^"), abbr_map
+    pattern_str = r"\b(" + "|".join(re.escape(k) for k in keys) + r")\.?\b"
+    return re.compile(pattern_str, re.IGNORECASE), abbr_map
 
 
 def _restore_acronyms(text: str) -> str:

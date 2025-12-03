@@ -37,6 +37,20 @@ _ABBREV_MAP = {
     "pd": "police",
 }
 
+ACRONYM_MAP = {
+    "usda": "United States Department of Agriculture",
+    "epa": "Environmental Protection Agency",
+    "fema": "Federal Emergency Management Agency",
+    "fdny": "New York City Fire Department",
+    "nypd": "New York City Police Department",
+    "lapd": "Los Angeles Police Department",
+    "lafd": "Los Angeles Fire Department",
+    "doj": "Department of Justice",
+    "dot": "Department of Transportation",
+    "dhhs": "Department of Health and Human Services",
+    "hud": "Department of Housing and Urban Development",
+}
+
 
 def _clean(text: str) -> str:
     text = strip_garbage(text)
@@ -55,6 +69,15 @@ def normalize_organization(raw: Optional[str]) -> Optional[Dict[str, Optional[st
         return None
 
     lower = cleaned.lower()
+    if lower in ACRONYM_MAP:
+        canonical = ACRONYM_MAP[lower]
+        confidence = 0.9
+        return {
+            "raw": raw,
+            "normalized": lower,
+            "canonical": canonical,
+            "confidence": confidence,
+        }
     for prefix in _CIVIC_PREFIXES:
         if lower.startswith(prefix):
             cleaned = cleaned[len(prefix) :].strip(" ,-/")
@@ -70,6 +93,7 @@ def normalize_organization(raw: Optional[str]) -> Optional[Dict[str, Optional[st
         normalized_tokens.append(_ABBREV_MAP.get(tok, tok))
 
     normalized = " ".join(normalized_tokens)
+    normalized = normalized.strip(" &,-")
     canonical = normalized.title()
     confidence = 0.7 + 0.05 * min(len(normalized_tokens), 4)
     confidence = min(confidence, 0.95)

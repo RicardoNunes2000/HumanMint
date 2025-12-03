@@ -1,0 +1,93 @@
+# C-suite roles
+chief executive officer
+chief operating officer
+chief financial officer
+chief information officer
+chief technology officer
+chief marketing officer
+chief product officer
+chief security officer
+chief academic officer
+chief risk officer
+chief compliance officer
+chief information security officer
+chief data officer
+chief human resources officer
+chief legal officer
+chief strategy officer
+chief quality officer
+chief medical officer
+chief nursing officer
+
+# Executive/Director level
+executive director
+executive vice president
+senior vice president
+vice president
+associate vice president
+assistant vice president
+deputy director
+assistant director
+associate director
+
+# Principal/Lead roles (longer phrases first)
+principal engineer
+principal architect
+principal consultant
+principal analyst
+principal scientist
+principal product manager
+principal research scientist
+principal investigator
+principal counsel
+principal manager
+
+# Senior roles (longer phrases first)
+senior engineer
+senior architect
+senior manager
+senior director
+senior analyst
+senior consultant
+senior advisor
+senior specialist
+senior scientist
+senior developer
+senior administrator
+senior technician
+senior associate
+senior counsel
+senior planner
+senior researcher
+senior investigator
+senior officer
+
+# Lead roles (longer phrases first)
+lead engineer
+lead architect
+lead developer
+lead analyst
+lead manager
+lead consultant
+lead designer
+lead scientist
+lead investigator
+lead researcher
+
+# Staff-level individual contributors
+staff engineer
+staff architect
+staff scientist
+staff analyst
+
+# Single-word seniority modifiers (catch-all, in order of hierarchy)
+chief
+executive
+director
+principal
+senior
+lead
+junior
+assistant
+associate
+entry-level

@@ -59,7 +59,15 @@ def _load_generic_inboxes() -> Set[str]:
 def _clean(raw: str) -> str:
     # Strip obvious wrappers and lowercase
     cleaned = raw.strip().strip("<>").lower()
+    # Normalize common anti-scraping patterns like " [at] ", "(at)", "{dot}", etc.
+    cleaned = re.sub(r"[\[\(\{]\s*at\s*[\]\)\}]", "@", cleaned)
+    cleaned = re.sub(r"[\[\(\{]\s*dot\s*[\]\)\}]", ".", cleaned)
+    cleaned = re.sub(r"\bat\b", "@", cleaned)
+    cleaned = re.sub(r"\bdot\b", ".", cleaned)
     cleaned = cleaned.replace(" ", "")
+
+    # Strip trailing parenthetical notes appended to emails (e.g., email@city.gov(johnsmith))
+    cleaned = re.sub(r"\([^)]*\)\s*$", "", cleaned)
 
     # Handle mailto: and URL-style inputs
     if cleaned.startswith("mailto:"):
@@ -202,6 +210,10 @@ def normalize_email(
         return _empty()
 
     cleaned = _clean(raw)
+
+    # Early gate: if there's no '@' after cleaning, treat as invalid non-email input
+    if "@" not in cleaned:
+        return _empty() | {"email": None}
 
     # Fast path: default inbox list can be cached
     if generic_inboxes is None:

@@ -267,6 +267,15 @@ def _find_best_match_strict(search_name: str) -> Optional[str]:
     candidate_key, _score, _ = result
     canonical_match = _CANDIDATE_TO_CANONICAL.get(candidate_key)
 
+    if not canonical_match:
+        return None
+
+    # Require semantic agreement even on the strict pass to block obvious hallucinations
+    input_tags = _get_all_semantic_tags(search_lower)
+    candidate_tags = _get_all_semantic_tags(candidate_key)
+    if not _have_semantic_agreement(input_tags, candidate_tags):
+        return None
+
     return canonical_match
 
 
@@ -440,6 +449,8 @@ def find_best_match(
         raise ValueError("Department name cannot be empty")
 
     search_name = normalize_department(dept_name) if normalize else dept_name
+    if search_name and search_name.lower() in {"empty", "tbd", "n/a", "na"}:
+        return None
     return _find_best_match_normalized(search_name, threshold)
 
 

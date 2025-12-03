@@ -308,10 +308,14 @@ def _find_best_match_normalized_cached(
 
     # Strategy 2e: Find close matches using rapidfuzz against canonicals (fallback)
     canonicals = get_canonical_titles()
+    search_len = len(search_title)
+    min_len = int(search_len * 0.6)
+    max_len = int(search_len * 1.4)
+    candidates = [c for c in canonicals if min_len <= len(c) <= max_len] or canonicals
     score_cutoff = threshold * 100
     result = process.extractOne(
         search_title,
-        canonicals,
+        candidates,
         scorer=fuzz.token_sort_ratio,
         score_cutoff=score_cutoff,
     )

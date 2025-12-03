@@ -59,7 +59,7 @@ def clean_csv(
         org_col: Organization column header.
         dept_col: Department column header.
         title_col: Title column header.
-        workers: Number of worker threads.
+        workers: Number of worker processes.
         use_bulk: Whether to use bulk parallel processing.
         progress: Show progress indicator.
 
@@ -217,14 +217,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--workers",
         type=int,
         default=4,
-        help="Number of worker threads for bulk mode (default: 4)",
+        help="Number of worker processes for bulk mode (default: 4)",
     )
     clean_parser.add_argument(
         "--no-bulk",
         action="store_false",
         dest="use_bulk",
         default=True,
-        help="Disable threaded bulk processing (defaults to enabled)",
+        help="Disable bulk parallel processing (defaults to enabled)",
     )
     clean_parser.add_argument(
         "--progress",

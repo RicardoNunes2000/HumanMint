@@ -2,7 +2,7 @@ from humanmint.departments import (find_best_match, get_all_categories,
                                    get_department_category,
                                    get_departments_by_category, load_mappings,
                                    normalize_department)
-from humanmint.processors import process_department
+from humanmint.processors import process_department, process_title
 
 
 def test_normalize_department_removes_noise():
@@ -62,3 +62,34 @@ def test_transit_ops_maps_to_transportation():
     # "Transit Operations Division" fuzzy matches "Transit Operations" (80% score)
     # but validation logic may reject it. Accept either Transportation Services or None
     assert match in ("Transportation Services", "Transit Operations", None)
+
+
+def test_web_and_digital_map_to_it():
+    res = process_department("Web Services")
+    assert res["canonical"] == "Information Technology"
+
+    res = process_department("Digital Services")
+    assert res["canonical"] == "Information Technology"
+
+    res = process_department("Website Management")
+    assert res["canonical"] == "Information Technology"
+
+
+def test_title_hint_inferrs_department_when_missing():
+    # Java developer should infer IT when department is missing
+    from humanmint.processors import process_title
+
+    ttl = process_title("Java Developer")
+    res = process_department(None, title_canonical=ttl["canonical"])
+    assert res and res["canonical"] == "Information Technology"
+
+
+def test_w_abbreviation_maps_to_water_with_title_hint():
+    res = process_department("W. Dept", title_canonical="Pipe Fitter")
+    assert res["canonical"] == "Water"
+
+
+def test_w_abbreviation_maps_to_it_with_it_title():
+    ttl = process_title("Java Developer")
+    res = process_department("W. Dept", title_canonical=ttl["canonical"])
+    assert res and res["canonical"] == "Information Technology"

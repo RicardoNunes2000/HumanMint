@@ -324,3 +324,9 @@ def test_edge_10():
     # Test that it at least normalizes and doesn't crash
     assert r.title["normalized"] is not None
     assert "officer" in r.title["normalized"].lower()
+
+
+def test_org_acronym_mapping():
+    r = mint(organization="USDA")
+    assert r.organization
+    assert "Agriculture" in r.organization.get("canonical", "")

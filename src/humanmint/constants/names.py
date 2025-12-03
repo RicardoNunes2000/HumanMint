@@ -1,120 +1,16 @@
 """Constants for name normalization and parsing."""
 
-# US suffixes that should be recognized and extracted
-US_SUFFIXES = {
-    "jr",
-    "sr",
-    "ii",
-    "iii",
-    "iv",
-    "v",
-    "vi",
-    "vii",
-    "viii",
-    "ix",
-    "x",
-    "esq",
-    "phd",
-    "md",
-    "dds",
-    "dvm",
-    "jd",
-    "ma",
-    "ms",
-    "ba",
-    "bs",
-    "mba",
-    "mfa",
-    "mpp",
-    "mph",
-    "rn",
-    "cpa",
-    "cfa",
-    "pe",
-}
-
+# Generational suffixes that should remain part of the standardized name
+GENERATIONAL_SUFFIXES = set()
+# Professional/credential suffixes that should be stripped from standardized names
+CREDENTIAL_SUFFIXES = set()
+# Indicators that a string is likely an organization/company rather than a person
+CORPORATE_TERMS = set()
+# Department/office phrases that should be treated as non-person names
+NON_PERSON_PHRASES = set()
 # Roman numeral suffixes that should be uppercased in display
-ROMAN_NUMERALS = {
-    "ii": "II",
-    "iii": "III",
-    "iv": "IV",
-    "v": "V",
-    "vi": "VI",
-    "vii": "VII",
-    "viii": "VIII",
-    "ix": "IX",
-    "x": "X",
-}
-
+ROMAN_NUMERALS = {}
 # Title prefixes to strip
-TITLE_PREFIXES = {
-    "mr",
-    "mrs",
-    "ms",
-    "miss",
-    "dr",
-    "prof",
-    "professor",
-    "sir",
-    "dame",
-    "hon",
-    "honorable",
-    "honourable",
-    "admiral",
-    "rev",
-    "reverend",
-    "pastor",
-    "imam",
-    "rabbi",
-    "father",
-    "sister",
-    "brother",
-    "ofc",
-    "officer",
-    "sgt",
-    "sergeant",
-    "cpt",
-    "capt",
-    "captain",
-    "lt",
-    "lieutenant",
-    "det",
-    "detective",
-    "chief",
-    "deputy",
-    "gov",
-    "governor",
-    "mayor",
-    "sen",
-    "senator",
-    "rep",
-    "judge",
-    "justice",
-    "amb",
-    "ambassador",
-}
-
+TITLE_PREFIXES = set()
 # Placeholder values that should be treated as empty/unknown
-PLACEHOLDER_NAMES = {
-    "unknown",
-    "tbd",
-    "n/a",
-    "na",
-    "n\\a",
-    "staff",
-    "occupant",
-    "none",
-    "anonymous",
-    "anon",
-    "test",
-    "tester",
-    "testing",
-    "demo",
-    "sample",
-    "placeholder",
-    "temp",
-    "user",
-    "guest",
-    "example",
-    "candidate",
-}
+PLACEHOLDER_NAMES = set()

@@ -20,11 +20,12 @@ The `compare()` function uses weighted scoring to determine similarity between t
 from humanmint import compare
 
 # Default weights:
-# - name: 40%
-# - email: 30%
-# - phone: 20%
-# - department: 5%
-# - title: 5%
+# - name: 0.4
+# - email: 0.4
+# - phone: 0.4
+# - department: 0.2
+# - title: 0.2
+# (weights are renormalized based on which signals exist on both sides)
 
 score = compare(result1, result2)
 ```
@@ -125,24 +126,32 @@ print(result.title_canonical)  # "chief executive officer"
 
 ### Batch Overrides
 
-Apply overrides to all records in a batch:
+Apply overrides to all records in a batch by including them in each record dict:
 
 ```python
 from humanmint import bulk
 
-records = [
-    {"name": "John Doe", "department": "IT Dept", "title": "City Manager"},
-    {"name": "Jane Smith", "department": "Public Works", "title": "Assistant Director"},
-]
-
 dept_overrides = {"IT Dept": "Information Technology"}
 title_overrides = {"City Manager": "chief executive officer"}
 
-results = bulk(
-    records,
-    dept_overrides=dept_overrides,
-    title_overrides=title_overrides
-)
+records = [
+    {
+        "name": "John Doe",
+        "department": "IT Dept",
+        "title": "City Manager",
+        "dept_overrides": dept_overrides,
+        "title_overrides": title_overrides,
+    },
+    {
+        "name": "Jane Smith",
+        "department": "Public Works",
+        "title": "Assistant Director",
+        "dept_overrides": dept_overrides,
+        "title_overrides": title_overrides,
+    },
+]
+
+results = bulk(records)
 ```
 
 ## Batch Processing & Export
@@ -167,18 +176,20 @@ results = bulk(records, workers=4)
 ### Progress Tracking
 
 ```python
-# Simple progress bar
+# Simple progress bar (automatically uses Rich if available, otherwise tqdm or simple ticker)
 results = bulk(records, workers=4, progress=True)
 
-# Rich progress bar (requires 'rich' package)
-results = bulk(records, workers=4, progress="rich")
-
-# Custom progress callback
+# Custom progress callback (called once per completed record)
 def my_progress():
     print(".", end="", flush=True)
 
 results = bulk(records, workers=4, progress=my_progress)
 ```
+
+**Note:** The `progress` parameter accepts:
+- `False` (default): No progress display
+- `True`: Automatic progress using Rich (if installed), tqdm (if installed), or simple ticker
+- A callable: Your custom function, invoked on each record completion
 
 ### Export to JSON
 
@@ -401,17 +412,17 @@ result = mint(
 ### 1. Use Bulk for Large Datasets
 
 ```python
-# ❌ Slow for large datasets
+# Slow for large datasets
 results = [mint(**record) for record in records]
 
-# ✅ Fast parallel processing
+# Fast parallel processing
 results = bulk(records, workers=4)
 ```
 
 ### 2. Flatten for Database Export
 
 ```python
-# ✅ Easy to import into SQL
+# Easy to import into SQL
 export_csv(results, "output.csv", flatten=True)
 export_sql(results, "db.sqlite", table="contacts", flatten=True)
 ```
@@ -427,7 +438,16 @@ DEPT_OVERRIDES = {
 
 # Use across multiple operations
 for batch in large_dataset_batches:
-    results = bulk(batch, dept_overrides=DEPT_OVERRIDES)
+    batch_with_overrides = [
+        {
+            **rec,
+            "dept_overrides": DEPT_OVERRIDES,
+            # Add title overrides the same way, if you have them
+            # "title_overrides": TITLE_OVERRIDES,
+        }
+        for rec in batch
+    ]
+    results = bulk(batch_with_overrides, workers=4)
 ```
 
 ### 4. Validate Results
@@ -453,9 +473,9 @@ from humanmint import mint
 
 def validate_and_clean(record):
     result = mint(**record)
-    
+
     # Add custom validation
-    if result.email_valid and result.phone_valid:
+    if result.email_is_valid and result.phone_is_valid:
         return result
     else:
         return None  # Skip invalid records

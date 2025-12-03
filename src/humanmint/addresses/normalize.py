@@ -116,6 +116,16 @@ def _clean_text(raw: str) -> str:
     cleaned = strip_garbage(raw)
     cleaned = normalize_unicode_ascii(cleaned)
     cleaned = cleaned.replace("\n", " ")
+
+    # Heuristic desmash: insert spaces between digit/letter and lower/upper boundaries
+    # Avoid splitting ordinals like 5th/21st
+    cleaned = re.sub(r"(?<=\d)(?=[A-Za-z])(?![stndrh]{1,2}\b)", " ", cleaned)
+    cleaned = re.sub(r"(?<=[A-Za-z])(?=\d)", " ", cleaned)
+    cleaned = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", cleaned)
+
+    # Normalize ordinals like 5Th -> 5th (before title casing)
+    cleaned = re.sub(r"\b(\d+)(st|nd|rd|th)\b", lambda m: f"{m.group(1)}{m.group(2).lower()}", cleaned, flags=re.IGNORECASE)
+
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned.strip()
 
@@ -180,6 +190,8 @@ def _parse_unstructured_address(cleaned: str) -> Dict[str, Optional[str]]:
                 city = None
 
     street = " ".join([t for t in [street_number, street_name] if t])
+    # Normalize ordinals like 5Th -> 5th
+    street = re.sub(r"\b(\d+)(st|nd|rd|th)\b", lambda m: f"{m.group(1)}{m.group(2).lower()}", street, flags=re.IGNORECASE)
     return {
         "street": street if street else None,
         "city": city,
@@ -285,12 +297,16 @@ def normalize_address(raw: Optional[str]) -> Optional[Dict[str, Optional[str]]]:
         return None
 
     parsed = _parse_with_usaddress(raw)
-    if parsed:
+    if parsed and any(parsed.get(k) for k in ("city", "state", "zip")):
         return parsed
 
     cleaned = _clean_text(raw)
     if not cleaned:
         return None
+
+    parsed_clean = _parse_with_usaddress(cleaned)
+    if parsed_clean and any(parsed_clean.get(k) for k in ("city", "state", "zip", "street")):
+        return parsed_clean
 
     # Check if address has commas (structured) or not (unstructured)
     has_commas = "," in cleaned
@@ -304,10 +320,20 @@ def normalize_address(raw: Optional[str]) -> Optional[Dict[str, Optional[str]]]:
         tail_parts = parts[1:] if len(parts) > 1 else []
 
         unit = None
-        unit_match = re.search(r"(?:apt|unit|#)\s*([A-Za-z0-9-]+)", street_part, re.IGNORECASE)
-        if unit_match:
-            unit = unit_match.group(1)
-            street_part = street_part[: unit_match.start()].strip()
+        unit_label = None
+        # If first part is a unit (suite/apt/ste), capture it and shift street_part to next chunk
+        unit_match_leading = re.match(r"^(suite|ste|apt|unit|#)\s*([A-Za-z0-9-]+)", street_part, re.IGNORECASE)
+        if unit_match_leading and len(parts) >= 2:
+            unit_label = unit_match_leading.group(1)
+            unit = unit_match_leading.group(2)
+            street_part = parts[1]
+            tail_parts = parts[2:] if len(parts) > 2 else []
+        else:
+            unit_match = re.search(r"(suite|ste|apt|unit|#)\s*([A-Za-z0-9-]+)", street_part, re.IGNORECASE)
+            if unit_match:
+                unit_label = unit_match.group(1)
+                unit = unit_match.group(2)
+                street_part = street_part[: unit_match.start()].strip()
 
         street_tokens = street_part.split()
         street_number = None
@@ -355,9 +381,11 @@ def normalize_address(raw: Optional[str]) -> Optional[Dict[str, Optional[str]]]:
         zip_code = parsed["zip"]
 
         # Extract unit if present
-        unit_match = re.search(r"(?:apt|unit|#)\s*([A-Za-z0-9-]+)", cleaned, re.IGNORECASE)
+        unit_match = re.search(r"(suite|ste|apt|unit|#)\s*([A-Za-z0-9-]+)", cleaned, re.IGNORECASE)
         if unit_match:
-            unit = unit_match.group(1)
+            unit = unit_match.group(2)
+            if not unit_label:
+                unit_label = unit_match.group(1)
 
         # Titlecase city if found
         if city:
@@ -370,7 +398,18 @@ def normalize_address(raw: Optional[str]) -> Optional[Dict[str, Optional[str]]]:
     if not is_us_state and country != "US":
         state = None
 
-    canonical_parts = [p for p in [street, f"Apt {unit}" if unit else None, city, state, zip_code] if p]
+    unit_str = None
+    if unit:
+        label = unit_label or "Apt"
+        # Normalize label formatting
+        if label.lower() in {"#", "unit"}:
+            unit_str = f"{label} {unit}"
+        elif label.lower() in {"suite", "ste"}:
+            unit_str = f"Suite {unit}"
+        else:
+            unit_str = f"Apt {unit}"
+
+    canonical_parts = [p for p in [street, unit_str, city, state, zip_code] if p]
     if country:
         canonical_parts.append(country)
     canonical = " ".join(canonical_parts) if canonical_parts else None

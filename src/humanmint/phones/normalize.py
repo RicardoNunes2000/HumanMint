@@ -16,7 +16,7 @@ from functools import lru_cache
 from typing import Dict, Optional
 
 import phonenumbers
-from phonenumbers import NumberParseException, PhoneNumberType
+from phonenumbers import NumberParseException, PhoneNumberType, carrier, geocoder, timezone
 
 # Precompiled regexes for faster parsing
 _EXT_KEYWORD_PATTERN = re.compile(
@@ -48,6 +48,9 @@ _EMPTY_PHONE: Dict[str, Optional[str]] = {
     "country": None,
     "type": None,
     "is_valid": False,
+    "location": None,
+    "carrier": None,
+    "time_zones": None,
 }
 
 
@@ -98,8 +101,17 @@ def _extract_extension(raw: str) -> tuple[str, Optional[str]]:
 
 
 def _strip_international_prefix(raw: str) -> str:
-    """
-    Strip leading 00 (common international prefix) and collapse +001 -> +1.
+    """Strip leading 00 (common international prefix) and collapse +001 -> +1.
+
+    Args:
+        raw: Raw phone string with possible international prefix.
+
+    Returns:
+        Phone string with normalized international prefix.
+
+    Example:
+        >>> _strip_international_prefix("00441234567890")
+        '+441234567890'
     """
     if not raw:
         return raw
@@ -128,11 +140,31 @@ def _get_phone_type(parsed_number) -> Optional[str]:
         return None
 
 
-def _empty(extension: Optional[str] = None, country: Optional[str] = None) -> Dict[str, Optional[str]]:
-    """Return empty/invalid phone result."""
+def _empty(
+    extension: Optional[str] = None,
+    country: Optional[str] = None,
+    location: Optional[str] = None,
+    carrier_name: Optional[str] = None,
+    time_zones: Optional[list[str]] = None,
+) -> Dict[str, Optional[str]]:
+    """Return empty/invalid phone result.
+
+    Args:
+        extension: Extension number if present, or None.
+        country: Country/region code, or None.
+        location: Geographic location description, or None.
+        carrier_name: Carrier/provider name, or None.
+        time_zones: List of time zones for number, or None.
+
+    Returns:
+        Standard empty phone dict with optional fields populated.
+    """
     result = _EMPTY_PHONE.copy()
     result["extension"] = extension
     result["country"] = country
+    result["location"] = location
+    result["carrier"] = carrier_name
+    result["time_zones"] = time_zones
     return result
 
 
@@ -140,23 +172,34 @@ def _empty(extension: Optional[str] = None, country: Optional[str] = None) -> Di
 def _normalize_phone_cached(
     phone_part: str, country: Optional[str], extension: Optional[str]
 ) -> Dict[str, Optional[str]]:
-    """
-    Cached normalization core to avoid expensive re-parsing.
+    """Cached normalization core to avoid expensive re-parsing.
 
-    This function uses @lru_cache(maxsize=4096) to cache phone parsing results.
+    Uses @lru_cache(maxsize=4096) to cache phone parsing results.
     The phonenumbers library is expensive for large batches; caching dramatically
     improves performance when processing duplicate phone numbers.
 
-    To clear the cache if memory is a concern:
-        >>> _normalize_phone_cached.cache_clear()
+    Args:
+        phone_part: Phone number string to parse.
+        country: Optional country/region code hint for parsing.
+        extension: Optional extension number if present.
 
-    To check cache statistics:
-        >>> _normalize_phone_cached.cache_info()
+    Returns:
+        Normalized phone result dict with e164, pretty, country, type, location, etc.
+
+    Note:
+        To clear the cache if memory is a concern:
+            >>> _normalize_phone_cached.cache_clear()
+        To check cache statistics:
+            >>> _normalize_phone_cached.cache_info()
     """
     try:
         parsed = phonenumbers.parse(phone_part, country)
     except NumberParseException:
-        return _empty(extension=extension, country=country)
+        # Retry without region hint to let international numbers parse
+        try:
+            parsed = phonenumbers.parse(phone_part, None)
+        except NumberParseException:
+            return _empty(extension=extension, country=country)
 
     detected_country = phonenumbers.region_code_for_number(parsed)
 
@@ -176,8 +219,48 @@ def _normalize_phone_cached(
         # International: use strict validation
         is_valid = phonenumbers.is_valid_number(parsed)
 
+    # Rough location/description based on number prefix (best-effort, may be empty)
+    location = None
+    carrier_name = None
+    try:
+        desc = geocoder.description_for_number(parsed, "en")  # e.g., "New York, NY"
+        location = desc or None
+    except Exception:
+        location = None
+
+    try:
+        carr = carrier.name_for_number(parsed, "en")
+        carrier_name = carr or None
+    except Exception:
+        carrier_name = None
+
+    # Determine phone type before time zone handling
+    phone_type = _get_phone_type(parsed)
+
+    # Wide-area toll-free numbers: avoid exploding time zones
+    if phone_type == "TOLL_FREE":
+        time_zones = None
+    else:
+        time_zones = None
+        try:
+            tzs = timezone.time_zones_for_number(parsed)
+            if tzs:
+                tz_list = list(tzs)
+                # If too many zones, treat as wide-area
+                time_zones = None if len(tz_list) > 5 else tz_list
+            else:
+                time_zones = None
+        except Exception:
+            time_zones = None
+
     if not is_valid:
-        return _empty(extension=extension, country=detected_country)
+        return _empty(
+            extension=extension,
+            country=detected_country,
+            location=location,
+            carrier_name=carrier_name,
+            time_zones=time_zones,
+        )
 
     # Format E.164
     e164 = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
@@ -201,6 +284,9 @@ def _normalize_phone_cached(
         "country": detected_country,
         "type": phone_type,
         "is_valid": True,
+        "location": location,
+        "carrier": carrier_name,
+        "time_zones": time_zones,
     }
 
 
@@ -256,6 +342,8 @@ def normalize_phone(
 
     # Clean up the input
     raw = raw.strip()
+    # Drop inline labels like (home), (office), (work), (cell), (mobile)
+    raw = re.sub(r"\(\s*(home|office|work|cell|mobile)\s*\)", "", raw, flags=re.IGNORECASE)
     if not raw:
         return _empty()
 
@@ -263,6 +351,7 @@ def normalize_phone(
     # Common separators: "/", ";", ",", " or ", "|" (phone trees, shared lines)
     candidates = re.split(r"(?:/|;|,|\bor\b|\|)", raw)
     first_extension = None
+    first_raw_candidate = None
     for candidate in candidates:
         candidate = candidate.strip()
         if not candidate:
@@ -272,6 +361,8 @@ def normalize_phone(
         phone_part, extension = _extract_extension(phone_clean)
         phone_part = phone_part.strip()
         extension = extension or None
+        if first_raw_candidate is None:
+            first_raw_candidate = phone_part or phone_clean or candidate
         if first_extension is None:
             first_extension = extension
 
@@ -283,5 +374,37 @@ def normalize_phone(
             return result.copy()
 
     # If none of the splits validate, return an empty/invalid phone result
-    # but preserve the first detected extension (helps when number is malformed).
-    return _empty(extension=first_extension)
+    # but preserve the first detected extension (helps when number is malformed)
+    # and keep the raw digits so data isn't lost.
+    fallback = _empty(extension=first_extension)
+    fallback["pretty"] = first_raw_candidate or raw
+    return fallback
+
+
+def extract_phones(text: str, region: str = "US") -> list[Dict[str, Optional[str]]]:
+    """
+    Extract all phone numbers from free text using phonenumbers.PhoneNumberMatcher.
+
+    Args:
+        text: Input string containing phone numbers.
+        region: Default region hint (ISO alpha-2) for parsing numbers without country codes.
+
+    Returns:
+        List of phone dicts shaped like normalize_phone(), with best-effort location/carrier.
+    """
+    if not text:
+        return []
+    results: list[Dict[str, Optional[str]]] = []
+    try:
+        for match in phonenumbers.PhoneNumberMatcher(text, region):
+            parsed = match.number
+            # Reuse cached normalization logic with no extension
+            normalized = _normalize_phone_cached(
+                phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164),
+                None,
+                None,
+            )
+            results.append(normalized.copy())
+    except Exception:
+        return []
+    return results

@@ -33,11 +33,13 @@ Example:
             'deputy director'
 """
 
-import re
-from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Optional, Union
+from __future__ import annotations
 
-from . import gliner
+import re
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Iterable, Optional, Union
+
 from .processors import (
     process_address,
     process_department,
@@ -56,6 +58,30 @@ from .types import (
     PhoneResult,
     TitleResult,
 )
+
+if TYPE_CHECKING:
+    from . import gliner
+
+
+def _run_mint_record(rec: dict) -> "MintResult":
+    """Process a single record dict through mint.
+
+    This is a module-level helper function that allows ProcessPoolExecutor
+    to pickle and parallelize the mint operation across records.
+
+    Args:
+        rec: Dictionary containing any of the mint() function parameters
+            (name, email, phone, department, title, address, organization, text).
+
+    Returns:
+        MintResult: The normalized and cleaned result for the input record.
+
+    Example:
+        >>> rec = {"name": "John Doe", "email": "JOHN@EXAMPLE.COM"}
+        >>> result = _run_mint_record(rec)
+    """
+    return mint(**rec)
+
 
 # Input length limits to prevent DoS and data validation
 MAX_NAME_LENGTH = 1000
@@ -184,6 +210,11 @@ class MintResult:
         return self.name["gender"] if self.name else None
 
     @property
+    def name_salutation(self) -> Optional[str]:
+        """Get salutation (Mr./Ms./Mx.), or None."""
+        return self.name.get("salutation") if self.name else None
+
+    @property
     def email_standardized(self) -> Optional[str]:
         """Get normalized email, or None."""
         return self.email["normalized"] if self.email else None
@@ -241,9 +272,29 @@ class MintResult:
         return self.phone.get("type") if self.phone else None
 
     @property
+    def phone_location(self) -> Optional[str]:
+        """Get phone geocoded location (best effort), or None."""
+        return self.phone.get("location") if self.phone else None
+
+    @property
+    def phone_carrier(self) -> Optional[str]:
+        """Get phone carrier name (best effort), or None."""
+        return self.phone.get("carrier") if self.phone else None
+
+    @property
+    def phone_time_zones(self) -> Optional[list]:
+        """Get possible time zones for the phone, or None."""
+        return self.phone.get("time_zones") if self.phone else None
+
+    @property
     def department_canonical(self) -> Optional[str]:
         """Get canonical department name, or None."""
         return self.department.get("canonical") if self.department else None
+
+    @property
+    def department_raw(self) -> Optional[str]:
+        """Get raw department value, or None."""
+        return self.department.get("raw") if self.department else None
 
     @property
     def department_category(self) -> Optional[str]:
@@ -534,6 +585,19 @@ def mint(
     if use_gliner and not (text or texts):
         raise ValueError("use_gliner=True requires text=... or texts=[...] input")
 
+    # Pre-trim long phone strings by extracting the first valid number from free text.
+    if isinstance(phone, str) and len(phone) > MAX_PHONE_LENGTH:
+        try:
+            from .phones import extract_phones
+
+            matches = extract_phones(phone, region="US")
+            if matches:
+                phone_candidate = matches[0].get("e164") or matches[0].get("pretty")
+                if phone_candidate:
+                    phone = phone_candidate
+        except Exception:
+            pass
+
     # Validate input field lengths to prevent DoS attacks
     # Note: Check isinstance(x, str) to handle NaN from pandas DataFrames
     if isinstance(name, str) and len(name) > MAX_NAME_LENGTH:
@@ -565,10 +629,42 @@ def mint(
 
     # Detect multi-person names and split if requested
     def _split_multi_person_names(raw: str) -> Optional[list[str]]:
+        """Split multi-person names on common connectors.
+
+        Detects when a single name field contains multiple people separated by
+        'and', '&', '/', '+', or ';' and splits them intelligently. Skips splitting
+        for single "Last, First" format names.
+
+        Args:
+            raw: The raw name string that may contain multiple names.
+
+        Returns:
+            List of individual names if multiple people detected, None otherwise.
+
+        Example:
+            >>> _split_multi_person_names("John Doe and Jane Smith")
+            ['John Doe', 'Jane Smith']
+        """
+        # If it's a single "Last, First ..." format (one comma, no connectors), don't split
+        if (
+            raw.count(",") == 1
+            and not re.search(r"\b(?:and|&|/|\+|;)\b", raw, flags=re.IGNORECASE)
+            and re.match(r"^\s*[^,]+,\s*[^,]+", raw)
+        ):
+            return None
+
         # Normalize common connectors (commas, ampersand, slash, plus) to "and"
-        cleaned = re.sub(r"[,&/+]", " and ", raw)
-        connectors = re.compile(r"\s+(?:and|&|/|\+)\s+", re.IGNORECASE)
+        cleaned = re.sub(r"[,&/+;]", " and ", raw)
+        connectors = re.compile(r"\s+(?:and|&|/|\+|;)\s+", re.IGNORECASE)
         parts = [p.strip(" ,") for p in connectors.split(cleaned) if p.strip(" ,")]
+
+        # If the last part is "and <name>", and we have 2 parts, treat as 2 people
+        if len(parts) == 2 and parts[1].lower().startswith("and "):
+            parts[1] = parts[1][3:].strip()
+        # If more than 2 parts and the last starts with "and", remove the "and"
+        elif len(parts) >= 2 and parts[-1].lower().startswith("and "):
+            parts[-1] = parts[-1][3:].strip()
+
         if len(parts) < 2:
             return None
 
@@ -578,8 +674,12 @@ def mint(
         rebuilt: list[str] = []
         for idx, part in enumerate(parts):
             tokens = part.split()
-            if len(tokens) == 1 and shared_last and idx < len(parts) - 1:
-                rebuilt.append(f"{tokens[0]} {shared_last}")
+            if shared_last and idx < len(parts) - 1:
+                has_last = any(t.lower() == shared_last.lower() for t in tokens)
+                if not has_last and len(tokens) <= 2:
+                    rebuilt.append(f"{part} {shared_last}".strip())
+                else:
+                    rebuilt.append(part)
             else:
                 rebuilt.append(part)
         return rebuilt
@@ -609,8 +709,11 @@ def mint(
 
     # If GLiNER is requested, extract missing fields from unstructured text
     if use_gliner and (text or texts):
+        from . import gliner  # Local import to avoid heavy startup when unused
+
         texts_to_use = texts if texts else [text]  # type: ignore[list-item]
         results_gliner: list[MintResult] = []
+        gliner_cfg = gliner_cfg or gliner.GlinerConfig()
         for t in texts_to_use:
             extracted_fields = gliner.extract_fields_from_text(
                 t or "",
@@ -637,7 +740,14 @@ def mint(
             ttl = title or extracted_fields.get("title")
             org = organization or extracted_fields.get("organization")
 
-            department_result = process_department(dept_val, dept_overrides)
+            title_preview = process_title(
+                ttl, dept_canonical=None, overrides=title_overrides
+            )
+            department_result = process_department(
+                dept_val,
+                dept_overrides,
+                title_canonical=(title_preview or {}).get("canonical"),
+            )
             dept_canonical = (
                 department_result["canonical"] if department_result else None
             )
@@ -649,7 +759,9 @@ def mint(
                     phone=process_phone(ph),
                     department=department_result,
                     title=process_title(
-                        ttl, dept_canonical=dept_canonical, overrides=title_overrides
+                        ttl,
+                        dept_canonical=dept_canonical,
+                        overrides=title_overrides,
                     ),
                     address=process_address(addr),
                     organization=process_organization(org),
@@ -659,7 +771,12 @@ def mint(
             return results_gliner[0]
         return results_gliner
 
-    department_result = process_department(department, dept_overrides)
+    title_preview = process_title(title, dept_canonical=None, overrides=title_overrides)
+    department_result = process_department(
+        department,
+        dept_overrides,
+        title_canonical=(title_preview or {}).get("canonical"),
+    )
     dept_canonical = department_result["canonical"] if department_result else None
 
     return MintResult(
@@ -682,11 +799,11 @@ def bulk(
     deduplicate: bool = True,
 ) -> list[MintResult]:
     """
-    Process multiple records (dicts accepted by mint) in parallel using threads.
+    Process multiple records (dicts accepted by mint) in parallel using processes.
 
     Args:
         records: Iterable of dicts accepted by mint().
-        workers: Max worker threads.
+        workers: Max worker processes.
         progress: If truthy, display progress. Uses Rich when available, otherwise
                   a simple stdout ticker. You can also pass a callable to be
                   invoked on each completed record.
@@ -699,7 +816,22 @@ def bulk(
     """
 
     def _noop() -> None:
+        """No-op progress callback."""
         return None
+
+    def _compute_chunk_size(seq_len: Optional[int], pool_size: int) -> int:
+        """Compute optimal chunk size for ProcessPoolExecutor.
+
+        Args:
+            seq_len: Length of sequence to process, or None if unknown.
+            pool_size: Number of worker processes.
+
+        Returns:
+            Optimal chunk size (at least 1) to balance parallelism overhead.
+        """
+        if not seq_len or seq_len <= 0:
+            return 1
+        return max(1, seq_len // max(1, pool_size * 4))
 
     # If progress or deduplication requested, realize iterable
     materialized = None
@@ -719,8 +851,8 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (
-                    BarColumn,  # type: ignore
+                from rich.progress import (  # type: ignore
+                    BarColumn,
                     MofNCompleteColumn,
                     Progress,
                     SpinnerColumn,
@@ -740,12 +872,15 @@ def bulk(
                 task_id = rp.add_task("Bulk minting", total=total)
 
                 def _progress_start() -> None:
+                    """Start Rich progress bar."""
                     rp.start()
 
                 def _progress_stop() -> None:
+                    """Stop and clean up Rich progress bar."""
                     rp.stop()
 
                 def _progress_tick() -> None:
+                    """Advance Rich progress bar by one unit."""
                     rp.advance(task_id, 1)
 
                 progress_start = _progress_start
@@ -758,9 +893,11 @@ def bulk(
                     bar = tqdm(total=total, desc="Bulk minting", unit="rec")
 
                     def _progress_tick() -> None:
+                        """Advance tqdm progress bar by one unit."""
                         bar.update(1)
 
                     def _progress_stop() -> None:
+                        """Close tqdm progress bar."""
                         bar.close()
 
                     progress_tick = _progress_tick
@@ -771,14 +908,17 @@ def bulk(
                     step = max(1, (total or 1) // 20)
 
                     def _progress_tick() -> None:
+                        """Print simple progress update to stdout."""
                         processed[0] += 1
                         if processed[0] % step == 0 or processed[0] == total:
                             print(f"Processed {processed[0]}/{total or '?'}")
 
                     def _progress_start() -> None:
+                        """Print startup message."""
                         print("Starting bulk mint...")
 
                     def _progress_stop() -> None:
+                        """Print completion message."""
                         print("Bulk mint complete.")
 
                     progress_start = _progress_start
@@ -786,35 +926,38 @@ def bulk(
                     progress_tick = _progress_tick
 
     def _run_mint(rec: dict) -> MintResult:
-        return mint(**rec)
+        """Process a single record dict through mint within bulk context.
 
-    from concurrent.futures import ThreadPoolExecutor
+        Args:
+            rec: Dictionary of parameters to pass to mint().
+
+        Returns:
+            MintResult: Normalized result for the record.
+        """
+        return mint(**rec)
 
     # Handle deduplication if enabled
     if deduplicate and materialized:
         # Create deduplication keys from record values
-        unique_records: dict[str, dict] = {}
-        record_map: list[str] = []  # Maps original index → dedup key
+        fields = (
+            "name",
+            "email",
+            "phone",
+            "department",
+            "title",
+            "address",
+            "organization",
+        )
+        unique_records: dict[tuple[str, ...], dict] = {}
+        record_map: list[tuple[str, ...]] = []  # Maps original index → dedup key
 
         for rec in materialized:
-            # Create canonical key from all field values (lowercased, stripped)
-            key_parts = []
-            for field in [
-                "name",
-                "email",
-                "phone",
-                "department",
-                "title",
-                "address",
-                "organization",
-            ]:
-                val = rec.get(field)
-                if val:
-                    key_parts.append(str(val).lower().strip())
-
-            key = "|".join(key_parts)
+            key = tuple(
+                str(rec.get(field)).lower().strip()
+                for field in fields
+                if rec.get(field)
+            )
             record_map.append(key)
-
             if key not in unique_records:
                 unique_records[key] = rec
 
@@ -834,8 +977,11 @@ def bulk(
         results_unique: list[MintResult] = []
         progress_start()
 
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            for res in executor.map(_run_mint, unique_list):
+        chunk_size = _compute_chunk_size(len(unique_list), workers)
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            for res in executor.map(
+                _run_mint_record, unique_list, chunksize=chunk_size
+            ):
                 results_unique.append(res)
                 if progress_tick:
                     progress_tick()
@@ -850,8 +996,14 @@ def bulk(
     results: list[MintResult] = []
     progress_start()
     records_to_process = records if materialized is None else materialized
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        for res in executor.map(_run_mint, records_to_process):
+    seq_len = (
+        len(records_to_process) if hasattr(records_to_process, "__len__") else None
+    )
+    chunk_size = _compute_chunk_size(seq_len, workers)
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        for res in executor.map(
+            _run_mint_record, records_to_process, chunksize=chunk_size
+        ):
             results.append(res)
             if progress_tick:
                 progress_tick()
