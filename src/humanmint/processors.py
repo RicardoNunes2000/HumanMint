@@ -155,6 +155,11 @@ def process_name(
             m = re.search(r"[\"']([^\"']{2,})[\"']", raw_name)
             if m:
                 nickname = m.group(1).strip()
+            # Capture parenthesized nickname if present
+            if not nickname:
+                m2 = re.search(r"\(([^()]{2,})\)", raw_name)
+                if m2:
+                    nickname = m2.group(1).strip()
 
         if aggressive_clean:
             from .names.garbled import clean_garbled_name, should_use_garbled_cleaning
@@ -214,7 +219,9 @@ def process_name(
             return None
         if org_score >= 3.5 and person_score <= 1.0:
             return None
-        if name_hits == 0 and token_count >= 2 and (org_score > person_score or org_hint or dept_hint):
+        if name_hits == 0 and token_count >= 2 and (
+            (org_score - person_score) >= 1.5 or org_score >= 3.0 or org_hint or dept_hint
+        ):
             return None
 
         normalized = normalize_name(cleaned_name)
@@ -412,8 +419,8 @@ def process_department(
     Returns:
         DepartmentResult with raw input and normalized variants, or None if invalid.
     """
-    if not raw_dept or not isinstance(raw_dept, str):
-        raw_dept = None
+    if (not raw_dept or not isinstance(raw_dept, str)) and not title_canonical:
+        return None
 
     IT_TOKENS = {
         "it",
@@ -422,7 +429,6 @@ def process_department(
         "technologist",
         "software",
         "developer",
-        "development",
         "engineer",
         "engineering",
         "programmer",
@@ -467,11 +473,10 @@ def process_department(
         dept_domains = _infer_domains_from_text(normalized or raw_dept)
         title_domains = _infer_domains_from_text(title_canonical)
 
-        # Explicit mapping for web/digital/website style departments (IT context)
-        if "IT" in dept_domains:
-            inferred_canonical = "Information Technology"
-        elif "WATER" in dept_domains:
-            inferred_canonical = "Water"
+        # Explicit mapping for web/digital/online/website keywords (prefer IT over fuzzy)
+        if normalized:
+            if re.search(r"\b(web|website|digital|online|internet)\b", normalized.lower()):
+                inferred_canonical = "Information Technology"
 
         # Disambiguate abbreviated "W." departments using title domains
         ambiguous_w = False
@@ -485,17 +490,21 @@ def process_department(
                 inferred_canonical = "Water"
             # If still ambiguous, leave None to allow overrides/fuzzy/no match
 
-        # Infer from title when department is missing/empty or not a clear department
-        if not inferred_canonical and (not normalized or is_non_dept):
-            if "IT" in title_domains:
-                inferred_canonical = "Information Technology"
-            elif "WATER" in title_domains:
-                inferred_canonical = "Water"
+        # Explicit mapping for web/digital/website style departments (IT context)
+        if "IT" in dept_domains and not inferred_canonical:
+            inferred_canonical = "Information Technology"
+        elif "WATER" in dept_domains and not inferred_canonical:
+            inferred_canonical = "Water"
 
         # Check if normalized department matches any override
         is_override = False
         matched_canonical = False
         final_dept = inferred_canonical or normalized
+
+        # Lock in strong inference before fuzzy matching
+        if inferred_canonical:
+            final_dept = inferred_canonical
+            matched_canonical = True
         if overrides:
             normalized_lower = (normalized or "").lower()
             norm_overrides = {}
@@ -527,17 +536,26 @@ def process_department(
             # If it's a non-department (location-like), don't try to match
             if is_non_dept and not inferred_canonical:
                 final_dept = None
-            elif inferred_canonical:
-                final_dept = inferred_canonical
-                matched_canonical = True
             else:
-                # Find best canonical match if no override matched
-                canonical = find_best_department_match(raw_dept, threshold=0.6) if raw_dept else None
-                if canonical:
-                    final_dept = canonical
-                    matched_canonical = True
-                else:
-                    final_dept = None
+                if not matched_canonical:
+                    # Prefer canonical match first
+                    canonical = find_best_department_match(raw_dept, threshold=0.6) if raw_dept else None
+                    if canonical:
+                        final_dept = canonical
+                        matched_canonical = True
+                    elif not raw_dept and title_domains:
+                        # Infer from title domains when no department provided
+                        if "IT" in title_domains:
+                            final_dept = "Information Technology"
+                            matched_canonical = True
+                        elif "WATER" in title_domains:
+                            final_dept = "Water"
+                            matched_canonical = True
+                    else:
+                        final_dept = None
+
+        if not final_dept and normalized and not is_non_dept:
+            final_dept = normalized
 
         category = get_department_category(final_dept) if final_dept else None
         if category:

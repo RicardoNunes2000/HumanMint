@@ -594,8 +594,12 @@ def mint(
         rebuilt: list[str] = []
         for idx, part in enumerate(parts):
             tokens = part.split()
-            if len(tokens) == 1 and shared_last and idx < len(parts) - 1:
-                rebuilt.append(f"{tokens[0]} {shared_last}")
+            if shared_last and idx < len(parts) - 1:
+                has_last = any(t.lower() == shared_last.lower() for t in tokens)
+                if not has_last and len(tokens) <= 2:
+                    rebuilt.append(f"{part} {shared_last}".strip())
+                else:
+                    rebuilt.append(part)
             else:
                 rebuilt.append(part)
         return rebuilt

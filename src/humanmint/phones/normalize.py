@@ -260,6 +260,8 @@ def normalize_phone(
 
     # Clean up the input
     raw = raw.strip()
+    # Drop inline labels like (home), (office), (work), (cell), (mobile)
+    raw = re.sub(r"\(\s*(home|office|work|cell|mobile)\s*\)", "", raw, flags=re.IGNORECASE)
     if not raw:
         return _empty()
 

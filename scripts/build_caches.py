@@ -147,12 +147,45 @@ def build_semantic_tokens_pickle() -> Path:
     return cache_path
 
 
+def build_department_abbreviations_pickle() -> Path:
+    """Build department abbreviation cache (abbr -> expansion)."""
+    _ensure_dirs()
+    txt_path = ORIGINAL_DIR / "department_abbreviations.txt"
+    cache_path = DATA_DIR / "department_abbreviations.json.gz"
+
+    if not txt_path.exists():
+        raise FileNotFoundError(f"Missing department abbreviations file: {txt_path}")
+
+    mappings: Dict[str, str] = {}
+    with open(txt_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "," in line:
+                key, value = [p.strip() for p in line.split(",", 1)]
+            elif "\t" in line:
+                key, value = [p.strip() for p in line.split("\t", 1)]
+            else:
+                parts = [p.strip() for p in line.split() if p.strip()]
+                if len(parts) >= 2:
+                    key, value = parts[0], " ".join(parts[1:])
+                else:
+                    continue
+            if key and value:
+                mappings[key.lower()] = value
+
+    cache_path.write_bytes(gzip.compress(json.dumps(mappings).encode("utf-8")))
+    return cache_path
+
+
 def main() -> None:
     builders: Tuple[tuple[str, Callable[[], Path]], ...] = (
         ("Departments", build_department_pickle),
         ("Names", build_names_pickle),
         ("Titles", build_titles_pickle),
         ("Semantic tokens", build_semantic_tokens_pickle),
+        ("Department abbreviations", build_department_abbreviations_pickle),
         ("Generic inboxes", build_generic_inboxes_pickle),
         ("Free email providers", build_free_email_providers_pickle),
     )

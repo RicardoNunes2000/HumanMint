@@ -31,3 +31,11 @@ def test_normalize_email_rejects_name_like_input():
 
     assert result["email"] is None
     assert result["is_valid"] is False
+
+
+def test_normalize_email_handles_parenthesized_anti_scraper_format():
+    result = normalize_email("pete(at)city(dot)gov")
+
+    assert result["email"] == "pete@city.gov"
+    assert result["domain"] == "city.gov"
+    assert result["is_valid"] is True

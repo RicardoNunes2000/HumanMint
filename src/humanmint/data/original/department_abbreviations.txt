@@ -1,0 +1,72 @@
+# abbreviation,expanded form
+# Finance and accounting
+acct,accounting
+acctg,accounting
+ap,accounts payable
+ar,accounts receivable
+fin,finance
+fpa,financial planning and analysis
+fpna,financial planning and analysis
+treas,treasury
+payr,payroll
+payroll,payroll
+audit,audit
+auditing,audit
+
+# Legal and compliance
+legal,legal
+law,legal
+compliance,compliance
+reg,regulatory
+regulatory,regulatory
+gc,general counsel
+
+# Operations / logistics
+ops,operations
+op,operations
+opns,operations
+busops,business operations
+bizops,business operations
+log,logistics
+logistics,logistics
+fleet,fleet
+supply,supply chain
+supplychain,supply chain
+scm,supply chain
+proc,procurement
+procurement,procurement
+purch,purchasing
+purchasing,purchasing
+fac,facilities
+facil,facilities
+
+# Quality / maintenance
+qa,quality assurance
+qc,quality control
+quality,quality
+maint,maintenance
+maint.,maintenance
+mainten,maintenance
+maintenance,maintenance
+
+# Health / medical
+med,medicine
+med.,medicine
+medicine,medicine
+im,internal medicine
+intmed,internal medicine
+clin,clinical
+clinic,clinic
+clinical,clinical
+
+# Case / support services
+cm,case management
+casemgmt,case management
+case,case management
+
+# Technology
+it,it
+tech,technology
+digital,digital
+web,web
+internet,internet

@@ -30,6 +30,7 @@ _EMPTY_NAME: Dict[str, Optional[str]] = {
     "full": None,
     "canonical": None,
     "is_valid": False,
+    "nickname": None,
 }
 
 
@@ -172,6 +173,12 @@ def _normalize_capitalization(text: str) -> str:
     if not text:
         return ""
 
+    # Multi-token (space-separated) names: normalize each part
+    if " " in text:
+        parts = [p for p in text.split() if p]
+        normalized_parts = [_normalize_capitalization(p) for p in parts]
+        return " ".join(normalized_parts)
+
     # Respect dotted initials like O.J. or D.J. without lowercasing inner letters
     if re.match(r"^[A-Za-z](?:\.[A-Za-z])+(?:\.)?$", text):
         letters = re.findall(r"[A-Za-z]", text)
@@ -182,8 +189,16 @@ def _normalize_capitalization(text: str) -> str:
     if text.lower().startswith("mc") and len(text) > 2:
         return "Mc" + text[2].upper() + text[3:].lower()
 
+    if text.lower().startswith("mac") and len(text) > 3:
+        return "Mac" + text[3].upper() + text[4:].lower()
+
     if text.lower().startswith("o'") and len(text) > 2:
         return "O'" + text[2].upper() + text[3:].lower()
+
+    # Handle particles like de/da/la/van
+    particles = {"de", "da", "la", "van"}
+    if text.lower() in particles:
+        return text.lower()
 
     # Handle short prefix apostrophe names like D'Angelo, L'Oreal
     if re.match(r"^[A-Za-z]'[A-Za-z].*", text):
@@ -195,6 +210,10 @@ def _normalize_capitalization(text: str) -> str:
     if "-" in text:
         parts = text.split("-")
         return "-".join(_normalize_capitalization(p) for p in parts)
+
+    # Preserve interior caps if present (e.g., DiCaprio, DeNiro) but not when fully uppercase
+    if any(ch.isupper() for ch in text[1:]) and not text.isupper():
+        return text[0].upper() + text[1:]
 
     return text.capitalize()
 
@@ -317,7 +336,8 @@ def _select_best_segment(text: str) -> str:
 def _normalize_hyphenated_last(last: str) -> str:
     """Handle hyphenated last names correctly."""
     if "-" not in last:
-        return _normalize_capitalization(last)
+        # Handle space-separated particles and ordinals sensibly
+        return " ".join(_normalize_capitalization(part) for part in last.split())
 
     parts = last.split("-")
     return "-".join(_normalize_capitalization(p) for p in parts)
@@ -394,6 +414,11 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
     if not raw or not isinstance(raw, str):
         return _empty()
 
+    nickname = None
+    m_nick = re.search(r"[\"'()]([^\"'()]{2,})[\"'()]", raw)
+    if m_nick:
+        nickname = m_nick.group(1).strip()
+
     cleaned = _strip_noise(raw).strip()
     if not cleaned:
         return _empty()
@@ -420,7 +445,10 @@ def normalize_name(raw: Optional[str]) -> Dict[str, Optional[str]]:
         return _empty()
 
     result = _normalize_name_cached(cleaned)
-    return result.copy()
+    result = result.copy()
+    if nickname:
+        result["nickname"] = nickname
+    return result
 
 
 @lru_cache(maxsize=4096)
@@ -512,4 +540,5 @@ def _normalize_name_cached(cleaned: str) -> Dict[str, Optional[str]]:
         "full": full,
         "canonical": canonical,
         "is_valid": is_valid,
+        "nickname": None,
     }

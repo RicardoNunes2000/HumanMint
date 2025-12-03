@@ -254,3 +254,10 @@ def test_textual_ordinals_become_roman_suffix():
     result = normalize_name("Henry Ford the Fourth")
     assert result["suffix"] == "iv"
     assert result["full"] == "Henry Ford IV"
+
+
+def test_parenthesized_nickname():
+    result = normalize_name("William (Bill) Clinton")
+
+    assert result["first"] == "William"
+    assert result["nickname"].lower() == "bill"

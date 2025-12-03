@@ -72,7 +72,7 @@ def _remove_name_prefixes(text: str) -> str:
     text = re.sub(r"^[A-Z][a-z]*(?:\s+[A-Z][a-z]*){2,}\s*,\s*", "", text)
     # Remove trailing credentials like PhD, MD, etc.
     text = re.sub(
-        r",?\s*(?:PhD|MD|DDS|DVM|Esq|MBA|MA|BS|BA|CISSP|PMP|RN|LPN|CPA)\.?$",
+        r"(?:,\s*|\s+)(?:PhD|MD|DDS|DVM|Esq|MBA|MA|BS|BA|CISSP|PMP|RN|LPN|CPA)\.?$",
         "",
         text,
         flags=re.IGNORECASE,
@@ -334,6 +334,16 @@ def extract_seniority(normalized_title: str) -> str:
         return None
 
     title_lower = normalized_title.lower()
+
+    # Explicit blacklists: senior+intern/student/analyst should not gain seniority
+    if "senior" in title_lower:
+        for blocked in ("intern", "student", "analyst"):
+            if blocked in title_lower:
+                return None
+
+    # Executive assistant roles are support, not executive
+    if "executive assistant" in title_lower or "assistant to the" in title_lower:
+        return None
 
     # Seniority keywords (ordered by specificity - longest first to avoid partial matches)
     seniority_keywords = [

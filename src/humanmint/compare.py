@@ -167,6 +167,11 @@ def compare(
 
     # Names
     name_score = _name_score(result_a.name, result_b.name)
+    last_match = False
+    if result_a.name and result_b.name:
+        last_a = _clean_component(result_a.name.get("last"))
+        last_b = _clean_component(result_b.name.get("last"))
+        last_match = bool(last_a and last_b and last_a == last_b)
     if result_a.name and result_b.name:
         weight_pairs.append((name_score, weight_config["name"]))
         explanations.append(f"name: {name_score:.1f} (weight {weight_config['name']})")
@@ -345,14 +350,51 @@ def compare(
         score = max(score, 45.0)
         explanations.append("floor: name agreement floor to 45.0")
 
+    # Boost name-driven matches when few signals are present
+    if weight_config["name"] > 0 and name_score > 0:
+        if last_match or name_score >= 80:
+            score = max(score, name_score * 1.2)
+            score = min(score, 100.0)
+            explanations.append("boost: name emphasis scaling")
+
     # If we have strong identifiers (email/phone) matching exactly, ensure a high floor
     if (
         weight_config["email"] > 0 and email_score == 100.0
     ) or (weight_config["phone"] > 0 and phone_score == 100.0):
+        if weight_config["email"] > 0 and email_score == 100.0:
+            score = max(score, 90.0 + 10.0 * weight_config["email"])
+            explanations.append("floor: exact email match (weight-scaled)")
+        if weight_config["phone"] > 0 and phone_score == 100.0:
+            score = max(score, 90.0 + 10.0 * weight_config["phone"])
+            explanations.append("floor: exact phone match (weight-scaled)")
+
+    # Title-only strong matches should get higher floor
+    if weight_config["title"] > 0 and title_score >= 90.0:
         score = max(score, 90.0)
-        explanations.append("floor: exact email/phone match floor to 90.0")
+        explanations.append("floor: strong title match floor to 90.0")
 
     final_score = max(0.0, min(100.0, score))
+    # Apply mismatch caps/penalties when strong conflicts exist
+    email_mismatch = email_norm_a and email_norm_b and email_score == 0.0
+    phone_mismatch = (phone_e164_a or phone_pretty_a) and (phone_e164_b or phone_pretty_b) and phone_score == 0.0
+    dept_mismatch = (
+        weight_config["department"] > 0
+        and result_a.department
+        and result_b.department
+        and (result_a.department or {}).get("canonical")
+        and (result_b.department or {}).get("canonical")
+        and (result_a.department or {}).get("canonical") != (result_b.department or {}).get("canonical")
+    )
+    if email_mismatch and weight_config["email"] > 0:
+        cap = max(0.0, 60.0 - 10.0 * weight_config["email"])
+        final_score = min(final_score, cap)
+    if phone_mismatch and weight_config["phone"] > 0:
+        cap = max(0.0, 80.0 - 50.0 * weight_config["phone"])
+        final_score = min(final_score, cap)
+    if dept_mismatch:
+        cap = max(0.0, 80.0 - 55.0 * weight_config["department"])
+        final_score = min(final_score, cap)
+
     if explain:
         explanations.append(f"Final Score: {final_score:.1f}")
         return final_score, explanations

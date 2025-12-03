@@ -59,9 +59,11 @@ def _load_generic_inboxes() -> Set[str]:
 def _clean(raw: str) -> str:
     # Strip obvious wrappers and lowercase
     cleaned = raw.strip().strip("<>").lower()
-    # Normalize common anti-scraping patterns like " [at] " and " [dot] "
-    cleaned = re.sub(r"(?<![a-z0-9])\s*[\[\(\{]?\s*at\s*[\]\)\}]?\s*(?![a-z0-9])", "@", cleaned)
-    cleaned = re.sub(r"(?<![a-z0-9])\s*[\[\(\{]?\s*dot\s*[\]\)\}]?\s*(?![a-z0-9])", ".", cleaned)
+    # Normalize common anti-scraping patterns like " [at] ", "(at)", "{dot}", etc.
+    cleaned = re.sub(r"[\[\(\{]\s*at\s*[\]\)\}]", "@", cleaned)
+    cleaned = re.sub(r"[\[\(\{]\s*dot\s*[\]\)\}]", ".", cleaned)
+    cleaned = re.sub(r"\bat\b", "@", cleaned)
+    cleaned = re.sub(r"\bdot\b", ".", cleaned)
     cleaned = cleaned.replace(" ", "")
 
     # Strip trailing parenthetical notes appended to emails (e.g., email@city.gov(johnsmith))
