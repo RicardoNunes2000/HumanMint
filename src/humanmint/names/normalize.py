@@ -151,8 +151,8 @@ def _normalize_unicode(text: str) -> str:
         text = ftfy.fix_text(text)
     except Exception:
         pass
-    # Fold accents to ASCII to ensure matching against ASCII data sources
-    return normalize_unicode_ascii(text, keep_accents=False)
+    # Preserve accents for accurate name rendering
+    return normalize_unicode_ascii(text, keep_accents=True)
 
 
 def _strip_title_prefixes(text: str) -> str:
