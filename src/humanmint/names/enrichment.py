@@ -8,10 +8,11 @@ Combines:
 """
 
 import gzip
-import orjson
 import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+import orjson
 
 # Cache for names dataset (lazy-loaded)
 _gender_cache: Optional[Dict[str, str]] = None

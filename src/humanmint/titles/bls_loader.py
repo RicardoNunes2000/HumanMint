@@ -6,9 +6,10 @@ Bureau of Labor Statistics and provides lookup functionality for
 canonical title matching.
 """
 
-import orjson
 from functools import lru_cache
 from typing import Dict, Optional, Set
+
+import orjson
 
 
 @lru_cache(maxsize=1)

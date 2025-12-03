@@ -38,24 +38,12 @@ import re
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, Union
-from .processors import (
-    process_address,
-    process_department,
-    process_email,
-    process_name,
-    process_organization,
-    process_phone,
-    process_title,
-)
-from .types import (
-    AddressResult,
-    DepartmentResult,
-    EmailResult,
-    NameResult,
-    OrganizationResult,
-    PhoneResult,
-    TitleResult,
-)
+
+from .processors import (process_address, process_department, process_email,
+                         process_name, process_organization, process_phone,
+                         process_title)
+from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
+                    OrganizationResult, PhoneResult, TitleResult)
 
 if TYPE_CHECKING:
     from . import gliner
@@ -771,15 +759,11 @@ def bulk(
         else:
             # Prefer Rich, then tqdm, then a simple ticker.
             try:
-                from rich.progress import (  # type: ignore
-                    BarColumn,
-                    MofNCompleteColumn,
-                    Progress,
-                    SpinnerColumn,
-                    TextColumn,
-                    TimeElapsedColumn,
-                    TimeRemainingColumn,
-                )
+                from rich.progress import (BarColumn,  # type: ignore
+                                           MofNCompleteColumn, Progress,
+                                           SpinnerColumn, TextColumn,
+                                           TimeElapsedColumn,
+                                           TimeRemainingColumn)
 
                 rp = Progress(
                     SpinnerColumn(),

@@ -25,21 +25,14 @@ from .departments import get_department_category, normalize_department
 from .departments.matching import is_likely_non_department
 from .emails import normalize_email
 from .names import enrich_name, normalize_name
-from .names.normalize import _strip_noise
 from .names.matching import detect_nickname
+from .names.normalize import _strip_noise
 from .organizations import normalize_organization
 from .phones import normalize_phone
-from .titles import normalize_title_full
 from .semantics import _extract_domains
-from .types import (
-    AddressResult,
-    DepartmentResult,
-    EmailResult,
-    NameResult,
-    OrganizationResult,
-    PhoneResult,
-    TitleResult,
-)
+from .titles import normalize_title_full
+from .types import (AddressResult, DepartmentResult, EmailResult, NameResult,
+                    OrganizationResult, PhoneResult, TitleResult)
 
 
 @lru_cache(maxsize=1)
@@ -162,7 +155,8 @@ def process_name(
                     nickname = m2.group(1).strip()
 
         if aggressive_clean:
-            from .names.garbled import clean_garbled_name, should_use_garbled_cleaning
+            from .names.garbled import (clean_garbled_name,
+                                        should_use_garbled_cleaning)
 
             # Auto-detect if cleaning is needed
             if should_use_garbled_cleaning(raw_name):

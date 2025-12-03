@@ -14,7 +14,8 @@ _HAS_GLINER = False
 try:  # pragma: no cover - optional dependency
     from gliner2 import GLiNER2  # type: ignore
     try:
-        from transformers import logging as _tlogging  # type: ignore  # pragma: no cover
+        from transformers import \
+            logging as _tlogging  # type: ignore  # pragma: no cover
 
         _tlogging.set_verbosity_error()
     except Exception:

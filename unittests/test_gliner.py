@@ -4,8 +4,7 @@ import pytest
 
 sys.path.insert(0, "src")
 
-from humanmint import gliner
-from humanmint import mint
+from humanmint import gliner, mint
 
 
 def test_use_gliner_requires_text():

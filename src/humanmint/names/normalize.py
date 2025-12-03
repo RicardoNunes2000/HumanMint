@@ -12,15 +12,10 @@ from typing import Dict, Optional
 
 from nameparser import HumanName
 
-from humanmint.constants.names import (
-    CORPORATE_TERMS,
-    CREDENTIAL_SUFFIXES,
-    PLACEHOLDER_NAMES,
-    ROMAN_NUMERALS,
-    TITLE_PREFIXES,
-    GENERATIONAL_SUFFIXES,
-    NON_PERSON_PHRASES,
-)
+from humanmint.constants.names import (CORPORATE_TERMS, CREDENTIAL_SUFFIXES,
+                                       GENERATIONAL_SUFFIXES,
+                                       NON_PERSON_PHRASES, PLACEHOLDER_NAMES,
+                                       ROMAN_NUMERALS, TITLE_PREFIXES)
 from humanmint.data.utils import load_package_json_gz
 from humanmint.text_clean import normalize_unicode_ascii, strip_garbage
 

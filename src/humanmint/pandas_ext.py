@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Callable, Iterable, Optional, Union
 
 import pandas as pd
-from .column_guess import COLUMN_GUESSES
+from .column_guess import COLUMN_GUESSES  # noqa: F401
 
 
 @pd.api.extensions.register_dataframe_accessor("humanmint")
@@ -67,9 +67,15 @@ class HumanMintAccessor:
         name_col = guess_column(df_cols, name_col, COLUMN_GUESSES["name"], allowed)
         email_col = guess_column(df_cols, email_col, COLUMN_GUESSES["email"], allowed)
         phone_col = guess_column(df_cols, phone_col, COLUMN_GUESSES["phone"], allowed)
-        address_col = guess_column(df_cols, address_col, COLUMN_GUESSES["address"], allowed)
-        org_col = guess_column(df_cols, org_col, COLUMN_GUESSES["organization"], allowed)
-        dept_col = guess_column(df_cols, dept_col, COLUMN_GUESSES["department"], allowed)
+        address_col = guess_column(
+            df_cols, address_col, COLUMN_GUESSES["address"], allowed
+        )
+        org_col = guess_column(
+            df_cols, org_col, COLUMN_GUESSES["organization"], allowed
+        )
+        dept_col = guess_column(
+            df_cols, dept_col, COLUMN_GUESSES["department"], allowed
+        )
         title_col = guess_column(df_cols, title_col, COLUMN_GUESSES["title"], allowed)
 
         if use_bulk:
@@ -103,24 +109,62 @@ class HumanMintAccessor:
         cleaned = pd.DataFrame(
             [
                 {
-                    "hm_name_full": (result.name or {}).get("full") if result.name else None,
-                    "hm_name_first": (result.name or {}).get("first") if result.name else None,
-                    "hm_name_last": (result.name or {}).get("last") if result.name else None,
-                    "hm_name_gender": (result.name or {}).get("gender") if result.name else None,
-                    "hm_email": (result.email or {}).get("normalized") if result.email else None,
-                    "hm_email_domain": (result.email or {}).get("domain") if result.email else None,
-                    "hm_email_is_generic": (result.email or {}).get("is_generic_inbox") if result.email else None,
-                    "hm_email_is_free_provider": (result.email or {}).get("is_free_provider") if result.email else None,
-                    "hm_phone": (result.phone or {}).get("pretty") if result.phone else None,
-                    "hm_address_canonical": (result.address or {}).get("canonical") if result.address else None,
-                    "hm_address_city": (result.address or {}).get("city") if result.address else None,
-                    "hm_address_state": (result.address or {}).get("state") if result.address else None,
-                    "hm_address_zip": (result.address or {}).get("zip") if result.address else None,
-                    "hm_organization": (result.organization or {}).get("canonical") if result.organization else None,
-                    "hm_department": (result.department or {}).get("canonical") if result.department else None,
-                    "hm_department_category": (result.department or {}).get("category") if result.department else None,
-                    "hm_title_canonical": (result.title or {}).get("canonical") if result.title else None,
-                    "hm_title_is_valid": (result.title or {}).get("is_valid") if result.title else None,
+                    "hm_name_full": (result.name or {}).get("full")
+                    if result.name
+                    else None,
+                    "hm_name_first": (result.name or {}).get("first")
+                    if result.name
+                    else None,
+                    "hm_name_last": (result.name or {}).get("last")
+                    if result.name
+                    else None,
+                    "hm_name_gender": (result.name or {}).get("gender")
+                    if result.name
+                    else None,
+                    "hm_email": (result.email or {}).get("normalized")
+                    if result.email
+                    else None,
+                    "hm_email_domain": (result.email or {}).get("domain")
+                    if result.email
+                    else None,
+                    "hm_email_is_generic": (result.email or {}).get("is_generic_inbox")
+                    if result.email
+                    else None,
+                    "hm_email_is_free_provider": (result.email or {}).get(
+                        "is_free_provider"
+                    )
+                    if result.email
+                    else None,
+                    "hm_phone": (result.phone or {}).get("pretty")
+                    if result.phone
+                    else None,
+                    "hm_address_canonical": (result.address or {}).get("canonical")
+                    if result.address
+                    else None,
+                    "hm_address_city": (result.address or {}).get("city")
+                    if result.address
+                    else None,
+                    "hm_address_state": (result.address or {}).get("state")
+                    if result.address
+                    else None,
+                    "hm_address_zip": (result.address or {}).get("zip")
+                    if result.address
+                    else None,
+                    "hm_organization": (result.organization or {}).get("canonical")
+                    if result.organization
+                    else None,
+                    "hm_department": (result.department or {}).get("canonical")
+                    if result.department
+                    else None,
+                    "hm_department_category": (result.department or {}).get("category")
+                    if result.department
+                    else None,
+                    "hm_title_canonical": (result.title or {}).get("canonical")
+                    if result.title
+                    else None,
+                    "hm_title_is_valid": (result.title or {}).get("is_valid")
+                    if result.title
+                    else None,
                 }
                 for result in results
             ],

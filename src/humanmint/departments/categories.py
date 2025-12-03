@@ -6,9 +6,10 @@ department_categories.json.gz (generated from semantic tokens).
 """
 
 import gzip
-import orjson
 from pathlib import Path
 from typing import Optional
+
+import orjson
 
 # Load categories from generated file
 _CATEGORIES_CACHE = None
