@@ -232,6 +232,24 @@ def _detect_suffix(last: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     suffix_candidate = parts[-1].lower().rstrip(".")
     remaining_last = " ".join(parts[:-1])
 
+    text_ordinals = {
+        "first": "i",
+        "second": "ii",
+        "third": "iii",
+        "fourth": "iv",
+        "fifth": "v",
+        "sixth": "vi",
+        "seventh": "vii",
+        "eighth": "viii",
+        "ninth": "ix",
+        "tenth": "x",
+    }
+
+    # Textual ordinals embedded in last name: "... the third" -> suffix iii
+    if len(parts) >= 2 and parts[-2].lower() == "the" and suffix_candidate in text_ordinals:
+        remaining_last = " ".join(parts[:-2]).strip()
+        return (remaining_last if remaining_last else ""), text_ordinals[suffix_candidate]
+
     # Professional/credential suffixes are stripped out of standardized names
     if suffix_candidate in CREDENTIAL_SUFFIXES:
         return (remaining_last if remaining_last else ""), None

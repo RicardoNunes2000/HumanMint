@@ -215,6 +215,12 @@ def test_normalize_name_handles_quoted_nickname():
     assert res.name_standardized.lower() == "james o'connor iii"
 
 
+def test_normalize_name_rejects_null_placeholder():
+    result = normalize_name("NULL")
+    assert result["is_valid"] is False
+    assert result["full"] is None
+
+
 def test_normalize_name_preserves_dotted_initials():
     result = normalize_name("O.J. Simpson")
 
@@ -236,3 +242,15 @@ def test_normalize_name_handles_underscores_as_spaces():
     assert result["first"] == "Jane"
     assert result["last"] == "Doe"
     assert result["full"] == "Jane Doe"
+
+
+def test_textual_ordinals_become_roman_suffix():
+    result = normalize_name("Thurston Howell the Third")
+
+    assert result["last"] == "Howell"
+    assert result["suffix"] == "iii"
+    assert result["full"] == "Thurston Howell III"
+
+    result = normalize_name("Henry Ford the Fourth")
+    assert result["suffix"] == "iv"
+    assert result["full"] == "Henry Ford IV"

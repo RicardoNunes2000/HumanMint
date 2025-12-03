@@ -118,6 +118,9 @@ _ABBREVIATIONS = {
     "ph": "public health",
     "wrks": "works",
     "resourcs": "resources",
+    "web": "web",
+    "website": "website",
+    "digital": "digital",
 }
 
 

@@ -187,6 +187,7 @@ TITLE_PREFIXES = {
 # Placeholder values that should be treated as empty/unknown
 PLACEHOLDER_NAMES = {
     "unknown",
+    "null",
     "tbd",
     "n/a",
     "na",

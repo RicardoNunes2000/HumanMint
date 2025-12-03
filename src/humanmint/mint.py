@@ -653,7 +653,14 @@ def mint(
             ttl = title or extracted_fields.get("title")
             org = organization or extracted_fields.get("organization")
 
-            department_result = process_department(dept_val, dept_overrides)
+            title_preview = process_title(
+                ttl, dept_canonical=None, overrides=title_overrides
+            )
+            department_result = process_department(
+                dept_val,
+                dept_overrides,
+                title_canonical=(title_preview or {}).get("canonical"),
+            )
             dept_canonical = (
                 department_result["canonical"] if department_result else None
             )
@@ -665,7 +672,9 @@ def mint(
                     phone=process_phone(ph),
                     department=department_result,
                     title=process_title(
-                        ttl, dept_canonical=dept_canonical, overrides=title_overrides
+                        ttl,
+                        dept_canonical=dept_canonical,
+                        overrides=title_overrides,
                     ),
                     address=process_address(addr),
                     organization=process_organization(org),
@@ -675,7 +684,14 @@ def mint(
             return results_gliner[0]
         return results_gliner
 
-    department_result = process_department(department, dept_overrides)
+    title_preview = process_title(
+        title, dept_canonical=None, overrides=title_overrides
+    )
+    department_result = process_department(
+        department,
+        dept_overrides,
+        title_canonical=(title_preview or {}).get("canonical"),
+    )
     dept_canonical = department_result["canonical"] if department_result else None
 
     return MintResult(

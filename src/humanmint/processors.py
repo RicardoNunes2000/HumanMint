@@ -30,6 +30,7 @@ from .names.matching import detect_nickname
 from .organizations import normalize_organization
 from .phones import normalize_phone
 from .titles import normalize_title_full
+from .semantics import _extract_domains
 from .types import (
     AddressResult,
     DepartmentResult,
@@ -397,7 +398,9 @@ def process_phone(raw_phone: Optional[str]) -> Optional[PhoneResult]:
 
 
 def process_department(
-    raw_dept: Optional[str], overrides: Optional[dict[str, str]] = None
+    raw_dept: Optional[str],
+    overrides: Optional[dict[str, str]] = None,
+    title_canonical: Optional[str] = None,
 ) -> Optional[DepartmentResult]:
     """
     Normalize department and apply overrides.
@@ -410,18 +413,91 @@ def process_department(
         DepartmentResult with raw input and normalized variants, or None if invalid.
     """
     if not raw_dept or not isinstance(raw_dept, str):
-        return None
+        raw_dept = None
+
+    IT_TOKENS = {
+        "it",
+        "information",
+        "technology",
+        "technologist",
+        "software",
+        "developer",
+        "development",
+        "engineer",
+        "engineering",
+        "programmer",
+        "web",
+        "website",
+        "digital",
+        "online",
+        "internet",
+        "devops",
+    }
+    WATER_TOKENS = {
+        "water",
+        "wastewater",
+        "sewer",
+        "sewerage",
+        "utilities",
+        "utility",
+        "hydrant",
+        "pipe",
+        "plumber",
+    }
+
+    def _infer_domains_from_text(text: Optional[str]) -> set[str]:
+        if not text:
+            return set()
+        tokens = set(re.findall(r"[a-z0-9']+", text.lower()))
+        domains = set()
+        vocab_domains = {d.upper() for d in _extract_domains(text)}
+        if vocab_domains:
+            domains |= vocab_domains
+        if tokens & IT_TOKENS:
+            domains.add("IT")
+        if tokens & WATER_TOKENS:
+            domains.add("WATER")
+        return domains
 
     try:
-        normalized = normalize_department(raw_dept)
+        normalized = normalize_department(raw_dept) if raw_dept else None
         is_non_dept = is_likely_non_department(normalized)
+        inferred_canonical = None
+
+        dept_domains = _infer_domains_from_text(normalized or raw_dept)
+        title_domains = _infer_domains_from_text(title_canonical)
+
+        # Explicit mapping for web/digital/website style departments (IT context)
+        if "IT" in dept_domains:
+            inferred_canonical = "Information Technology"
+        elif "WATER" in dept_domains:
+            inferred_canonical = "Water"
+
+        # Disambiguate abbreviated "W." departments using title domains
+        ambiguous_w = False
+        if raw_dept and re.match(r"^\s*w\.?\b", raw_dept, flags=re.IGNORECASE):
+            ambiguous_w = True
+
+        if not inferred_canonical and ambiguous_w:
+            if "IT" in title_domains and "WATER" not in title_domains:
+                inferred_canonical = "Information Technology"
+            elif "WATER" in title_domains and "IT" not in title_domains:
+                inferred_canonical = "Water"
+            # If still ambiguous, leave None to allow overrides/fuzzy/no match
+
+        # Infer from title when department is missing/empty or not a clear department
+        if not inferred_canonical and (not normalized or is_non_dept):
+            if "IT" in title_domains:
+                inferred_canonical = "Information Technology"
+            elif "WATER" in title_domains:
+                inferred_canonical = "Water"
 
         # Check if normalized department matches any override
         is_override = False
         matched_canonical = False
-        final_dept = normalized
+        final_dept = inferred_canonical or normalized
         if overrides:
-            normalized_lower = normalized.lower()
+            normalized_lower = (normalized or "").lower()
             norm_overrides = {}
             for k, v in overrides.items():
                 try:
@@ -449,11 +525,14 @@ def process_department(
 
         if not is_override:
             # If it's a non-department (location-like), don't try to match
-            if is_non_dept:
+            if is_non_dept and not inferred_canonical:
                 final_dept = None
+            elif inferred_canonical:
+                final_dept = inferred_canonical
+                matched_canonical = True
             else:
                 # Find best canonical match if no override matched
-                canonical = find_best_department_match(raw_dept, threshold=0.6)
+                canonical = find_best_department_match(raw_dept, threshold=0.6) if raw_dept else None
                 if canonical:
                     final_dept = canonical
                     matched_canonical = True
